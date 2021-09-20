@@ -53,6 +53,7 @@ namespace Olympus {
 
         public bool Resizing;
         public bool ManualUpdate;
+        private bool ManuallyUpdated;
 
         private readonly Dictionary<Type, object> ComponentCache = new();
 
@@ -65,9 +66,9 @@ namespace Olympus {
 
         public float BackgroundOpacityTime = 0f;
 
-        public bool VSync = false; // FIXME: DON'T SHIP WITH VSYNC OFF!
+        public bool VSync = true; // FIXME: DON'T SHIP WITH VSYNC OFF!
 
-
+        
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
         public App() {
 #pragma warning restore CS8618
@@ -163,6 +164,7 @@ namespace Olympus {
                 gameTime = new(gameTime.TotalGameTime, dtSpan, gameTime.IsRunningSlowly);
                 Resizing = true;
                 ManualUpdate = true;
+                ManuallyUpdated = true;
             }
             CountingFramesTime += dtSpan;
             CountingFramesWatchLast = GlobalWatch.ElapsedTicks;
@@ -204,15 +206,24 @@ namespace Olympus {
 
                 PrevClientBounds = clientBounds;
 
-            } else if (!Graphics.SynchronizeWithVerticalRetrace && !ManualUpdate && VSync) {
-                // Graphics.SynchronizeWithVerticalRetrace = true;
-                Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.One;
+            } else if (ManuallyUpdated && !ManualUpdate) {
+                ManuallyUpdated = false;
+
+                if (!Graphics.SynchronizeWithVerticalRetrace && VSync) {
+                    Graphics.SynchronizeWithVerticalRetrace = true;
+                    Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.One;
+                }
+
                 // XNA - and thus in turn FNA - love to re-center the window on device changes.
                 Point pos = Native.WindowPosition;
+                FNAPatches.ApplyWindowChangesWithoutCenter = true;
                 m_GameWindow_OnClientSizeChanged.Invoke(Window, EmptyArgs);
+                FNAPatches.ApplyWindowChangesWithoutCenter = false;
+
                 // In some circumstances, fixing the window position is required, but only on device changes.
                 if (Native.WindowPosition != pos)
                     Native.WindowPosition = Native.FixWindowPositionDisplayDrag(pos);
+
                 WidthOverride = HeightOverride = null;
             }
 

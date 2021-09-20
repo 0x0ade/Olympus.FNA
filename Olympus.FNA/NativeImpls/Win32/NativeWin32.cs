@@ -282,7 +282,7 @@ namespace Olympus.NativeImpls {
                 Name = "Olympus Win32 Helper Background Thread",
                 IsBackground = true,
             };
-            // BGThread.Start();
+            BGThread.Start();
         }
 
         public override Microsoft.Xna.Framework.Point FixWindowPositionDisplayDrag(Microsoft.Xna.Framework.Point pos) {
@@ -643,6 +643,9 @@ namespace Olympus.NativeImpls {
                     break;
 
                 case WindowsMessage.WM_NCCALCSIZE:
+                    _IsMaximized = GetIsMaximized(HWnd);
+                    GetWindowRect(HWnd, out LastWindowRect);
+                    GetClientRect(HWnd, out LastClientRect);
                     if (wParam == ONE) {
                         // Call the original WndProc for easier resizing,
                         // BUT undo the title bar at the top.
@@ -820,6 +823,7 @@ namespace Olympus.NativeImpls {
                 case WindowsMessage.WM_THEMECHANGED:
                 case WindowsMessage.WM_DWMCOMPOSITIONCHANGED:
                 case WindowsMessage.WM_DISPLAYCHANGE:
+                    _IsMaximized = GetIsMaximized(HWnd);
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
                     break;

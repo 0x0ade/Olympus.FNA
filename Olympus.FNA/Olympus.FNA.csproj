@@ -46,6 +46,8 @@
   <ItemGroup>
     <PackageReference Include="LibTessDotNet" Version="1.1.15" />
     <PackageReference Include="Mono.Options" Version="6.12.0.148" />
+    <PackageReference Include="MonoMod.RuntimeDetour" Version="21.9.19.1" />
+    <PackageReference Include="MonoMod.Utils" Version="21.9.19.1" />
     <PackageReference Include="SharpDX" Version="4.2.0" Condition="$(TargetIsWindows)" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
   </ItemGroup>

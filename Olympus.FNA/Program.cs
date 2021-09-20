@@ -62,6 +62,8 @@ namespace Olympus {
             External.DllManager.PrepareResolver(typeof(Program).Assembly);
             // External.DllManager.PrepareResolver(typeof(Microsoft.Xna.Framework.Game).Assembly);
 
+            FNAPatches.Apply();
+
             using App game = new();
             game.Run();
         }
