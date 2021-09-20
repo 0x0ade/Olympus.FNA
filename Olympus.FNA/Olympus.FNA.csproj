@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net5.0;net5.0-windows</TargetFrameworks>
+    <RootNamespace>Olympus</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
+    <CopyContent Condition="'$(CopyContent)' == '' And '$(Configuration)' == 'Release'">true</CopyContent>
+    <CopyContent Condition="'$(CopyContent)' == ''">false</CopyContent>
+    <DefineConstants Condition="!$(CopyContent)">DEBUG_CONTENT;$(DefineConstants)</DefineConstants>
+    <TargetIsWindows Condition="'$(TargetIsWindows)' == '' And $(TargetFramework.Contains('-windows'))">true</TargetIsWindows>
+    <TargetIsWindows Condition="'$(TargetIsWindows)' == ''">false</TargetIsWindows>
+    <DefineConstants Condition="$(TargetIsWindows)">WINDOWS;$(DefineConstants)</DefineConstants>
+    <UseWindowsForms>$(TargetIsWindows)</UseWindowsForms>
+    <OutputType>exe</OutputType>
+    <OutputType Condition="$(TargetIsWindows)">winexe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <PlatformLibs Condition="'$(PlatformLibs)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">windows</PlatformLibs>
+    <PlatformLibs Condition="'$(PlatformLibs)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux</PlatformLibs>
+    <PlatformLibs Condition="'$(PlatformLibs)' == '' And $([MSBuild]::IsOSPlatform('macOS'))">macOS</PlatformLibs>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FNA\FNA.Core.csproj" />
+    <ProjectReference Include="..\FontStashSharp\src\XNA\FontStashSharp.FNA.Core.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Import Include="System.Drawing" Condition="$(TargetIsWindows)" />
+    <Import Include="System.Windows.Forms" Condition="$(TargetIsWindows)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\Content\**\*" Condition="$(CopyContent)">
+      <LinkBase>Content</LinkBase>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\lib\$(PlatformLibs)\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibTessDotNet" Version="1.1.15" />
+    <PackageReference Include="Mono.Options" Version="6.12.0.148" />
+    <PackageReference Include="SharpDX" Version="4.2.0" Condition="$(TargetIsWindows)" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
+  </ItemGroup>
+
+</Project>
