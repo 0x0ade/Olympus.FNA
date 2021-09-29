@@ -2,7 +2,7 @@
 using System;
 
 // Thanks to the Monocle Engine for having this ready to be borrowed!
-namespace Olympus {
+namespace OlympUI {
     public static class Ease {
 
         public delegate float Easer(float t);

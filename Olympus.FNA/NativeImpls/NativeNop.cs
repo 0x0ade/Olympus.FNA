@@ -38,6 +38,7 @@ namespace Olympus.NativeImpls {
 
         public override bool ReduceBackBufferResizes => false;
 
+
         public override bool IsMouseFocus => SDL.SDL_GetMouseFocus() == Game.Window.Handle;
 
         private bool _CaptureMouse;

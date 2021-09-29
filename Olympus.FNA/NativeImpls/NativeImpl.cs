@@ -32,6 +32,7 @@ namespace Olympus.NativeImpls {
 
         public abstract bool ReduceBackBufferResizes { get; }
 
+
         public NativeImpl(App app)
             : base(app) {
             App = app;

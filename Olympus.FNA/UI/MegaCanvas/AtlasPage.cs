@@ -26,7 +26,7 @@ namespace OlympUI.MegaCanvas {
             Manager = manager;
             Graphics = manager.Graphics;
 
-            RT = new(Graphics, Manager.PageSize, Manager.PageSize, false, SurfaceFormat.Color, DepthFormat.None, Manager.MultiSampleCount, RenderTargetUsage.PreserveContents);
+            RT = new(Graphics, Manager.PageSize, Manager.PageSize, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
             Spaces.Add(new(0, 0, RT.Width, RT.Height));
         }
 
@@ -155,22 +155,20 @@ namespace OlympUI.MegaCanvas {
         }
 
         public void Cleanup() {
-            // FIXME: Cleanup pages!
             Spaces.Clear();
             Spaces.Add(new(0, 0, RT.Width, RT.Height));
 
             foreach (RenderTarget2DRegion rtrg in Taken) {
                 for (int i = Spaces.Count - 1; i >= 0; --i) {
                     Rectangle space = Spaces[i];
+                    Rectangle taken = rtrg.Region;
 
-                    // Rectangle subtraction ported from Lua, first implemented by Lönn.
+                    // Rectangle subtraction ported from Olympus Lua, first implemented in Lönn.
 
-                    Rectangle r1 = space;
-                    Rectangle r2 = rtrg.Region;
-                    int tlx = Math.Max(r1.X, r2.X);
-                    int tly = Math.Max(r1.Y, r2.Y);
-                    int brx = Math.Max(r1.Right, r2.Right);
-                    int bry = Math.Max(r1.Bottom, r2.Bottom);
+                    int tlx = Math.Max(space.X, taken.X);
+                    int tly = Math.Max(space.Y, taken.Y);
+                    int brx = Math.Min(space.Right, taken.Right);
+                    int bry = Math.Min(space.Bottom, taken.Bottom);
 
                     if (tlx >= brx || tly >= bry) {
                         // No intersection.
@@ -180,56 +178,41 @@ namespace OlympUI.MegaCanvas {
                     Spaces.RemoveAt(i);
                     int ii = i;
 
-                    if (r2.Width < r2.Height) {
+                    if (taken.Width < taken.Height) {
                         // Large left rectangle
-                        if (tlx > r1.X)
-                            Spaces.Insert(ii++, new(r1.X, r1.Y, tlx - r1.X, r1.Height));
+                        if (tlx > space.X)
+                            Spaces.Insert(ii++, new(space.X, space.Y, tlx - space.X, space.Height));
+
+                        // Large right rectangle
+                        if (brx < space.Right)
+                            Spaces.Insert(ii++, new(brx, space.Y, space.Right - brx, space.Height));
+
+                        // Small top rectangle
+                        if (tly > space.Y)
+                            Spaces.Insert(ii++, new(tlx, space.Y, brx - tlx, tly - space.Y));
+
+                        // Small bottom rectangle
+                        if (bry < space.Bottom)
+                            Spaces.Insert(ii++, new(tlx, bry, brx - tlx, space.Bottom - bry));
 
                     } else {
+                        // Small left rectangle
+                        if (tlx > space.X)
+                            Spaces.Insert(ii++, new(space.X, space.Y, tlx - space.X, bry - tly));
+
+                        // Small right rectangle
+                        if (brx < space.Right)
+                            Spaces.Insert(ii++, new(brx, tly, space.Right - brx, bry - tly));
+
+                        // Large top rectangle
+                        if (tly > space.Y)
+                            Spaces.Insert(ii++, new(space.X, space.Y, space.Width, tly - space.Y));
+
+                        // Large bottom rectangle
+                        if (bry < space.Bottom)
+                            Spaces.Insert(ii++, new(space.X, bry, space.Width, space.Bottom - bry));
 
                     }
-
-                    /*
-
-                    if r2.width < r2.height then
-
-                    -- Large right rectangle
-                    if brx < r1.x + r1.width then
-                    table.insert(remaining, rect(brx, r1.y, r1.x + r1.width - brx, r1.height))
-                    end
-
-                    -- Small top rectangle
-                    if tly > r1.y then
-                    table.insert(remaining, rect(tlx, r1.y, brx - tlx, tly - r1.y))
-                    end
-
-                    -- Small bottom rectangle
-                    if bry < r1.y + r1.height then
-                    table.insert(remaining, rect(tlx, bry, brx - tlx, r1.y + r1.height - bry))
-                    end
-
-                    else
-                    -- Small left rectangle
-                    if tlx > r1.x then
-                    table.insert(remaining, rect(r1.x, tly, tlx - r1.x, bry - tly))
-                    end
-
-                    -- Small right rectangle
-                    if brx < r1.x + r1.width then
-                    table.insert(remaining, rect(brx, tly, r1.x + r1.width - brx, bry - tly))
-                    end
-
-                    -- Large top rectangle
-                    if tly > r1.y then
-                    table.insert(remaining, rect(r1.x, r1.y, r1.width, tly - r1.y))
-                    end
-
-                    -- Large bottom rectangle
-                    if bry < r1.y + r1.height then
-                    table.insert(remaining, rect(r1.x, bry, r1.width, r1.y + r1.height - bry))
-                    end
-                    end
-                    */
                 }
             }
         }

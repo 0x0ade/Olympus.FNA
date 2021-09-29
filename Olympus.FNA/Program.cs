@@ -16,7 +16,7 @@ namespace Olympus {
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
 
-            Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "D3D11");
+            // Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "D3D11");
 
             bool help = false;
             bool helpExit = false;

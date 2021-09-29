@@ -31,6 +31,9 @@ namespace OlympUI {
         public int Wiggle = 4;
 
         public Vector2 ScrollDXY;
+        private Vector2 ScrollDXYPrev;
+        private Vector2 ScrollDXYMax;
+        private float ScrollDXYTime;
 
         public ScrollBox() {
             Cached = false;
@@ -54,7 +57,14 @@ namespace OlympUI {
             }
 
             if (ScrollDXY != default) {
-                ScrollDXY *= 0.475f;
+                if (ScrollDXY != ScrollDXYPrev) {
+                    ScrollDXYMax = ScrollDXY * 0.1f;
+                    ScrollDXYTime = 0f;
+                }
+                ScrollDXYTime += dt * 4f;
+                if (ScrollDXYTime > 1f)
+                    ScrollDXYTime = 1f;
+                ScrollDXYPrev = ScrollDXY = ScrollDXYMax * (1f - Ease.CubeOut(ScrollDXYTime));
 
                 if (Math.Abs(ScrollDXY.X) < 1f)
                     ScrollDXY.X = 0f;

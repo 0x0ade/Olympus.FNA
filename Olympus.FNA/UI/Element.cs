@@ -12,9 +12,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Position = Microsoft.Xna.Framework.Vector2;
-using Size = Microsoft.Xna.Framework.Point;
-
 namespace OlympUI {
     public abstract class Element : IEnumerable<Element>, IDisposable {
 
@@ -80,6 +77,8 @@ namespace OlympUI {
             set => RepaintID = value ? 0 : UI.GlobalRepaintID;
         }
 
+        protected uint ConsecutiveRepaints;
+
         protected RenderTarget2DRegion? CachedTexture;
 
 
@@ -101,7 +100,7 @@ namespace OlympUI {
         /// <summary>
         /// User-defined or otherwise expected position.
         /// </summary>
-        public Position XY;
+        public Vector2 XY;
         public int X {
             get => (int) XY.X;
             set => XY.X = value;
@@ -114,7 +113,7 @@ namespace OlympUI {
         /// <summary>
         /// User-defined or otherwise expected size.
         /// </summary>
-        public Size WH;
+        public Point WH;
         public int W {
             get => WH.X;
             set => WH.X = value;
@@ -209,12 +208,12 @@ namespace OlympUI {
 
         #region Real positions
 
-        private Position? _RealXY;
+        private Vector2? _RealXY;
 
         /// <summary>
         /// Actual position inside of parent.
         /// </summary>
-        public virtual Position RealXY {
+        public virtual Vector2 RealXY {
             get => _RealXY ?? XY;
             set => _RealXY = value;
         }
@@ -228,9 +227,9 @@ namespace OlympUI {
         }
         public virtual void ResetRealXY() => _RealXY = null;
         
-        public virtual Position ScreenXY {
+        public virtual Vector2 ScreenXY {
             get {
-                Position xy = new(0, 0);
+                Vector2 xy = new(0, 0);
                 for (Element? el = this; el != null; el = el.Parent)
                     xy += el.RealXY;
                 return xy;
@@ -239,12 +238,12 @@ namespace OlympUI {
         }
 
         public virtual Point InnerXY => new(0, 0);
-        public virtual Size InnerWH => WH;
+        public virtual Point InnerWH => WH;
 
         public Rectangle ScreenXYWH {
             get {
-                Position xy = ScreenXY;
-                Size wh = WH;
+                Vector2 xy = ScreenXY;
+                Point wh = WH;
                 return new Rectangle((int) xy.X, (int) xy.Y, wh.X, wh.Y);
             }
         }
@@ -442,7 +441,7 @@ namespace OlympUI {
 
         #region Paint
 
-        // TODO
+        // TODO: Element painting is a general TODO area.
 
         public virtual void Paint() {
             PaintContent();
@@ -465,7 +464,7 @@ namespace OlympUI {
 
             bool repainting = Repainting;
 
-            if (CachedTexture != null && (CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
+            if (CachedTexture != null && ((repainting && CachedTexture.Page != null) || CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
                 UI.MegaCanvas.Free(CachedTexture);
                 CachedTexture = null;
                 repainting = true;
@@ -479,8 +478,17 @@ namespace OlympUI {
                 return;
             }
 
-            if (repainting) {
+            if (!repainting) {
+                if (ConsecutiveRepaints < 10) {
+                    ConsecutiveRepaints++;
+
+                } else if (CachedTexture.Page == null) {
+                    CachedTexture = UI.MegaCanvas.GetPackedAndFree(CachedTexture) ?? CachedTexture;
+                }
+
+            } else {
                 Repainting = false;
+                ConsecutiveRepaints = 0;
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
                 gd.SetRenderTarget(CachedTexture.RT);
@@ -506,8 +514,8 @@ namespace OlympUI {
                     whTexture.Y
                 ),
                 new Rectangle(
-                    0,
-                    0,
+                    CachedTexture.Region.X,
+                    CachedTexture.Region.Y,
                     whTexture.X,
                     whTexture.Y
                 ),

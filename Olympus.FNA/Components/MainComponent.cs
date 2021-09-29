@@ -40,6 +40,13 @@ namespace Olympus {
                 }
             }
 
+            if (UIInput.Pressed(Keys.F7)) {
+                string path = Path.Combine(Environment.CurrentDirectory, "megacanvas");
+                if (!Directory.Exists(path))
+                    Directory.CreateDirectory(path);
+                UI.MegaCanvas.Dump(path);
+            }
+
             Viewport view = Game.GraphicsDevice.Viewport;
             // FIXME: WHY IS YET ANOTHER ROW OF PIXELS MISSING?! Is this an OlympUI bug or another Windows quirk?
             UI.Root.WH = new(view.Width, view.Height - (Native.IsMaximized ? 8 : 1));
@@ -72,6 +79,7 @@ namespace Olympus {
             UI.Paint();
             Scener.Draw();
 
+#if DEBUG
             string debug =
                 $"FPS: {App.FPS}\n" +
                 $"Mouse: {UIInput.Mouse}\n" +
@@ -89,6 +97,7 @@ namespace Olympus {
             SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 0, debugOutline * 1), Color.Black);
             SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 1), Color.Red);
             SpriteBatch.End();
+#endif
         }
 
         private static string GetHumanFriendlyBytes(long bytes) {

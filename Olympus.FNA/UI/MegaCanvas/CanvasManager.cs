@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,6 +16,7 @@ namespace OlympUI.MegaCanvas {
         public int MinSize = 8;
         public int MaxSize = 4096;
         public int PageSize = 4096;
+        public int MaxPackedSize = 2048;
         public int MultiSampleCount = 0;
 
         public readonly PoolEntry[] PoolEntries = new PoolEntry[64];
@@ -56,19 +58,13 @@ namespace OlympUI.MegaCanvas {
                     for (int i = PoolEntries.Length - 1; i >= 0; --i) {
                         ref PoolEntry entry = ref PoolEntries[i];
                         if (!entry.IsNull && (entry.IsDisposed || entry.Age++ >= PoolMaxAgeFrames)) {
-                            entry.RT.Dispose();
-                            PoolTotalMemory -= entry.RT.GetMemoryUsage();
-                            PoolEntries[i] = default;
-                            PoolEntriesAlive--;
+                            Free(ref entry);
                         }
                     }
                     for (int i = PoolEntries.Length - 1; i >= PoolCullTarget; --i) {
                         PoolEntry entry = PoolEntries[i];
                         if (!entry.IsNull) {
-                            entry.RT.Dispose();
-                            PoolTotalMemory -= entry.RT.GetMemoryUsage();
-                            PoolEntries[i] = default;
-                            PoolEntriesAlive--;
+                            Free(ref entry);
                         }
                     }
 
@@ -76,10 +72,7 @@ namespace OlympUI.MegaCanvas {
                     for (int i = PoolEntries.Length - 1; i >= 0; --i) {
                         ref PoolEntry entry = ref PoolEntries[i];
                         if (!entry.IsDisposed && entry.Age++ >= PoolMaxAgeFrames) {
-                            entry.RT.Dispose();
-                            PoolTotalMemory -= entry.RT.GetMemoryUsage();
-                            PoolEntries[i] = default;
-                            PoolEntriesAlive--;
+                            Free(ref entry);
                         }
                     }
                 }
@@ -93,35 +86,54 @@ namespace OlympUI.MegaCanvas {
         }
 
         public void Blit(Texture2D from, Rectangle fromBounds, RenderTarget2D to, Rectangle toBounds) {
-            GraphicsDevice gd = UI.Game.GraphicsDevice;
+            GraphicsDevice gd = Graphics;
             GraphicsStateSnapshot gss = new(gd);
 
             gd.SetRenderTarget(to);
             using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
             sb.Draw(from, toBounds, fromBounds, Color.White);
             sb.End();
 
             gss.Apply();
         }
 
-        public RenderTarget2DRegion? Pack(RenderTarget2D rt) {
-            RenderTarget2DRegion? rtrg = GetRegion(new(0, 0, rt.Width, rt.Height));
+        public RenderTarget2DRegion? GetPacked(RenderTarget2D old) {
+            Rectangle oldBounds = new(0, 0, old.Width, old.Height);
+            RenderTarget2DRegion? packed = GetRegion(oldBounds);
+            if (packed == null)
+                return null;
+
+            Blit(old, oldBounds, packed.RT, packed.Region);
+            return packed;
+        }
+
+        public RenderTarget2DRegion? GetPackedAndFree(RenderTarget2DRegion old) {
+            Rectangle oldBounds = old.Region;
+            RenderTarget2DRegion? rtrg = GetRegion(oldBounds);
             if (rtrg == null)
                 return null;
 
-            Blit(rt, new Rectangle(0, 0, rt.Width, rt.Height), rtrg.RT, rtrg.Region);
+            Blit(old.RT, oldBounds, rtrg.RT, rtrg.Region);
+            Free(old);
             return rtrg;
         }
 
         public RenderTarget2DRegion? GetRegion(Rectangle want) {
-            if (want.Width > PageSize || want.Height > PageSize)
+            if (want.Width > MaxPackedSize || want.Height > MaxPackedSize)
                 return null;
-            foreach (AtlasPage page in Pages)
-                if (page.GetRegion(want) is RenderTarget2DRegion rtrg)
-                    return rtrg;
-            // FIXME: Add new pages?
-            return null;
+
+            {
+                foreach (AtlasPage page in Pages)
+                    if (page.GetRegion(want) is RenderTarget2DRegion rtrg)
+                        return rtrg;
+            }
+
+            {
+                AtlasPage page = new(this);
+                Pages.Add(page);
+                return page.GetRegion(want);
+            }
         }
 
         public void Free(RenderTarget2DRegion? rtrg) {
@@ -136,6 +148,13 @@ namespace OlympUI.MegaCanvas {
             rtrg.Page.Free(rtrg);
         }
 
+        private void Free(ref PoolEntry entry) {
+            entry.RT?.Dispose();
+            PoolTotalMemory -= entry.RT?.GetMemoryUsage() ?? 0;
+            entry = default;
+            PoolEntriesAlive--;
+        }
+
         public RenderTarget2DRegion? GetPooled(int width, int height) {
             if (width < MinSize || height < MinSize ||
                 width > MaxSize || height > MaxSize)
@@ -147,6 +166,7 @@ namespace OlympUI.MegaCanvas {
             lock (PoolEntries) {
                 if (PoolEntries.TryGetSmallest(width, height, out PoolEntry entry, out int index)) {
                     PoolEntries[index] = default;
+                    PoolEntriesAlive--;
                     rt = entry.RT;
                 }
             }
@@ -202,6 +222,54 @@ namespace OlympUI.MegaCanvas {
                         PoolTotalMemory -= rt.GetMemoryUsage();
                     }
                 }
+            }
+        }
+
+        public void Dump(string dir) {
+            GraphicsDevice gd = Graphics;
+            GraphicsStateSnapshot gss = new(gd);
+            Texture2D white = Assets.White;
+
+            for (int i = Pages.Count - 1; i >= 0; --i) {
+                AtlasPage page = Pages[i];
+                RenderTarget2D rt = page.RT;
+                using RenderTarget2D tmp = new(gd, rt.Width, rt.Height, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
+
+                gd.SetRenderTarget(tmp);
+                using SpriteBatch sb = new(gd);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+                sb.Draw(rt, new Vector2(0f, 0f), Color.White);
+                sb.End();
+                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+                foreach (Rectangle rg in page.Spaces) {
+                    sb.Draw(white, new Rectangle(rg.X, rg.Y, rg.Width, 1), Color.Green * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.X, rg.Bottom - 1, rg.Width, 1), Color.Green * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.X, rg.Y + 1, 1, rg.Height - 2), Color.Green * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.Right - 1, rg.Y + 1, 1, rg.Height - 2), Color.Green * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.X + 1, rg.Y + 1, rg.Width - 2, rg.Height - 2), Color.Green * 0.3f);
+                }
+                foreach (RenderTarget2DRegion rtrg in page.Taken) {
+                    Rectangle rg = rtrg.Region;
+                    sb.Draw(white, new Rectangle(rg.X, rg.Y, rg.Width, 1), Color.Blue * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.X, rg.Bottom - 1, rg.Width, 1), Color.Blue * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.X, rg.Y + 1, 1, rg.Height - 2), Color.Blue * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.Right - 1, rg.Y + 1, 1, rg.Height - 2), Color.Blue * 0.7f);
+                    sb.Draw(white, new Rectangle(rg.X + 1, rg.Y + 1, rg.Width - 2, rg.Height - 2), Color.Blue * 0.3f);
+                }
+                sb.End();
+
+                using FileStream fs = new(Path.Combine(dir, $"atlas_{i}.png"), FileMode.Create);
+                tmp.SaveAsPng(fs, tmp.Width, tmp.Height);
+            }
+
+            gss.Apply();
+
+            for (int i = PoolEntries.Length - 1; i >= 0; --i) {
+                PoolEntry entry = PoolEntries[i];
+                if (entry.IsDisposed)
+                    continue;
+                using FileStream fs = new(Path.Combine(dir, $"pooled_{i}.png"), FileMode.Create);
+                entry.RT.SaveAsPng(fs, entry.RT.Width, entry.RT.Height);
             }
         }
 

@@ -30,6 +30,8 @@ namespace Olympus.NativeImpls {
         static readonly bool SetAcrylicOnSelf = Environment.GetEnvironmentVariable("OLYMPUS_WIN32_SELFACRYLIC") == "1" || Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
         static readonly bool SystemHasAcrylicFixes = Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
 
+        static readonly bool IsOpenGL = Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER")?.ToLowerInvariant() == "opengl";
+
         private IntPtr HWnd;
         private IntPtr HDc;
 
@@ -54,6 +56,8 @@ namespace Olympus.NativeImpls {
         private bool IsTransparent;
         private float LastBackgroundBlur;
 
+        private bool InMoveSize;
+
         private bool Ready = false;
         private Bitmap Splash;
         private Win10BackgroundForm? BackgroundChild;
@@ -63,6 +67,7 @@ namespace Olympus.NativeImpls {
         private TimeSpan LastTickStart;
         private TimeSpan LastTickEnd;
         private volatile bool ManuallyBlinking;
+
 
         private Thread? BGThread;
         private bool BGThreadRedraw;
@@ -185,7 +190,8 @@ namespace Olympus.NativeImpls {
             set => _BackgroundBlur = SetBackgroundBlur(value ? 0.6f : -1f);
         }
 
-        public override bool ReduceBackBufferResizes => !(CurrentDisplay?.Adapter.IsMain ?? true);
+        public override bool ReduceBackBufferResizes => !IsOpenGL && !(CurrentDisplay?.Adapter.IsMain ?? true);
+
 
         private bool _IsMouseFocus;
         public override bool IsMouseFocus => _IsMouseFocus;
@@ -291,7 +297,8 @@ namespace Olympus.NativeImpls {
         }
 
         public override void Update(float dt) {
-            LastTickStart = App.GlobalWatch.Elapsed;
+            TimeSpan time = App.GlobalWatch.Elapsed;
+            LastTickStart = time;
         }
 
         public override void BeginDrawRT(float dt) {
@@ -370,20 +377,19 @@ namespace Olympus.NativeImpls {
                 Thread.Sleep(sleep);
                 sleep = sleepDefault;
 
-                // Note: This can be an absolute lie because of how stopwatches behave across threads.
-                TimeSpan elapsedLie = App.GlobalWatch.Elapsed;
-
-                bool redraw = LastTickEnd > LastTickStart && (elapsedLie - LastTickEnd).TotalMilliseconds > 30;
+                bool redraw = false;
 
                 if (!redraw) {
-                    GetGUIThreadInfo(guiThread, ref guiInfo);
-                    redraw = (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == GuiThreadInfoFlags.GUI_INMOVESIZE;
-                }
+                    redraw = InMoveSize;
+                    if (!redraw) {
+                        GetGUIThreadInfo(guiThread, ref guiInfo);
+                        redraw = (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == GuiThreadInfoFlags.GUI_INMOVESIZE;
+                    }
+                } 
 
                 if (redraw) {
                     BGThreadRedraw = true;
                     sleep = 10;
-                    // FIXME: Figure out what in SDL2 (or even deeper) switches to manual repaints!
                     if (!ManuallyBlinking && !BGThreadRedrawSkip) {
                         ManuallyBlinking = true;
                         RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ERASENOW);
@@ -573,9 +579,12 @@ namespace Olympus.NativeImpls {
         }
 
         private IntPtr WndProc(IntPtr hwnd, WindowsMessage msg, IntPtr wParam, IntPtr lParam) {
-            if (hwnd != HWnd)
+            if (hwnd != HWnd && hwnd != NULL)
                 return CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
 
+            // Console.WriteLine($"{hwnd}, {msg}: {wParam}, {lParam}");
+
+            TimeSpan time = App.GlobalWatch.Elapsed;
             IntPtr rv;
             HitTestValues hit;
             POINT point, pointReal;
@@ -615,6 +624,14 @@ namespace Olympus.NativeImpls {
                             SetBackgroundBlur(null, true);
                         }
                     }
+                    break;
+
+                case WindowsMessage.WM_SYSCOMMAND when ((uint) wParam & 0xFFF0) == /* SC_MOVE */ 0xF010:
+                case WindowsMessage.WM_ENTERSIZEMOVE:
+                    InMoveSize = true;
+                    break;
+                case WindowsMessage.WM_EXITSIZEMOVE:
+                    InMoveSize = false;
                     break;
 
                 case WindowsMessage.WM_ACTIVATE:
@@ -719,17 +736,23 @@ namespace Olympus.NativeImpls {
 
                 case WindowsMessage.WM_MOUSEMOVE:
                     // High poll rate mouses cause SDL2's event pump to lag!
-                    // FIXME: Batch mouse move events and send them all to SDL2 manually?
-                    _IsMouseFocus = true;
-                    TRACKMOUSEEVENT track = new() {
-                        cbSize = Marshal.SizeOf<TRACKMOUSEEVENT>(),
-                        // dwFlags = /* TME_LEAVE | TME_NONCLIENT */ 0x00000012,
-                        dwFlags = /* TME_LEAVE */ 0x00000002,
-                        hwndTrack = hwnd,
-                        dwHoverTime = 0,
-                    };
-                    TrackMouseEvent(ref track);
+                    // Luckily there's a fix for this, hopefully it'll get merged:
+                    // https://github.com/0x0ade/SDL/tree/windows-high-frequency-mouse
+                    // Let's continue using our own mouse focus tracking tho.
+                    if (!_IsMouseFocus) {
+                        _IsMouseFocus = true;
+                        TRACKMOUSEEVENT track = new() {
+                            cbSize = Marshal.SizeOf<TRACKMOUSEEVENT>(),
+                            // dwFlags = /* TME_LEAVE | TME_NONCLIENT */ 0x00000012,
+                            dwFlags = /* TME_LEAVE */ 0x00000002,
+                            hwndTrack = hwnd,
+                            dwHoverTime = 0,
+                        };
+                        TrackMouseEvent(ref track);
+                    }
+
                     return CallWindowProc(DefWindowProcW, hwnd, msg, wParam, lParam);
+                    // return CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
 
                 case WindowsMessage.WM_MOUSELEAVE:
                     _IsMouseFocus = false;

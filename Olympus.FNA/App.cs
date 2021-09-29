@@ -53,7 +53,7 @@ namespace Olympus {
 
         public bool Resizing;
         public bool ManualUpdate;
-        private bool ManuallyUpdated;
+        private bool ManuallyUpdated = true;
 
         private readonly Dictionary<Type, object> ComponentCache = new();
 
@@ -66,7 +66,7 @@ namespace Olympus {
 
         public float BackgroundOpacityTime = 0f;
 
-        public bool VSync = true; // FIXME: DON'T SHIP WITH VSYNC OFF!
+        public bool VSync = false; // FIXME: DON'T SHIP WITH VSYNC OFF!
 
         
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
