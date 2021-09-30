@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -31,6 +32,42 @@ namespace OlympUI {
                 (a1 * c2 - a2 * c1) / delta
             );
         }
+
+        public static Color ParseHexColor(string text) {
+            if (!TryParseHexColor(text, out Color c))
+                throw new InvalidOperationException("Cannot parse hex color from given string");
+            return c;
+        }
+
+        public static bool TryParseHexColor(string text, out Color c) {
+            c = new(0, 0, 0, 255);
+
+            if (text.Length == 0)
+                return false;
+
+            if (text[0] == '#')
+                text = text[1..];
+
+            if (!uint.TryParse(text, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint raw))
+                return false;
+
+            if (text.Length > 6) {
+                c.R = (byte) ((raw >> 24) & 0xFF);
+                c.G = (byte) ((raw >> 16) & 0xFF);
+                c.B = (byte) ((raw >> 8) & 0xFF);
+                c.A = (byte) ((raw >> 0) & 0xFF);
+            } else {
+                c.R = (byte) ((raw >> 16) & 0xFF);
+                c.G = (byte) ((raw >> 8) & 0xFF);
+                c.B = (byte) ((raw >> 0) & 0xFF);
+            }
+            return true;
+        }
+
+        public static string ToHexString(this Color c) =>
+            c.A == 255 ?
+            $"#{c.R:X2}{c.G:X2}{c.B:X2}" :
+            $"#{c.R:X2}{c.G:X2}{c.B:X2}{c.A:X2}";
 
     }
 }

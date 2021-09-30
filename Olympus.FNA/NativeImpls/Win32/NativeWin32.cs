@@ -46,8 +46,7 @@ namespace Olympus.NativeImpls {
 
         internal int OffsetLeft = 0;
         internal int OffsetTop = 0;
-        // FIXME! DETERMINE THIS AT RUNTIME!
-        // DWMWA_CAPTION_BUTTON_BOUNDS returns something close-ish but not fully correct.
+        // TODO: DWMWA_CAPTION_BUTTON_BOUNDS returns something close-ish but not fully correct.
         internal int WindowControlsWidth => _IsMaximized ? WorkaroundDWMMaximizedTitleBarSize ? 141 : 142 : 138;
         internal int WindowControlsHeight => _IsMaximized ? WorkaroundDWMMaximizedTitleBarSize ? OffsetTop + 1: OffsetTop + 8 : OffsetTop;
 

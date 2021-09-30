@@ -20,6 +20,7 @@ namespace OlympUI {
 
         private readonly Dictionary<string, IFader> FaderMap = new();
         private readonly List<IFader> Faders = new();
+        private readonly Dictionary<string, Skin.FaderStub> SkinnedFaders = new();
 
         private readonly Dictionary<string, Link> LinkMap = new();
         private readonly List<Link> Links = new();
@@ -117,9 +118,18 @@ namespace OlympUI {
             }
 
             if (Map.TryGetValue(key, out object? raw)) {
-                if (raw is IFader fader && fader.SetValueTo(value))
+                if (raw is IFader fader) {
+                    if (value is IFader faderOther) {
+                        fader.Deserialize(faderOther.GetSerializedDuration(), faderOther.GetSerializedValue());
+                    } else {
+                        fader.SetValueTo(value);
+                    }
                     return;
+                }
             }
+
+            if (SkinnedFaders.Remove(key, out Skin.FaderStub? faderStub))
+                value = Fader.Create(value.GetType(), faderStub.Fade, value);
 
             if (Element != null) {
                 for (Style? parent = Parent; parent != null; parent = parent.Parent) {
@@ -141,6 +151,7 @@ namespace OlympUI {
                 if (value is IFader fader) {
                     FaderMap[key] = fader;
                     Faders.Add(fader);
+                    SkinnedFaders.Remove(key);
                 }
 
                 if (value is Link link) {
@@ -157,6 +168,15 @@ namespace OlympUI {
         public bool TryGetCurrent<T>([NotNullWhen(true)] out T? value)
             => TryGetCurrent(GetCommonName(typeof(T)), out value);
         public bool TryGetCurrent<T>(string key, [NotNullWhen(true)] out T? value) {
+            bool skinnedSet = TryGetSkinnedAndPrepare(key, out T? skinned);
+
+            if (Element == null && skinnedSet) {
+                value = skinned;
+#pragma warning disable CS8762 // skinnedSet being true is enough proof of skinned being non-null.
+                return true;
+#pragma warning restore CS8762
+            }
+
             if (Map.TryGetValue(key, out object? raw)) {
                 if (raw is Link link)
                     raw = link.Source.GetCurrent<T>(link.Key);
@@ -164,16 +184,35 @@ namespace OlympUI {
                     raw = cb();
                 if (raw is Reloadable<T> reloadable)
                     raw = reloadable.Value;
+                bool valueSet = false;
                 if (raw is IFader fader) {
                     value = fader.GetValue<T>();
-#pragma warning disable CS8762 // T cannot be nullable for faders.
+                    valueSet = true;
+                } else if (raw != default) {
+                    value = (T) raw;
+                    valueSet = true;
+                } else {
+                    value = default;
+                }
+                if (valueSet && SkinnedFaders.Remove(key, out Skin.FaderStub? faderStub)) {
+#pragma warning disable CS8602 // valueSet being true is enough proof of value being non-null.
+                    fader = Fader.Create(value.GetType(), faderStub.Fade, value);
+#pragma warning restore CS8602
+                    Map[key] = fader;
+                    FaderMap[key] = fader;
+                    Faders.Add(fader);
+                }
+#pragma warning disable CS8762 // valueSet being true is enough proof of value being non-null.
+                if (valueSet)
                     return true;
 #pragma warning restore CS8762
-                }
-                if (raw != default) {
-                    value = (T) raw;
-                    return true;
-                }
+            }
+
+            if (skinnedSet) {
+                value = skinned;
+#pragma warning disable CS8762 // skinnedSet being true is enough proof of skinned being non-null.
+                return true;
+#pragma warning restore CS8762
             }
 
             if (Element != null) {
@@ -217,6 +256,22 @@ namespace OlympUI {
                 }
             }
 
+            if (Type != null && Skin.Current is Skin skin) {
+                if (skin.TryGetValue(Type.Name, key, out raw) && raw != default) {
+                    value = (T) raw;
+                    return true;
+                }
+
+                if (Element != null) {
+                    foreach (string type in Element.Classes) {
+                        if (skin.TryGetValue(type, key, out raw) && raw != default) {
+                            value = (T) raw;
+                            return true;
+                        }
+                    }
+                }
+            }
+
             if (Element != null) {
                 for (Style? parent = Parent; parent != null; parent = parent.Parent)
                     if (parent.TryGetReal(key, out value))
@@ -236,6 +291,52 @@ namespace OlympUI {
         public T GetReal<T>(string key)
             => TryGetReal(key, out T? value) ? value : throw new Exception($"{(Element == null ? "Instance style for" : "Static style for")} \"{Type}\" doesn't define \"{key}\"");
 
+        private object? GetSkinnedRaw(string key) {
+            object? raw = default;
+
+            if (Type != null && Skin.Current is Skin skin) {
+                if (skin.TryGetValue(Type.Name, key, out raw) && raw != default) {
+                    return raw;
+                }
+
+                if (Element != null) {
+                    foreach (string type in Element.Classes) {
+                        if (skin.TryGetValue(type, key, out raw) && raw != default) {
+                            return raw;
+                        }
+                    }
+                }
+            }
+
+            return raw;
+        }
+
+        private bool TryGetSkinnedAndPrepare<T>(string key, [NotNullWhen(true)] out T? value) {
+            object? skinnedRaw = GetSkinnedRaw(key);
+            if (skinnedRaw is T skinned) {
+                value = skinned;
+                return true;
+            }
+
+            if (skinnedRaw is Skin.FaderStub faderStub && !FaderMap.ContainsKey(key)) {
+                SkinnedFaders.Add(key, faderStub);
+                IFader? fader = null;
+                if (faderStub.Value != null) {
+                    fader = Fader.Create(faderStub.Value.GetType(), faderStub.Fade, faderStub.Value);
+                } else if (TryGetReal(key, out T? valueReal)) {
+                    fader = Fader.Create(typeof(T), faderStub.Fade, valueReal);
+                }
+                if (fader != null) {
+                    Map[key] = fader;
+                    FaderMap[key] = fader;
+                    Faders.Add(fader);
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
         public void Apply(Style value) {
             if (value == null) {
                 Clear();
@@ -246,15 +347,21 @@ namespace OlympUI {
         }
 
         public void Apply(string name) {
+            if (Element != null) {
+                for (Style? parent = Parent; parent != null; parent = parent.Parent)
+                    if (parent.Map.TryGetValue(name, out object? raw) && raw is Style value)
+                        Apply(value);
+            }
+
             {
                 if (Map.TryGetValue(name, out object? raw) && raw is Style value)
                     Apply(value);
             }
 
-            if (Element != null) {
-                for (Style? parent = Parent; parent != null; parent = parent.Parent)
-                    if (parent.Map.TryGetValue(name, out object? raw) && raw is Style value)
-                        Apply(value);
+            {
+                if (GetSkinnedRaw(name) is Dictionary<string, object> props)
+                    foreach (KeyValuePair<string, object> entry in props)
+                        Add(entry.Key, entry.Value);
             }
         }
 
@@ -291,9 +398,9 @@ namespace OlympUI {
 
             if (Element != null) {
                 for (Style? parent = Parent; parent != null; parent = parent.Parent)
-                    foreach (Entry entry in parent)
-                        if (returned.Add(entry.Key))
-                            yield return entry;
+                    foreach (KeyValuePair<string, object> kvp in parent.Map)
+                        if (returned.Add(kvp.Key))
+                            yield return new(parent, kvp.Key, kvp.Value);
             }
         }
 

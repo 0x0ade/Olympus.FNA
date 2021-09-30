@@ -5,6 +5,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -66,6 +67,12 @@ namespace OlympUI {
 
     public interface IFader {
 
+        float GetSerializedDuration();
+
+        object? GetSerializedValue();
+
+        void Deserialize(float duration, object? value);
+
         T GetValue<T>();
 
         T GetValueTo<T>();
@@ -90,13 +97,45 @@ namespace OlympUI {
 
     }
 
+    public static class Fader {
+
+        private static Dictionary<Type, Type> TypeCache = new();
+
+        public static IFader Create(Type valueType, float duration, object? value) {
+            if (!TypeCache.TryGetValue(valueType, out Type? faderType)) {
+                Type faderBaseType = typeof(Fader<>).MakeGenericType(valueType);
+                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies()) {
+                    foreach (Type type in asm.GetTypes()) {
+                        if (!faderBaseType.IsAssignableFrom(type))
+                            continue;
+                        TypeCache[valueType] = faderType = type;
+                        break;
+                    }
+                }
+                if (faderType == null)
+                    throw new Exception($"Couldn't find fader type compatible with {valueType}");
+            }
+
+            IFader fader = Activator.CreateInstance(faderType) as IFader ?? throw new Exception($"Couldn't create instance of type {faderType}");
+            fader.Deserialize(duration, value);
+            return fader;
+        }
+
+    }
+
     public abstract class Fader<T> : IFader where T : struct {
 
         private List<Action<Fader<T>>> Links = new();
 
         public T Value;
         public T ValueFrom;
-        public T ValueTo;
+
+        private T _ValueTo;
+        private bool _ValueToSet;
+        public T ValueTo {
+            get => _ValueTo;
+            set => _ = (_ValueTo = value, _ValueToSet = true);
+        }
 
         public float Time = -1f;
         public float Duration = 0.15f;
@@ -105,13 +144,33 @@ namespace OlympUI {
         private T ValueToPrev;
         private float TPrev;
 
-        public Fader(T value = default) {
-            Value = ValueFrom = ValueTo = value;
+        protected Fader(bool valueSet, T value) {
+            Value = ValueFrom = _ValueTo = value;
+            _ValueToSet = valueSet;
         }
 
         public abstract T Calculate(T a, T b, float t);
         protected abstract bool Equal(T a, T b);
         public abstract Fader<T> New();
+
+        float IFader.GetSerializedDuration()
+            => Duration;
+
+        object? IFader.GetSerializedValue()
+            => _ValueToSet ? ValueTo : null;
+
+        void IFader.Deserialize(float duration, object? value) {
+            Duration = duration;
+            if (value == null) {
+                Value = ValueFrom = _ValueTo = default;
+                _ValueToSet = false;
+            } else if (value is T valueReal) {
+                Value = ValueFrom = _ValueTo = valueReal;
+                _ValueToSet = true;
+            } else {
+                throw new Exception($"Unexpected value of type {value.GetType()} instead of {typeof(T)}");
+            }
+        }
 
         TGet IFader.GetValue<TGet>()
 #if FASTGET
@@ -122,7 +181,7 @@ namespace OlympUI {
 
         TGet IFader.GetValueTo<TGet>()
 #if FASTGET
-            => Unsafe.As<T, TGet>(ref ValueTo);
+            => Unsafe.As<T, TGet>(ref _ValueTo);
 #else
             => (TGet) (object) ValueTo;
 #endif
@@ -214,8 +273,12 @@ namespace OlympUI {
 
     public sealed class FloatFader : Fader<float> {
 
-        public FloatFader(float value = default)
-            : base(value) {
+        public FloatFader()
+            : base(false, default) {
+        }
+
+        public FloatFader(float value)
+            : base(true, value) {
         }
 
         public override float Calculate(float a, float b, float t)
@@ -231,8 +294,12 @@ namespace OlympUI {
 
     public sealed class ColorFader : Fader<Color> {
 
-        public ColorFader(Color value = default)
-            : base(value) {
+        public ColorFader()
+            : base(false, default) {
+        }
+
+        public ColorFader(Color value)
+            : base(true, value) {
         }
 
         public override Color Calculate(Color a, Color b, float t)

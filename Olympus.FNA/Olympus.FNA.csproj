@@ -50,6 +50,7 @@
     <PackageReference Include="MonoMod.Utils" Version="21.9.19.1" />
     <PackageReference Include="SharpDX" Version="4.2.0" Condition="$(TargetIsWindows)" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
+    <PackageReference Include="YamlDotNet" Version="11.2.1" />
   </ItemGroup>
 
 </Project>

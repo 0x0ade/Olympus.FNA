@@ -158,6 +158,8 @@ namespace OlympUI {
             set => _ID = value?.NotEmpty();
         }
 
+        public readonly HashSet<string> Classes = new();
+
         public Element? Parent;
         private readonly ObservableCollection<Element> _Children = new();
         public ObservableCollection<Element> Children {
@@ -483,7 +485,7 @@ namespace OlympUI {
                     ConsecutiveRepaints++;
 
                 } else if (CachedTexture.Page == null) {
-                    CachedTexture = UI.MegaCanvas.GetPackedAndFree(CachedTexture) ?? CachedTexture;
+                    CachedTexture = UI.MegaCanvas.GetPackedAndFree(CachedTexture, new(0, 0, whTexture.X, whTexture.Y)) ?? CachedTexture;
                 }
 
             } else {
@@ -505,20 +507,19 @@ namespace OlympUI {
                 SpriteBatch.BeginUI();
             }
 
+            DrawCachedTexture(CachedTexture.RT, xy, padding, new(CachedTexture.Region.X, CachedTexture.Region.Y, whTexture.X, whTexture.Y));
+        }
+
+        protected virtual void DrawCachedTexture(RenderTarget2D rt, Vector2 xy, int padding, Rectangle region) {
             SpriteBatch.Draw(
-                CachedTexture.RT,
+                rt,
                 new Rectangle(
                     (int) xy.X - padding,
                     (int) xy.Y - padding,
-                    whTexture.X,
-                    whTexture.Y
+                    region.Width,
+                    region.Height
                 ),
-                new Rectangle(
-                    CachedTexture.Region.X,
-                    CachedTexture.Region.Y,
-                    whTexture.X,
-                    whTexture.Y
-                ),
+                region,
                 Color.White
             );
         }

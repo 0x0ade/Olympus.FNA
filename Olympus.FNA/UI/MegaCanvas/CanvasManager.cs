@@ -98,8 +98,10 @@ namespace OlympUI.MegaCanvas {
             gss.Apply();
         }
 
-        public RenderTarget2DRegion? GetPacked(RenderTarget2D old) {
-            Rectangle oldBounds = new(0, 0, old.Width, old.Height);
+        public RenderTarget2DRegion? GetPacked(RenderTarget2D old)
+            => GetPacked(old, new(0, 0, old.Width, old.Height));
+
+        public RenderTarget2DRegion? GetPacked(RenderTarget2D old, Rectangle oldBounds) {
             RenderTarget2DRegion? packed = GetRegion(oldBounds);
             if (packed == null)
                 return null;
@@ -108,15 +110,16 @@ namespace OlympUI.MegaCanvas {
             return packed;
         }
 
-        public RenderTarget2DRegion? GetPackedAndFree(RenderTarget2DRegion old) {
-            Rectangle oldBounds = old.Region;
-            RenderTarget2DRegion? rtrg = GetRegion(oldBounds);
-            if (rtrg == null)
+        public RenderTarget2DRegion? GetPackedAndFree(RenderTarget2DRegion old)
+            => GetPackedAndFree(old, old.Region);
+
+        public RenderTarget2DRegion? GetPackedAndFree(RenderTarget2DRegion old, Rectangle oldBounds) {
+            RenderTarget2DRegion? packed = GetPacked(old.RT, oldBounds);
+            if (packed == null)
                 return null;
 
-            Blit(old.RT, oldBounds, rtrg.RT, rtrg.Region);
             Free(old);
-            return rtrg;
+            return packed;
         }
 
         public RenderTarget2DRegion? GetRegion(Rectangle want) {

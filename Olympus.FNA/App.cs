@@ -183,7 +183,7 @@ namespace Olympus {
                     Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.Immediate;
                 }
 
-                // FIXME: Severe flickering on some dual GPU setups!
+                // Apparently some dual GPU setups can experience severe flickering when resizing the backbuffer repeatedly.
                 if (PrevClientBounds.Width != clientBounds.Width ||
                     PrevClientBounds.Height != clientBounds.Height
                 ) {
