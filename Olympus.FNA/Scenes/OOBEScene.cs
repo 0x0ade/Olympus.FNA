@@ -45,58 +45,6 @@ namespace Olympus {
                         }
                     },
                     new Panel() {
-                        X = 300,
-                        Y = 100,
-                        Style = {
-                            { "Background", new Color(0xf0, 0xf0, 0xf0, 0xff) },
-                            { "Shadow", 2f }
-                        }
-                    },
-                    new Panel() {
-                        X = 500,
-                        Y = 100,
-                        Style = {
-                            { "Background", Color.Black },
-                            { "Shadow", 1f }
-                        },
-                        Events = {
-                            (MouseEvent.Enter e) => e.Element.Style = new() {
-                                { "Background", Color.White },
-                                { "Shadow", 3f }
-                            },
-                            (MouseEvent.Leave e) => e.Element.Style = new() {
-                                { "Background", Color.Black },
-                                { "Shadow", 1f }
-                            },
-                        }
-                    },
-                    new Panel() {
-                        X = 700,
-                        Y = 100,
-                        Style = {
-                            { "Background", Color.Black },
-                            { "Shadow", 1f }
-                        },
-                        Events = {
-                            (MouseEvent.Press e) => e.Element.Style = new() {
-                                { "Background", Color.White },
-                                { "Shadow", 3f }
-                            },
-                            (MouseEvent.Release e) => e.Element.Style = new() {
-                                { "Background", Color.Black },
-                                { "Shadow", 1f }
-                            },
-                            (MouseEvent.Click e) => e.Element.Style = new() {
-                                { "Background", Color.Red },
-                                { "Shadow", 5f }
-                            },
-                            (MouseEvent.Scroll e) => e.Element.Style = new() {
-                                { "Background", e.ScrollDXY.Y <= 0 ? Color.Green : Color.Blue },
-                                { "Shadow", 5f }
-                            },
-                        }
-                    },
-                    new Panel() {
                         Layout = {
                             Layouts.Left(0.5f, -0.5f),
                             Layouts.Top(0.5f, -0.5f),
@@ -115,20 +63,7 @@ namespace Olympus {
                                         Layouts.Column()
                                     },
                                     Children = {
-                                        new Label("Test Label"),
-                                        new Button("Test Button")  {
-                                            Layout = { Layouts.Fill(1, 0) },
-                                            Data = { 0 },
-                                            Callback = el => el.Text = $"Pressed: {++el.Data.Ref<int>()}"
-                                        },
-                                        new Button("Toggle Clip") {
-                                            Layout = { Layouts.Fill(1, 0) },
-                                            Callback = el => el.GetParent<ScrollBox>().GetParent<Element>().Clip = !el.GetParent<ScrollBox>().GetParent<Element>().Clip
-                                        },
-                                        new Button("Disabled Button") {
-                                            Layout = { Layouts.Fill(1, 0) },
-                                            Enabled = false
-                                        },
+                                        new Label("Test Label")
                                     },
                                 }
                             }

@@ -21,6 +21,7 @@ namespace OlympUI {
         private readonly Dictionary<string, IFader> FaderMap = new();
         private readonly List<IFader> Faders = new();
         private readonly Dictionary<string, Skin.FaderStub> SkinnedFaders = new();
+        private readonly Dictionary<string, Skin.FaderStub> SkinnedFadersPending = new();
 
         private readonly Dictionary<string, Link> LinkMap = new();
         private readonly List<Link> Links = new();
@@ -128,8 +129,10 @@ namespace OlympUI {
                 }
             }
 
-            if (SkinnedFaders.Remove(key, out Skin.FaderStub? faderStub))
+            if (SkinnedFaders.Remove(key, out Skin.FaderStub? faderStub)) {
+                SkinnedFadersPending.Remove(key);
                 value = Fader.Create(value.GetType(), faderStub.Fade, value);
+            }
 
             if (Element != null) {
                 for (Style? parent = Parent; parent != null; parent = parent.Parent) {
@@ -152,6 +155,7 @@ namespace OlympUI {
                     FaderMap[key] = fader;
                     Faders.Add(fader);
                     SkinnedFaders.Remove(key);
+                    SkinnedFadersPending.Remove(key);
                 }
 
                 if (value is Link link) {
@@ -184,8 +188,9 @@ namespace OlympUI {
                     raw = cb();
                 if (raw is Reloadable<T> reloadable)
                     raw = reloadable.Value;
+                IFader? fader;
                 bool valueSet = false;
-                if (raw is IFader fader) {
+                if ((fader = raw as IFader) != null) {
                     value = fader.GetValue<T>();
                     valueSet = true;
                 } else if (raw != default) {
@@ -194,7 +199,7 @@ namespace OlympUI {
                 } else {
                     value = default;
                 }
-                if (valueSet && SkinnedFaders.Remove(key, out Skin.FaderStub? faderStub)) {
+                if (valueSet && fader == null && SkinnedFadersPending.Remove(key, out Skin.FaderStub? faderStub)) {
 #pragma warning disable CS8602 // valueSet being true is enough proof of value being non-null.
                     fader = Fader.Create(value.GetType(), faderStub.Fade, value);
 #pragma warning restore CS8602
@@ -313,24 +318,36 @@ namespace OlympUI {
 
         private bool TryGetSkinnedAndPrepare<T>(string key, [NotNullWhen(true)] out T? value) {
             object? skinnedRaw = GetSkinnedRaw(key);
+            if (skinnedRaw is Skin.FaderStub faderStub) {
+                if (!FaderMap.TryGetValue(key, out IFader? fader)) {
+                    SkinnedFaders[key] = faderStub;
+                    SkinnedFadersPending[key] = faderStub;
+                    fader = null;
+                    if (faderStub.Value != null) {
+                        fader = Fader.Create(faderStub.Value.GetType(), faderStub.Fade, faderStub.Value);
+                    } else if (TryGetReal(key, out T? valueReal)) {
+                        fader = Fader.Create(typeof(T), faderStub.Fade, valueReal);
+                    }
+                    if (fader != null) {
+                        Map[key] = fader;
+                        FaderMap[key] = fader;
+                        Faders.Add(fader);
+                    }
+
+                } else if (SkinnedFaders.ContainsKey(key)) {
+                    SkinnedFaders[key] = faderStub;
+                    SkinnedFadersPending[key] = faderStub;
+                    fader.Deserialize(faderStub.Fade, faderStub.Value);
+                }
+            } else if (SkinnedFaders.Remove(key) && FaderMap.Remove(key, out IFader? fader)) {
+                SkinnedFadersPending.Remove(key);
+                Map.Remove(key);
+                Faders.Remove(fader);
+            }
+
             if (skinnedRaw is T skinned) {
                 value = skinned;
                 return true;
-            }
-
-            if (skinnedRaw is Skin.FaderStub faderStub && !FaderMap.ContainsKey(key)) {
-                SkinnedFaders.Add(key, faderStub);
-                IFader? fader = null;
-                if (faderStub.Value != null) {
-                    fader = Fader.Create(faderStub.Value.GetType(), faderStub.Fade, faderStub.Value);
-                } else if (TryGetReal(key, out T? valueReal)) {
-                    fader = Fader.Create(typeof(T), faderStub.Fade, valueReal);
-                }
-                if (fader != null) {
-                    Map[key] = fader;
-                    FaderMap[key] = fader;
-                    Faders.Add(fader);
-                }
             }
 
             value = default;

@@ -17,7 +17,7 @@ using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.EventEmitters;
 
 namespace OlympUI {
-    public class Skin {
+    public partial class Skin {
 
         private static readonly IDeserializer Deserializer = new DeserializerBuilder()
             .IgnoreUnmatchedProperties()
@@ -39,8 +39,8 @@ namespace OlympUI {
 
         public static Skin Deserialize(TextReader reader) {
             Skin skin = Deserializer.Deserialize<Skin>(reader);
-            foreach (KeyValuePair<string, Dictionary<string, object>> kvp in skin.Map)
-                Fixup(kvp.Value);
+            foreach (Dictionary<string, object> props in skin.Map.Values)
+                Fixup(props);
             return skin;
         }
 
@@ -82,7 +82,7 @@ namespace OlympUI {
             }
         }
 
-        public static Skin Create() {
+        public static Skin CreateDump() {
             Skin skin = new();
 
             foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies()) {

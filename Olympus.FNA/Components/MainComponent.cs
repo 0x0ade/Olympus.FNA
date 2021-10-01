@@ -16,8 +16,16 @@ using System.Threading.Tasks;
 namespace Olympus {
     public class MainComponent : AppComponent {
 
+        private Skin SkinDefault;
+        private Skin? SkinForce;
+        private Skin? SkinDark;
+        private Skin? SkinLight;
+
         public MainComponent(App app)
             : base(app) {
+            SkinDefault = Skin.CreateDump();
+            SkinDark = SkinDefault;
+            SkinLight = Skin.CreateLight();
         }
 
         public override void Initialize() {
@@ -27,6 +35,7 @@ namespace Olympus {
             base.Initialize();
 
             Scener.Push<TestScene>();
+            // Scener.Push<OOBEScene>();
         }
 
         public override void Update(GameTime gameTime) {
@@ -43,12 +52,11 @@ namespace Olympus {
             if (UIInput.Pressed(Keys.F5)) {
                 string path = Path.Combine(Environment.CurrentDirectory, "skin.yaml");
                 if (!File.Exists(path)) {
-                    Skin.Current = null;
+                    SkinForce = null;
                 } else {
                     using StreamReader reader = new(new FileStream(path, FileMode.Open));
-                    Skin.Current = Skin.Deserialize(reader);
+                    SkinForce = Skin.Deserialize(reader);
                 }
-                UI.GlobalRepaintID++;
             }
 
             if (UIInput.Pressed(Keys.F7)) {
@@ -60,13 +68,16 @@ namespace Olympus {
                 } else {
                     string path = Path.Combine(Environment.CurrentDirectory, "skin.yaml");
                     using StreamWriter writer = new(new FileStream(path, FileMode.Create));
-                    Skin.Serialize(writer, Skin.Create());
+                    Skin.Serialize(writer, Skin.CreateDump());
                 }
             }
 
-            Viewport view = Game.GraphicsDevice.Viewport;
+            if (Skin.Current != (Skin.Current = SkinForce ?? (Native.DarkMode ? SkinDark : SkinLight))) {
+                UI.GlobalRepaintID++;
+            }
+
             // FIXME: WHY IS YET ANOTHER ROW OF PIXELS MISSING?! Is this an OlympUI bug or another Windows quirk?
-            UI.Root.WH = new(view.Width, view.Height - (Native.IsMaximized ? 8 : 1));
+            UI.Root.WH = new(App.Width, App.Height - (Native.IsMaximized ? 8 : 1));
 
             Scener.Update(dt);
             UI.Update(dt);
@@ -100,7 +111,8 @@ namespace Olympus {
             string debug =
                 $"FPS: {App.FPS}\n" +
                 $"Mouse: {UIInput.Mouse}\n" +
-                $"Root Size: {UI.Root.WH}\n" +
+                $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
+                $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
                 $"Pool Available: {UI.MegaCanvas.PoolEntriesAlive}\n" +
                 $"Pool Used: {UI.MegaCanvas.PoolUsed.Count}\n" +
                 $"Pool Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.PoolUsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.PoolTotalMemory)} \n" +

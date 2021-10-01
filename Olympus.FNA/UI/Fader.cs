@@ -162,11 +162,19 @@ namespace OlympUI {
         void IFader.Deserialize(float duration, object? value) {
             Duration = duration;
             if (value == null) {
-                Value = ValueFrom = _ValueTo = default;
-                _ValueToSet = false;
+                if (_ValueToSet) {
+                    _ValueTo = default;
+                } else {
+                    Value = ValueFrom = _ValueTo = default;
+                    _ValueToSet = false;
+                }
             } else if (value is T valueReal) {
-                Value = ValueFrom = _ValueTo = valueReal;
-                _ValueToSet = true;
+                if (_ValueToSet) {
+                    _ValueTo = valueReal;
+                } else {
+                    Value = ValueFrom = _ValueTo = valueReal;
+                    _ValueToSet = true;
+                }
             } else {
                 throw new Exception($"Unexpected value of type {value.GetType()} instead of {typeof(T)}");
             }
