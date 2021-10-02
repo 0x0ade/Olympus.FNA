@@ -178,7 +178,7 @@ namespace OlympUI {
             {
                 "Disabled",
                 new Style() {
-                    new Color(0x80, 0x80, 0x80, 0x00),
+                    new Color(0x00, 0x00, 0x00, 0x00),
                     { "Width", 3f },
                     { "Radius", 3f },
                 }
@@ -327,6 +327,8 @@ namespace OlympUI {
 
             int boxSize = box.WH.X;
             int contentSize = content.WH.X;
+            if (contentSize == 0)
+                contentSize = 1;
             int pos = (int) -content.XY.X;
 
             pos = boxSize * pos / contentSize;
@@ -385,6 +387,8 @@ namespace OlympUI {
 
             int boxSize = box.WH.Y;
             int contentSize = content.WH.Y;
+            if (contentSize == 0)
+                contentSize = 1;
             int pos = (int) -content.XY.Y;
 
             pos = boxSize * pos / contentSize;

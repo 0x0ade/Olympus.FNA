@@ -26,6 +26,8 @@ namespace Olympus {
             }
         };
 
+        public static event Action<Scene?, Scene>? OnChange;
+
         public static void Update(float dt) {
             if (Stack.Count > 0) {
                 Stack.Peek().Update(dt);
@@ -38,14 +40,21 @@ namespace Olympus {
             }
         }
 
-        public static T Push<T>(params object[] args) where T : Scene, new() {
+        public static T Get<T>() where T : Scene, new() {
             if (!Generated.TryGetValue(typeof(T), out Scene? scene))
                 Generated[typeof(T)] = scene = new T();
+            return (T) scene;
+        }
+
+        public static T Push<T>(params object[] args) where T : Scene, new() {
+            Scene? prev = Stack.Count == 0 ? null : Stack.Peek();
+            T scene = Get<T>();
             RootContainer.Children.Clear();
             RootContainer.Children.Add(scene.Root);
             Stack.Push(scene);
             scene.Enter(args);
-            return (T) scene;
+            OnChange?.Invoke(prev, scene);
+            return scene;
         }
 
     }

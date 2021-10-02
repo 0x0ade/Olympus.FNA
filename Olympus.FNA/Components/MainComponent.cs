@@ -21,27 +21,32 @@ namespace Olympus {
         private Skin? SkinDark;
         private Skin? SkinLight;
 
+        private bool DrawDebug =
+#if DEBUG
+            true;
+#else
+            false;
+#endif
+
         public MainComponent(App app)
             : base(app) {
             SkinDefault = Skin.CreateDump();
             SkinDark = SkinDefault;
             SkinLight = Skin.CreateLight();
-        }
 
-        public override void Initialize() {
             UI.Initialize(App, NativeImpl.Native);
-            UI.Root.Children.Add(Scener.RootContainer);
-
-            base.Initialize();
-
-            Scener.Push<TestScene>();
-            // Scener.Push<OOBEScene>();
+            UI.Root.Children.Add(Scener.Get<MetaMainScene>().Generate());
+            Scener.Push<HomeScene>();
         }
 
         public override void Update(GameTime gameTime) {
             float dt = gameTime.GetDeltaTime();
 
             if (UIInput.Pressed(Keys.F1)) {
+                DrawDebug = !DrawDebug;
+            }
+
+            if (UIInput.Pressed(Keys.F2)) {
                 if (UIInput.Down(Keys.LeftShift)) {
                     OlympUI.Assets.ReloadID++;
                 } else {
@@ -72,11 +77,18 @@ namespace Olympus {
                 }
             }
 
+            if (UIInput.Pressed(Keys.F12)) {
+                UI.GlobalDrawDebug = !UI.GlobalDrawDebug;
+                UI.GlobalRepaintID++;
+            }
+
             if (Skin.Current != (Skin.Current = SkinForce ?? (Native.DarkMode ? SkinDark : SkinLight))) {
                 UI.GlobalRepaintID++;
             }
 
             // FIXME: WHY IS YET ANOTHER ROW OF PIXELS MISSING?! Is this an OlympUI bug or another Windows quirk?
+            // FIXME: Size flickering in maximized mode on Windows when using viewport size for UI root size.
+            // UI.Root.WH = new(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height - (Native.IsMaximized ? 8 : 1));
             UI.Root.WH = new(App.Width, App.Height - (Native.IsMaximized ? 8 : 1));
 
             Scener.Update(dt);
@@ -107,27 +119,27 @@ namespace Olympus {
             UI.Paint();
             Scener.Draw();
 
-#if DEBUG
-            string debug =
-                $"FPS: {App.FPS}\n" +
-                $"Mouse: {UIInput.Mouse}\n" +
-                $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
-                $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
-                $"Pool Available: {UI.MegaCanvas.PoolEntriesAlive}\n" +
-                $"Pool Used: {UI.MegaCanvas.PoolUsed.Count}\n" +
-                $"Pool Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.PoolUsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.PoolTotalMemory)} \n" +
-                $"Atlas Pages: {UI.MegaCanvas.Pages.Count} x {GetHumanFriendlyBytes(UI.MegaCanvas.PageSize * UI.MegaCanvas.PageSize * 4)} \n" +
-                "";
-            const int debugOutline = 1;
+            if (DrawDebug) {
+                string debug =
+                    $"FPS: {App.FPS}\n" +
+                    $"Mouse: {UIInput.Mouse}\n" +
+                    $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
+                    $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
+                    $"Pool Available: {UI.MegaCanvas.PoolEntriesAlive}\n" +
+                    $"Pool Used: {UI.MegaCanvas.PoolUsed.Count}\n" +
+                    $"Pool Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.PoolUsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.PoolTotalMemory)} \n" +
+                    $"Atlas Pages: {UI.MegaCanvas.Pages.Count} x {GetHumanFriendlyBytes(UI.MegaCanvas.PageSize * UI.MegaCanvas.PageSize * 4)} \n" +
+                    "";
+                const int debugOutline = 1;
 
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullCounterClockwise);
-            SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 0), Color.Black);
-            SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 2, debugOutline * 1), Color.Black);
-            SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 2), Color.Black);
-            SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 0, debugOutline * 1), Color.Black);
-            SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 1), Color.Red);
-            SpriteBatch.End();
-#endif
+                SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullCounterClockwise);
+                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 0), Color.Black);
+                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 2, debugOutline * 1), Color.Black);
+                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 2), Color.Black);
+                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 0, debugOutline * 1), Color.Black);
+                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 1), Color.Red);
+                SpriteBatch.End();
+            }
         }
 
         private static string GetHumanFriendlyBytes(long bytes) {

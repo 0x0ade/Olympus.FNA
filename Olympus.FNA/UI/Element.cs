@@ -77,7 +77,7 @@ namespace OlympUI {
             set => RepaintID = value ? 0 : UI.GlobalRepaintID;
         }
 
-        protected uint ConsecutiveRepaints;
+        protected uint ConsecutiveCachedPaints;
 
         protected RenderTarget2DRegion? CachedTexture;
 
@@ -228,7 +228,15 @@ namespace OlympUI {
             set => RealXY = new(RealXY.X, value);
         }
         public virtual void ResetRealXY() => _RealXY = null;
-        
+
+        public Rectangle RealXYWH {
+            get {
+                Vector2 xy = RealXY;
+                Point wh = WH;
+                return new((int) xy.X, (int) xy.Y, wh.X, wh.Y);
+            }
+        }
+
         public virtual Vector2 ScreenXY {
             get {
                 Vector2 xy = new(0, 0);
@@ -246,7 +254,7 @@ namespace OlympUI {
             get {
                 Vector2 xy = ScreenXY;
                 Point wh = WH;
-                return new Rectangle((int) xy.X, (int) xy.Y, wh.X, wh.Y);
+                return new((int) xy.X, (int) xy.Y, wh.X, wh.Y);
             }
         }
 
@@ -431,13 +439,6 @@ namespace OlympUI {
             }
         }
 
-        protected virtual void DrawDebug() {
-            Color c = new();
-            c.PackedValue = (uint) _RandID;
-            c.A = 0xff;
-            UI.SpriteBatch.DrawDebugRect(c, ScreenXYWH);
-        }
-
         #endregion
 
 
@@ -447,7 +448,20 @@ namespace OlympUI {
 
         public virtual void Paint() {
             PaintContent();
-            // DrawDebug();
+            if (UI.GlobalDrawDebug) {
+                DrawDebug();
+            }
+        }
+
+        protected virtual void DrawDebug() {
+            Rectangle xywh = ScreenXYWH;
+            Color c = new();
+            c.PackedValue = (uint) _RandID;
+            c.A = 0xff;
+            UI.SpriteBatch.DrawDebugRect(c, xywh);
+            if (Cached && ConsecutiveCachedPaints <= 2) {
+                UI.SpriteBatch.DrawDebugRect(Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2));
+            }
         }
 
         protected virtual void PaintContent() {
@@ -466,7 +480,7 @@ namespace OlympUI {
 
             bool repainting = Repainting;
 
-            if (CachedTexture != null && ((repainting && CachedTexture.Page != null) || CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
+            if (CachedTexture != null && (((repainting || UI.GlobalDrawDebug) && CachedTexture.Page != null) || CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
                 UI.MegaCanvas.Free(CachedTexture);
                 CachedTexture = null;
                 repainting = true;
@@ -481,16 +495,20 @@ namespace OlympUI {
             }
 
             if (!repainting) {
-                if (ConsecutiveRepaints < 10) {
-                    ConsecutiveRepaints++;
+                if (ConsecutiveCachedPaints < 10) {
+                    repainting = ConsecutiveCachedPaints < 5;
+                    ConsecutiveCachedPaints++;
 
-                } else if (CachedTexture.Page == null) {
+                } else if (CachedTexture.Page == null && !UI.GlobalDrawDebug) {
                     CachedTexture = UI.MegaCanvas.GetPackedAndFree(CachedTexture, new(0, 0, whTexture.X, whTexture.Y)) ?? CachedTexture;
                 }
 
             } else {
+                ConsecutiveCachedPaints = 0;
+            }
+
+            if (repainting || UI.GlobalDrawDebug) {
                 Repainting = false;
-                ConsecutiveRepaints = 0;
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
                 gd.SetRenderTarget(CachedTexture.RT);

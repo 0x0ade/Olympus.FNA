@@ -91,19 +91,20 @@ namespace OlympUI {
                         type.GetField("DefaultStyle", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is not Style style)
                         continue;
 
-                    skin.Map[type.Name] = GenerateProps(style);
+                    skin.Map[type.Name] = GenerateProps(style, new());
                 }
             }
 
             return skin;
         }
 
-        private static Dictionary<string, object> GenerateProps(Style style) {
-            Dictionary<string, object> props = new();
+        private static Dictionary<string, object> GenerateProps(Style style, Dictionary<string, object> props) {
             foreach (Style.Entry entry in style) {
                 object raw = entry.Value;
                 if (raw is Style substyle) {
-                    raw = GenerateProps(substyle);
+                    if (!props.TryGetValue(entry.Key, out object? subpropsRaw) || subpropsRaw is not Dictionary<string, object> subprops)
+                        subprops = new();
+                    raw = GenerateProps(substyle, subprops);
 
                 } else if (raw is IFader fader) {
                     raw = new FaderStub() {
@@ -119,7 +120,7 @@ namespace OlympUI {
                     continue;
                 }
 
-                props.Add(entry.Key, raw);
+                props[entry.Key] = raw;
             }
             return props;
         }
@@ -131,6 +132,22 @@ namespace OlympUI {
             return
                 Map.TryGetValue(type, out Dictionary<string, object>? props) &&
                 props.TryGetValue(key, out value);
+        }
+
+        public T Get<T>(params string[] keys) {
+            Dictionary<string, object> props = Map[keys[0]];
+            for (int i = 1; i < keys.Length - 1; i++) {
+                props = (Dictionary<string, object>) props[keys[i]];
+            }
+            return (T) props[keys[^1]];
+        }
+
+        public void Set(object value, params string[] keys) {
+            Dictionary<string, object> props = Map[keys[0]];
+            for (int i = 1; i < keys.Length - 1; i++) {
+                props = (Dictionary<string, object>) props[keys[i]];
+            }
+            props[keys[^1]] = value;
         }
 
         public class FaderStub {

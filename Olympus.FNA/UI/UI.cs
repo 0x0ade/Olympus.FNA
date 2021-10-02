@@ -22,6 +22,8 @@ namespace OlympUI {
         public static uint GlobalUpdateID = 1;
         public static uint GlobalDrawID = 1;
 
+        public static bool GlobalDrawDebug = false;
+
         public static Element? Hovering;
         public static Element? Dragging;
         public static Element? Focusing;

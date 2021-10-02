@@ -12,7 +12,7 @@ namespace OlympUI {
     public class Panel : Group {
 
         public static readonly new Style DefaultStyle = new() {
-            { "Background", new ColorFader(new(0x10, 0x10, 0x10, 0xff)) },
+            { "Background", new ColorFader(new(0x0a, 0x0a, 0x0a, 0xa0)) },
             { "Border", new ColorFader(new(0x00, 0xad, 0xee, 0xff)) },
             { "BorderSize", new FloatFader(0f) },
             { "Shadow", new FloatFader(1f) },

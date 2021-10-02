@@ -44,6 +44,24 @@ namespace OlympUI {
             "fonts/NotoSansCJKtc-Regular"
         );
 
+        public static readonly Reloadable<DynamicSpriteFont> FontSmall = GetFont(
+            16,
+            "fonts/Poppins-Regular",
+            "fonts/NotoSansCJKjp-Regular",
+            "fonts/NotoSansCJKkr-Regular",
+            "fonts/NotoSansCJKsc-Regular",
+            "fonts/NotoSansCJKtc-Regular"
+        );
+
+        public static readonly Reloadable<DynamicSpriteFont> FontHeader = GetFont(
+            40,
+            "fonts/Renogare-Regular",
+            "fonts/NotoSansCJKjp-Regular",
+            "fonts/NotoSansCJKkr-Regular",
+            "fonts/NotoSansCJKsc-Regular",
+            "fonts/NotoSansCJKtc-Regular"
+        );
+
         public static readonly Reloadable<DynamicSpriteFont> FontMono = GetFont(16, "fonts/Perfect DOS VGA 437");
 
         public static readonly Reloadable<Texture2D> White = Get("White", () => {
@@ -199,6 +217,7 @@ namespace OlympUI {
             texRaw.SetDataPointerEXT(0, null, ptr, len);
             FNA3D_Image_Free(ptr);
 
+            gd.SamplerStates[0] = SamplerState.LinearClamp;
             RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.DiscardContents);
             gd.SetRenderTarget(rt);
             using SpriteBatch sb = new(gd);

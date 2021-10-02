@@ -198,7 +198,7 @@ namespace OlympUI.MegaCanvas {
                     } else {
                         // Small left rectangle
                         if (tlx > space.X)
-                            Spaces.Insert(ii++, new(space.X, space.Y, tlx - space.X, bry - tly));
+                            Spaces.Insert(ii++, new(space.X, tly, tlx - space.X, bry - tly));
 
                         // Small right rectangle
                         if (brx < space.Right)

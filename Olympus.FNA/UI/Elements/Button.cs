@@ -33,7 +33,7 @@ namespace OlympUI {
             {
                 "Hovered",
                 new Style() {
-                    { "Background", new Color(0x40, 0x40, 0x40, 0xff) },
+                    { "Background", new Color(0x50, 0x50, 0x50, 0xff) },
                     { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
                     { "Shadow", 2f },
                 }
@@ -42,7 +42,7 @@ namespace OlympUI {
             {
                 "Pressed",
                 new Style() {
-                    { "Background", new Color(0x20, 0x20, 0x20, 0xff) },
+                    { "Background", new Color(0x38, 0x38, 0x38, 0xff) },
                     { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
                     { "Shadow", 0.5f },
                 }

@@ -20,11 +20,7 @@ namespace Olympus.NativeImpls {
         }
 
         public override bool? DarkModePreferred => null;
-        public override bool DarkMode {
-            get => false;
-            set {
-            }
-        }
+        public override bool DarkMode { get; set; } = false;
 
         public override Point SplashSize => default;
         public override Color SplashFG => default;

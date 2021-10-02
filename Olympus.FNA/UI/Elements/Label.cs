@@ -42,4 +42,15 @@ namespace OlympUI {
         }
 
     }
+
+    public class Header : Label {
+
+        public static readonly new Style DefaultStyle = new() {
+            Assets.FontHeader,
+        };
+        public Header(string text)
+            : base(text) {
+        }
+
+    }
 }

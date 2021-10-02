@@ -50,7 +50,7 @@ namespace OlympUI {
             if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<>))
                 return GetCommonName(type.GetGenericArguments()[0]);
 
-            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<>))
+            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Fader<>))
                 return GetCommonName(type.GetGenericArguments()[0]);
 
             return type.Name;
@@ -310,6 +310,10 @@ namespace OlympUI {
                             return raw;
                         }
                     }
+
+                    for (Style? parent = Parent; parent != null; parent = parent.Parent)
+                        if (parent.GetSkinnedRaw(key) is object got)
+                            return got;
                 }
             }
 
@@ -365,17 +369,22 @@ namespace OlympUI {
 
         public void Apply(string name) {
             if (Element != null) {
+                // FIXME: Cache style parent stack!
+                Stack<Style> stack = new();
                 for (Style? parent = Parent; parent != null; parent = parent.Parent)
+                    stack.Push(parent);
+                foreach (Style parent in stack) {
                     if (parent.Map.TryGetValue(name, out object? raw) && raw is Style value)
                         Apply(value);
+                    if (parent.GetSkinnedRaw(name) is Dictionary<string, object> props)
+                        foreach (KeyValuePair<string, object> entry in props)
+                            Add(entry.Key, entry.Value);
+                }
             }
 
             {
                 if (Map.TryGetValue(name, out object? raw) && raw is Style value)
                     Apply(value);
-            }
-
-            {
                 if (GetSkinnedRaw(name) is Dictionary<string, object> props)
                     foreach (KeyValuePair<string, object> entry in props)
                         Add(entry.Key, entry.Value);

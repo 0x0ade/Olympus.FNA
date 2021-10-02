@@ -77,6 +77,7 @@ namespace Olympus {
             Graphics = new GraphicsDeviceManager(this);
             Graphics.PreferredBackBufferWidth = 1100;
             Graphics.PreferredBackBufferHeight = 600;
+            SDL.SDL_SetWindowMinimumSize(Window.Handle, 800, 600);
 
 #if DEBUG
             Window.Title = "Olympus.FNA (DEBUG)";
@@ -146,7 +147,7 @@ namespace Olympus {
                 DrawCount++;
             }
 
-            IsFixedTimeStep = VSync && !Native.IsActive;
+            IsFixedTimeStep = !Native.IsActive;
 
             Native.Update((float) gameTime.ElapsedGameTime.TotalSeconds);
 
@@ -267,10 +268,13 @@ namespace Olympus {
             Native.EndDrawRT(dt);
 
             GraphicsDevice.SetRenderTarget(null);
-            if (Native.CanRenderTransparentBackground)
+            if (Native.CanRenderTransparentBackground) {
                 GraphicsDevice.Clear(new Color(0f, 0f, 0f, 0f));
-            else
-                GraphicsDevice.Clear(new Color(0f, 0f, 0f, 1f));
+            } else if (Native.DarkMode) {
+                GraphicsDevice.Clear(new Color(0.1f, 0.1f, 0.1f, 1f));
+            } else {
+                GraphicsDevice.Clear(new Color(0.9f, 0.9f, 0.9f, 1f));
+            }
             Native.BeginDrawBB(dt);
             Viewport viewBB = GraphicsDevice.Viewport;
             SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);

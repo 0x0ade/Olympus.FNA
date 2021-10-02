@@ -17,7 +17,13 @@ namespace Olympus {
         protected Element? _Root;
         public Element Root => _Root ??= Generate();
 
+        public virtual string Name { get; set; }
+
         public Scene() {
+            string name = GetType().Name;
+            if (name.EndsWith("Scene"))
+                name = name.Substring(0, name.Length - "Scene".Length);
+            Name = name;
         }
 
         public abstract Element Generate();

@@ -248,8 +248,10 @@ namespace OlympUI {
 
             } else {
                 Time += dt;
-                if (Time > Duration)
+                if (Time > Duration) {
                     Time = Duration;
+                    force = true;
+                }
             }
 
             if (!force && Time >= Duration)

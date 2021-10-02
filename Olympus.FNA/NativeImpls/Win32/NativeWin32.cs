@@ -55,7 +55,7 @@ namespace Olympus.NativeImpls {
         private bool IsTransparent;
         private float LastBackgroundBlur;
 
-        private bool InMoveSize;
+        private bool InPreMoveSize;
 
         private bool Ready = false;
         private Bitmap Splash;
@@ -213,7 +213,7 @@ namespace Olympus.NativeImpls {
             WndProcCurrentPtr = Marshal.GetFunctionPointerForDelegate(WndProcCurrent = WndProc);
             DefWindowProcW = NativeLibrary.GetExport(NativeLibrary.Load("user32.dll"), nameof(DefWindowProcW));
 
-            SDL.SDL_SetWindowMinimumSize(app.Window.Handle, 300, 300);
+            SDL.SDL_SetWindowMinimumSize(app.Window.Handle, 800, 600);
 
             SDL.SDL_SysWMinfo info = new();
             SDL.SDL_GetVersion(out info.version);
@@ -379,7 +379,7 @@ namespace Olympus.NativeImpls {
                 bool redraw = false;
 
                 if (!redraw) {
-                    redraw = InMoveSize;
+                    redraw = InPreMoveSize;
                     if (!redraw) {
                         GetGUIThreadInfo(guiThread, ref guiInfo);
                         redraw = (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == GuiThreadInfoFlags.GUI_INMOVESIZE;
@@ -418,7 +418,8 @@ namespace Olympus.NativeImpls {
                 // Dark mode transparency is very noticeable.
                 DarkMode ? new(0f, 0f, 0f, alpha.Value) :
                 // Light mode transparency is barely noticeable. Multiply by 0.5f also matches maximized better.
-                new(1f, 1f, 1f, 0.8f * alpha.Value);
+                // Sadly making it too transparent also makes it too dark.
+                new(1f, 1f, 1f, 0.9f * alpha.Value);
 
             // FIXME: DWM composite checks whatever!
 
@@ -593,6 +594,7 @@ namespace Olympus.NativeImpls {
 
             switch (msg) {
                 case WindowsMessage.WM_MOVE:
+                    InPreMoveSize = false;
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
                     if (Ready) {
@@ -610,6 +612,7 @@ namespace Olympus.NativeImpls {
                     break;
 
                 case WindowsMessage.WM_SIZE:
+                    InPreMoveSize = false;
                     _IsMaximized = GetIsMaximized(HWnd);
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
@@ -627,13 +630,15 @@ namespace Olympus.NativeImpls {
 
                 case WindowsMessage.WM_SYSCOMMAND when ((uint) wParam & 0xFFF0) == /* SC_MOVE */ 0xF010:
                 case WindowsMessage.WM_ENTERSIZEMOVE:
-                    InMoveSize = true;
+                    InPreMoveSize = true;
                     break;
                 case WindowsMessage.WM_EXITSIZEMOVE:
-                    InMoveSize = false;
+                case WindowsMessage.WM_CAPTURECHANGED when ((uint) wParam) == 0:
+                    InPreMoveSize = false;
                     break;
 
                 case WindowsMessage.WM_ACTIVATE:
+                    InPreMoveSize = false;
                     _IsMaximized = GetIsMaximized(HWnd);
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
