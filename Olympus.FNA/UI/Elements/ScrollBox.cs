@@ -208,7 +208,7 @@ namespace OlympUI {
             { "Radius", new FloatFader() }
         };
 
-        private BasicMesh BackgroundMesh;
+        private BasicMesh Mesh;
         private Color PrevColor;
         private float PrevWidth;
         private float PrevRadius;
@@ -221,9 +221,8 @@ namespace OlympUI {
 
         public ScrollHandle(ScrollAxis axis) {
             Interactive = InteractiveMode.Process;
-            BackgroundMesh = new BasicMesh(Game.GraphicsDevice) {
-                Texture = Assets.GradientQuad,
-                WireFrame = false
+            Mesh = new BasicMesh(Game.GraphicsDevice) {
+                Texture = Assets.GradientQuad
             };
 
             Axis = axis;
@@ -281,7 +280,7 @@ namespace OlympUI {
                 PrevRadius = radius;
                 PrevWH = wh;
 
-                MeshShapes shapes = BackgroundMesh.Shapes;
+                MeshShapes shapes = Mesh.Shapes;
                 shapes.Clear();
 
                 if (color != default) {
@@ -302,7 +301,7 @@ namespace OlympUI {
                 shapes.AutoApply();
             }
 
-            BackgroundMesh.Draw(UI.CreateTransform(xy));
+            Mesh.Draw(UI.CreateTransform(xy));
 
             SpriteBatch.BeginUI();
             base.DrawContent();

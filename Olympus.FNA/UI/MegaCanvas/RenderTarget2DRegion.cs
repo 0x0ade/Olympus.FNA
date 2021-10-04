@@ -20,7 +20,7 @@ namespace OlympUI.MegaCanvas {
             Region = new(0, 0, rt.Width, rt.Height);
         }
 
-        public RenderTarget2DRegion(AtlasPage page, RenderTarget2D rt, Rectangle region) {
+        public RenderTarget2DRegion(AtlasPage? page, RenderTarget2D rt, Rectangle region) {
             Page = page;
             RT = rt;
             Region = region;

@@ -143,14 +143,19 @@ namespace OlympUI {
         }
         public static Stream? OpenStream(string path) {
             try {
+                return
 #if DEBUG_CONTENT
-                return File.OpenRead(Path.GetFullPath($"{typeof(Assets).Assembly.Location}/../../../../../../Content/{path}"));
-#else
-                return TitleContainer.OpenStream($"Content/{path}");
+                    (Path.GetFullPath($"{typeof(Assets).Assembly.Location}/../../../../../../Content/{path}") is string pathFull && File.Exists(pathFull)) ?
+                    File.OpenRead(pathFull) :
 #endif
+                    TitleContainer.OpenStream($"Content/{path}");
 
             } catch (FileNotFoundException) {
-                Console.WriteLine($"Couldn't find content: {path}");
+                Console.WriteLine($"Couldn't find content file: {path}");
+                return null;
+
+            } catch (DirectoryNotFoundException) {
+                Console.WriteLine($"Couldn't find content folder: {path}");
                 return null;
 
             } catch (Exception e) {
@@ -221,7 +226,7 @@ namespace OlympUI {
             RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.DiscardContents);
             gd.SetRenderTarget(rt);
             using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
             sb.Draw(texRaw, Vector2.Zero, Color.White);
             sb.End();
 
@@ -259,7 +264,7 @@ namespace OlympUI {
             RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.DiscardContents);
             gd.SetRenderTarget(rt);
             using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
             sb.Draw(texRaw, Vector2.Zero, Color.White);
             sb.End();
 
@@ -286,8 +291,8 @@ namespace OlympUI {
         }
         public T Value => ValueMaybe ?? throw new Exception($"Failed loading: {(string.IsNullOrEmpty(ID) ? "<temporary pseudo-reloadable resource>" : ID)}");
 
-        public Reloadable(string id, Func<T?> loader, Action<T?>? unloader = null) {
-            ID = id;
+        public Reloadable(string? id, Func<T?> loader, Action<T?>? unloader = null) {
+            ID = id ?? "";
             Loader = loader;
             Unloader = unloader;
         }

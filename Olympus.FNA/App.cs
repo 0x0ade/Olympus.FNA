@@ -54,6 +54,7 @@ namespace Olympus {
         public bool Resizing;
         public bool ManualUpdate;
         private bool ManuallyUpdated = true;
+        public bool ManualUpdateSkip;
 
         private readonly Dictionary<Type, object> ComponentCache = new();
 
@@ -75,6 +76,8 @@ namespace Olympus {
             Instance = this;
 
             Graphics = new GraphicsDeviceManager(this);
+            Graphics.PreferredDepthStencilFormat = DepthFormat.None;
+            Graphics.PreferMultiSampling = false;
             Graphics.PreferredBackBufferWidth = 1100;
             Graphics.PreferredBackBufferHeight = 600;
             SDL.SDL_SetWindowMinimumSize(Window.Handle, 800, 600);
@@ -253,7 +256,7 @@ namespace Olympus {
             }
 
             if (FakeBackbuffer == null || FakeBackbuffer.IsDisposed)
-                FakeBackbuffer = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.Depth24Stencil8, UI.MultiSampleCount, RenderTargetUsage.PreserveContents);
+                FakeBackbuffer = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, UI.MultiSampleCount, RenderTargetUsage.PreserveContents);
             GraphicsDevice.SetRenderTarget(FakeBackbuffer);
             GraphicsDevice.Viewport = new(0, 0, Width, Height);
             GraphicsDevice.Clear(new Color(0f, 0f, 0f, 0f));
@@ -261,7 +264,11 @@ namespace Olympus {
 
             // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
             if (ManualUpdate) {
-                base.Update(gameTime);
+                if (ManualUpdateSkip) {
+                    ManualUpdateSkip = false;
+                } else {
+                    base.Update(gameTime);
+                }
             }
 
             base.Draw(gameTime);
@@ -277,7 +284,7 @@ namespace Olympus {
             }
             Native.BeginDrawBB(dt);
             Viewport viewBB = GraphicsDevice.Viewport;
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
             SpriteBatch.Draw(
                 FakeBackbuffer,
                 new Rectangle(0, 0, viewBB.Width, viewBB.Height),

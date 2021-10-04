@@ -46,11 +46,29 @@ namespace Olympus {
             return (T) scene;
         }
 
-        public static T Push<T>(params object[] args) where T : Scene, new() {
+        public static T Set<T>(params object[] args) where T : Scene, new()
+            => (T) Set(Get<T>(), args);
+
+        public static Scene Set(Scene scene, params object[] args) {
             Scene? prev = Stack.Count == 0 ? null : Stack.Peek();
-            T scene = Get<T>();
             RootContainer.Children.Clear();
             RootContainer.Children.Add(scene.Root);
+            RootContainer.InvalidateFullDown();
+            Stack.Clear();
+            Stack.Push(scene);
+            scene.Enter(args);
+            OnChange?.Invoke(prev, scene);
+            return scene;
+        }
+
+        public static T Push<T>(params object[] args) where T : Scene, new()
+            => (T) Push(Get<T>(), args);
+
+        public static Scene Push(Scene scene, params object[] args) {
+            Scene? prev = Stack.Count == 0 ? null : Stack.Peek();
+            RootContainer.Children.Clear();
+            RootContainer.Children.Add(scene.Root);
+            RootContainer.InvalidateFullDown();
             Stack.Push(scene);
             scene.Enter(args);
             OnChange?.Invoke(prev, scene);

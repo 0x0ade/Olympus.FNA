@@ -28,6 +28,30 @@ namespace OlympUI {
         public static Element? Dragging;
         public static Element? Focusing;
 
+        // FIXME: Sometimes toggling MSAA is more expensive than disabling MSAA?!
+        public static bool? ForceMSAA = true;
+
+        private static readonly RasterizerState _RasterizerStateCullCounterClockwiseScissoredWithMSAA = new() {
+            Name = $"{nameof(UI)}.{nameof(RasterizerStateCullCounterClockwiseScissoredWithMSAA)}",
+            CullMode = CullMode.CullCounterClockwiseFace,
+            ScissorTestEnable = true,
+            MultiSampleAntiAlias = true,
+        };
+        private static readonly RasterizerState _RasterizerStateCullCounterClockwiseScissoredNoMSAA = new() {
+            Name = $"{nameof(UI)}.{nameof(RasterizerStateCullCounterClockwiseScissoredNoMSAA)}",
+            CullMode = CullMode.CullCounterClockwiseFace,
+            ScissorTestEnable = true,
+            MultiSampleAntiAlias = false,
+        };
+
+        public static RasterizerState RasterizerStateCullCounterClockwiseScissoredWithMSAA =>
+            (ForceMSAA ?? true) ? _RasterizerStateCullCounterClockwiseScissoredWithMSAA :
+            _RasterizerStateCullCounterClockwiseScissoredNoMSAA;
+
+        public static RasterizerState RasterizerStateCullCounterClockwiseScissoredNoMSAA =>
+            (ForceMSAA ?? false) ? _RasterizerStateCullCounterClockwiseScissoredWithMSAA :
+            _RasterizerStateCullCounterClockwiseScissoredNoMSAA;
+
 #pragma warning disable CS8618 // Initialize and LoadContent always run first.
         public static Game Game;
         public static UINativeImpl Native;
@@ -179,6 +203,7 @@ namespace OlympUI {
 
                     if (reflowing || forceReflow) {
                         ReflowingPrev = true;
+                        Root.INTERNAL_ReflowLoopReset();
                         FirstPass:
                         Root.Reflowing = false; // Set to false early so that it can be set to true only when necessary.
                         LayoutEvent reflow = LayoutEvent.Instance;
@@ -188,8 +213,10 @@ namespace OlympUI {
                             reflow.Recursive = true;
                             // No need to InvokeDown as reflows follow their own recursion rules.
                             Root.Invoke(reflow);
-                            if (Root.Reflowing)
+                            if (Root.Reflowing) {
+                                Root.INTERNAL_ReflowLoopCount();
                                 goto FirstPass;
+                            }
                         }
                     }
 
@@ -250,13 +277,24 @@ namespace OlympUI {
             );
         }
 
+        public static void BeginUIWithMSAA(this SpriteBatch batch)
+            => batch.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                SamplerState.LinearClamp,
+                DepthStencilState.None,
+                RasterizerStateCullCounterClockwiseScissoredWithMSAA,
+                null,
+                Matrix.CreateTranslation(new(TransformOffset, 0f))
+            );
+
         public static void BeginUI(this SpriteBatch batch)
             => batch.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
                 DepthStencilState.None,
-                RasterizerState.CullCounterClockwise,
+                RasterizerStateCullCounterClockwiseScissoredNoMSAA,
                 null,
                 Matrix.CreateTranslation(new(TransformOffset, 0f))
             );

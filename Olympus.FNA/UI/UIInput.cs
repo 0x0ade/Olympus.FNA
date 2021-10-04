@@ -37,7 +37,18 @@ namespace OlympUI {
             KeyboardPrev = Keyboard;
             Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
             MousePrev = Mouse;
-            Mouse = Microsoft.Xna.Framework.Input.Mouse.GetState();
+            MouseState mouseReal = Microsoft.Xna.Framework.Input.Mouse.GetState();
+            Point mouseOffs = UI.Native.MouseOffset;
+            Mouse = new(
+                mouseReal.X + mouseOffs.X,
+                mouseReal.Y + mouseOffs.Y,
+                mouseReal.ScrollWheelValue,
+                mouseReal.LeftButton,
+                mouseReal.MiddleButton,
+                mouseReal.RightButton,
+                mouseReal.XButton1,
+                mouseReal.XButton2
+            );
 
             MouseFocus = UI.Native.CaptureMouse || UI.Native.IsMouseFocus || MousePresses > 0;
             if (!MouseFocus) {

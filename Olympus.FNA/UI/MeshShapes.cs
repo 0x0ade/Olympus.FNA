@@ -36,7 +36,9 @@ namespace OlympUI {
         public void Apply(BasicMesh mesh) {
             Mesh = mesh;
             mesh.Vertices = Vertices.ToArray();
+            mesh.VerticesMax = -1;
             mesh.Indices = Indices.ToArray();
+            mesh.IndicesMax = -1;
             mesh.Reload();
         }
 
@@ -205,13 +207,24 @@ namespace OlympUI {
             Vector2 max = shape.XY2;
             Vector2 size = max - min;
 
+            Vector2 uvMin, uvMax;
+            if (shape.HasUV) {
+                uvMin = shape.UVXYMin;
+                uvMax = shape.UVXYMax;
+            } else {
+                uvMin = min;
+                uvMax = max;
+            }
+
             if (!isBorder && !isRound) {
                 Add(new Quad() {
                     Color = shape.Color,
                     XY1 = new(min.X, min.Y),
                     XY2 = new(max.X, min.Y),
                     XY3 = new(min.X, max.Y),
-                    XY4 = new(max.X, max.Y)
+                    XY4 = new(max.X, max.Y),
+                    UVXYMin = uvMin,
+                    UVXYMax = uvMax
                 });
                 return;
             }
@@ -224,8 +237,8 @@ namespace OlympUI {
                     XY2 = new(max.X,            min.Y),
                     XY3 = new(min.X,            min.Y + border),
                     XY4 = new(max.X,            min.Y + border),
-                    UVXYMin = min,
-                    UVXYMax = max
+                    UVXYMin = uvMin,
+                    UVXYMax = uvMax
                 });
                 // Bottom
                 Add(new Quad() {
@@ -234,8 +247,8 @@ namespace OlympUI {
                     XY2 = new(max.X,            max.Y - border),
                     XY3 = new(min.X,            max.Y),
                     XY4 = new(max.X,            max.Y),
-                    UVXYMin = min,
-                    UVXYMax = max
+                    UVXYMin = uvMin,
+                    UVXYMax = uvMax
                 });
                 // Left
                 Add(new Quad() {
@@ -244,8 +257,8 @@ namespace OlympUI {
                     XY2 = new(min.X + border,   min.Y + border),
                     XY3 = new(min.X,            max.Y - border),
                     XY4 = new(min.X + border,   max.Y - border),
-                    UVXYMin = min,
-                    UVXYMax = max
+                    UVXYMin = uvMin,
+                    UVXYMax = uvMax
                 });
                 // Right
                 Add(new Quad() {
@@ -254,8 +267,8 @@ namespace OlympUI {
                     XY2 = new(max.X,            min.Y + border),
                     XY3 = new(max.X - border,   max.Y - border),
                     XY4 = new(max.X,            max.Y - border),
-                    UVXYMin = min,
-                    UVXYMax = max
+                    UVXYMin = uvMin,
+                    UVXYMax = uvMax
                 });
                 return;
             }
@@ -263,8 +276,8 @@ namespace OlympUI {
             Poly poly = new() {
                 Color = shape.Color,
                 Width = shape.Border,
-                UVXYMin = min,
-                UVXYMax = max
+                UVXYMin = uvMin,
+                UVXYMax = uvMax
             };
 
             int pointsPerBend = shape.RadiusPoints;
@@ -609,6 +622,21 @@ namespace OlympUI {
             public Vector2 Size {
                 get => XY2 - XY1;
                 set => XY2 = XY1 + value;
+            }
+            public bool HasUV => _UVXYMin != default || _UVXYMax != default;
+            private Vector2 _UVXYMin;
+            private Vector2 _UVXYMax;
+            public Vector2 UVXYMin {
+                get => _UVXYMin;
+                set => _UVXYMin = value;
+            }
+            public Vector2 UVXYMax {
+                get => _UVXYMax;
+                set => _UVXYMax = value;
+            }
+            public Vector2 UVXYSize {
+                get => UVXYMax - UVXYMin;
+                set => UVXYMax = UVXYMin + value;
             }
             public float Border;
             public float RadiusTL;

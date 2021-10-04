@@ -25,8 +25,7 @@ namespace OlympUI {
             Cached = false;
             WH = new(32, 32);
             Mesh = new BasicMesh(Game.GraphicsDevice) {
-                Texture = Assets.White,
-                WireFrame = false
+                Texture = Assets.White
             };
         }
 

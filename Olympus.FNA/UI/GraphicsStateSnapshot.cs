@@ -20,8 +20,9 @@ namespace OlympUI {
         public RenderTargetBinding[] RenderTargets;
         public Texture? Texture;
         public SamplerState SamplerState;
-        public Texture VertexTexture;
-        public SamplerState VertexSamplerState;
+        private bool HasVertexTexture;
+        public Texture? VertexTexture;
+        public SamplerState? VertexSamplerState;
         public BlendState BlendState;
         public DepthStencilState DepthStencilState;
         public RasterizerState RasterizerState;
@@ -36,8 +37,13 @@ namespace OlympUI {
             RenderTargets = graphicsDevice.GetRenderTargets();
             Texture = graphicsDevice.Textures[0];
             SamplerState = graphicsDevice.SamplerStates[0];
-            VertexTexture = graphicsDevice.VertexTextures[0];
-            VertexSamplerState = graphicsDevice.VertexSamplerStates[0];
+            try {
+                VertexTexture = graphicsDevice.VertexTextures[0];
+                VertexSamplerState = graphicsDevice.VertexSamplerStates[0];
+                HasVertexTexture = true;
+            } catch (IndexOutOfRangeException) {
+                HasVertexTexture = false;
+            }
             BlendState = graphicsDevice.BlendState;
             DepthStencilState = graphicsDevice.DepthStencilState;
             RasterizerState = graphicsDevice.RasterizerState;
@@ -57,8 +63,10 @@ namespace OlympUI {
                 graphicsDevice.SetRenderTargets(RenderTargets);
             graphicsDevice.Textures[0] = Texture;
             graphicsDevice.SamplerStates[0] = SamplerState;
-            graphicsDevice.VertexTextures[0] = VertexTexture;
-            graphicsDevice.VertexSamplerStates[0] = VertexSamplerState;
+            if (HasVertexTexture) {
+                graphicsDevice.VertexTextures[0] = VertexTexture;
+                graphicsDevice.VertexSamplerStates[0] = VertexSamplerState;
+            }
             graphicsDevice.BlendState = BlendState;
             graphicsDevice.DepthStencilState = DepthStencilState;
             graphicsDevice.RasterizerState = RasterizerState;

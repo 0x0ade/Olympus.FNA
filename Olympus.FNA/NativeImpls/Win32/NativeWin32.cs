@@ -3,6 +3,7 @@
 using Microsoft.Win32;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using OlympUI;
 using Olympus.External;
 using SDL2;
 using System;
@@ -27,10 +28,18 @@ namespace Olympus.NativeImpls {
         // Windows 10 1809 introduced acrylic blur.
         static readonly bool SystemHasAcrylic = Environment.OSVersion.Version >= new Version(10, 0, 17763, 0);
         // Windows 11 (22000) is (going to be) the first reliable non-insider build with (almost) fixed acrylic.
-        static readonly bool SetAcrylicOnSelf = Environment.GetEnvironmentVariable("OLYMPUS_WIN32_SELFACRYLIC") == "1" || Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
+        // Apparently self-acrylic is still better than having an acrylic background window though.
+        static readonly bool SetAcrylicOnSelf = true; // Environment.GetEnvironmentVariable("OLYMPUS_WIN32_SELFACRYLIC") == "1" || Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
         static readonly bool SystemHasAcrylicFixes = Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
+        // Windows 11 clips the window for us, Windows 10 doesn't. It's as simple as that... right? No!
+        // There once was ClipSelf for testing but it just misbehaved greatly.
+        static readonly bool ClipBackgroundAcrylicChild = false; // Could be explored further.
+        static readonly bool ExtendedBorderedWindow = SetAcrylicOnSelf && !SystemHasAcrylicFixes;
+        static readonly bool ExtendedBorderedWindowResizeOutside = false; // TODO
+        static readonly bool LegacyBorderedWindow = ExtendedBorderedWindow;
 
         static readonly bool IsOpenGL = Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER")?.ToLowerInvariant() == "opengl";
+        static readonly bool IsVulkan = Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER")?.ToLowerInvariant() == "vulkan";
 
         private IntPtr HWnd;
         private IntPtr HDc;
@@ -51,15 +60,17 @@ namespace Olympus.NativeImpls {
         internal int WindowControlsHeight => _IsMaximized ? WorkaroundDWMMaximizedTitleBarSize ? OffsetTop + 1: OffsetTop + 8 : OffsetTop;
 
         private bool? _IsTransparentPreferred;
-        private bool IsTransparentPreferred => _IsTransparentPreferred ??= (Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", null) as int? != 0);
+        private bool IsTransparentPreferred => _IsTransparentPreferred ??= (SystemHasAcrylic && Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", null) as int? != 0);
         private bool IsTransparent;
         private float LastBackgroundBlur;
 
-        private bool InPreMoveSize;
+        private bool WindowIdleForceRedraw;
 
         private bool Ready = false;
         private Bitmap Splash;
-        private Win10BackgroundForm? BackgroundChild;
+        private Win10BackgroundForm? BackgroundAcrylicChild;
+        private Win10BackgroundForm? BackgroundResizeChild;
+        private Thread? BackgroundResizeChildThread;
 
         private RECT LastWindowRect;
         private RECT LastClientRect;
@@ -122,8 +133,22 @@ namespace Olympus.NativeImpls {
             }
         }
 
-        public override bool CanRenderTransparentBackground => true; // Always true because window controls are behind content.
-        public override bool IsActive => GetActiveWindow() == HWnd && GetForegroundWindow() == HWnd;
+        public override bool CanRenderTransparentBackground => SystemHasAcrylic && (ClientSideDecoration == ClientSideDecorationMode.Title || !_IsMaximized);
+
+        public override bool IsActive {
+            get {
+                IntPtr active = GetActiveWindow();
+                IntPtr foreground = GetForegroundWindow();
+                if (active == HWnd && foreground == HWnd)
+                    return true;
+                // Resize child can't ever be active, but it can be in the foreground.
+                IntPtr child = BackgroundResizeChild?.FriendlyHandle ?? NULL;
+                if (child != NULL && foreground == child)
+                    return true;
+                return false;
+            }
+        }
+
         private bool _IsMaximized;
         public override bool IsMaximized => _IsMaximized;
         public override Microsoft.Xna.Framework.Point WindowPosition {
@@ -135,14 +160,10 @@ namespace Olympus.NativeImpls {
             set => SDL.SDL_SetWindowPosition(App.Window.Handle, value.X, value.Y);
         }
 
-        public Microsoft.Xna.Framework.Point WindowSize {
-            get {
-                return new Microsoft.Xna.Framework.Point(
-                    App.Graphics.PreferredBackBufferWidth + (LastWindowRect.Right - LastWindowRect.Left) - (LastClientRect.Right - LastClientRect.Left),
-                    App.Graphics.PreferredBackBufferHeight + (LastWindowRect.Bottom - LastWindowRect.Top) - (LastClientRect.Bottom - LastClientRect.Top)
-                );
-            }
-        }
+        public Microsoft.Xna.Framework.Point WindowSize => new Microsoft.Xna.Framework.Point(
+            App.Graphics.PreferredBackBufferWidth + (LastWindowRect.Right - LastWindowRect.Left) - (LastClientRect.Right - LastClientRect.Left),
+            App.Graphics.PreferredBackBufferHeight + (LastWindowRect.Bottom - LastWindowRect.Top) - (LastClientRect.Bottom - LastClientRect.Top)
+        );
 
         private bool? _DarkModePreferred;
         public override bool? DarkModePreferred => _DarkModePreferred ??= (Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "AppsUseLightTheme", null) as int? == 0);
@@ -189,7 +210,19 @@ namespace Olympus.NativeImpls {
             set => _BackgroundBlur = SetBackgroundBlur(value ? 0.6f : -1f);
         }
 
-        public override bool ReduceBackBufferResizes => !IsOpenGL && !(CurrentDisplay?.Adapter.IsMain ?? true);
+        public override bool ReduceBackBufferResizes => !IsOpenGL && !IsVulkan && !(CurrentDisplay?.Adapter.IsMain ?? true);
+
+        public override OlympUI.Padding Padding =>
+            ExtendedBorderedWindow ? new() {
+                Left = 8,
+                Top = 8, // Could be 0 but let's have equal padding.
+                Right = 8,
+                Bottom = 8,
+            } :
+            default;
+        public override ClientSideDecorationMode ClientSideDecoration =>
+            ExtendedBorderedWindow ? ClientSideDecorationMode.Full :
+            ClientSideDecorationMode.Title;
 
 
         private bool _IsMouseFocus;
@@ -205,6 +238,8 @@ namespace Olympus.NativeImpls {
                 SDL.SDL_CaptureMouse(value ? SDL.SDL_bool.SDL_TRUE : SDL.SDL_bool.SDL_FALSE);
             }
         }
+
+        public override Microsoft.Xna.Framework.Point MouseOffset => (IsMaximized && WorkaroundDWMMaximizedTitleBarSize) ? new(0, -8) : new(0, 0);
 
 
         public NativeWin32(App app)
@@ -227,7 +262,7 @@ namespace Olympus.NativeImpls {
 
             // GDI doesn't seem to have any tinted drawing, so let's just tint the image before drawing...
             Splash = new(OlympUI.Assets.OpenStream("splash_win32.png") ?? throw new Exception("Win32 splash not found"));
-            if (Image.GetPixelFormatSize(Splash.PixelFormat) != 32) {
+            if (System.Drawing.Image.GetPixelFormatSize(Splash.PixelFormat) != 32) {
                 using Bitmap splashOld = Splash;
                 Splash = splashOld.Clone(new System.Drawing.Rectangle(0, 0, splashOld.Width, splashOld.Height), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             }
@@ -312,10 +347,12 @@ namespace Olympus.NativeImpls {
                 vp.Height -= MaximizedOffset.Top;
             } else {
                 // See WM_NCCALCSIZE handler.
-                vp.Y += 1;
-                // ... weirdly enough there seems to be yet another special pixel row rule when painting and updating manually?!
-                if (!App.ManualUpdate) {
-                    vp.Height -= 1;
+                if (!ExtendedBorderedWindow) {
+                    vp.Y += 1;
+                    // ... weirdly enough there seems to be yet another special pixel row rule when painting and updating manually?!
+                    if (!App.ManualUpdate) {
+                        vp.Height -= 1;
+                    }
                 }
             }
             App.GraphicsDevice.Viewport = vp;
@@ -326,7 +363,7 @@ namespace Olympus.NativeImpls {
 
         public override void BeginDrawBB(float dt) {
             // One background color for light mode, three for dark mode (focused black vs focused gray vs unfocused), whyyyy
-            if (_IsMaximized) {
+            if (_IsMaximized && ClientSideDecoration == ClientSideDecorationMode.Title) {
                 // The "ideal" maximized dark bg is 0x2e2e2e BUT it's too bright for the overlay.
                 // Light mode is too dark to be called light mode.
                 Microsoft.Xna.Framework.Color bg =
@@ -334,7 +371,7 @@ namespace Olympus.NativeImpls {
                     new(0x1e, 0x1e, 0x1e, 0xff) :
                     new(0xe0, 0xe0, 0xe0, 0xff);
                 SpriteBatch sb = App.SpriteBatch;
-                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, RasterizerState.CullCounterClockwise);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
                 sb.Draw(
                     OlympUI.Assets.White,
                     new Microsoft.Xna.Framework.Rectangle(
@@ -379,7 +416,7 @@ namespace Olympus.NativeImpls {
                 bool redraw = false;
 
                 if (!redraw) {
-                    redraw = InPreMoveSize;
+                    redraw = WindowIdleForceRedraw;
                     if (!redraw) {
                         GetGUIThreadInfo(guiThread, ref guiInfo);
                         redraw = (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == GuiThreadInfoFlags.GUI_INMOVESIZE;
@@ -431,59 +468,104 @@ namespace Olympus.NativeImpls {
 
                 if (SetAcrylicOnSelf) {
                     if (forceUpdate) {
-                        // Setting ONLY the top margin and not using invisible blurbehind works as well,
-                        // but -1 everywhere allows for the system to show title bar buttons.
-                        MARGINS margins = new() {
-                            Left = -1,
-                            Right = -1,
-                            Top = -1,
-                            Bottom = -1,
-                        };
-                        if (!IsTransparent && _IsMaximized) {
-                            // Blame DWM for showing the supposedly invisible "window outside of screen" area with ^^^.
-                            WorkaroundDWMMaximizedTitleBarSize = true;
-                            margins = new() {
-                                Left = 0,
-                                Right = 0,
-                                // Top = rect.Bottom - rect.Top,
-                                // Bottom = 0,
-                                Top = 32,
-                                Bottom = LastWindowRect.Bottom - LastWindowRect.Top,
+                        if (ExtendedBorderedWindow) {
+                            // DwmExtendFrameIntoClientArea loves to misbehave sometimes...
+
+                        } else {
+                            // Setting ONLY the top margin and not using invisible blurbehind works as well,
+                            // but -1 everywhere allows for the system to show title bar buttons.
+                            MARGINS margins = new() {
+                                Left = -1,
+                                Right = -1,
+                                Top = -1,
+                                Bottom = -1,
                             };
+                            if (!IsTransparent && _IsMaximized) {
+                                // Blame DWM for showing the supposedly invisible "window outside of screen" area with ^^^.
+                                WorkaroundDWMMaximizedTitleBarSize = true;
+                                margins = new() {
+                                    Left = 0,
+                                    Right = 0,
+                                    // Top = rect.Bottom - rect.Top,
+                                    // Bottom = 0,
+                                    Top = 32,
+                                    Bottom = LastWindowRect.Bottom - LastWindowRect.Top,
+                                };
+                            }
+                            DwmExtendFrameIntoClientArea(HWnd, ref margins);
+                            DWM_BLURBEHIND blurBehind =
+                                IsTransparent ?
+                                new() {
+                                    dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
+                                    fEnable = true,
+                                    hRgnBlur = InvisibleRegion,
+                                    fTransitionOnMaximized = false
+                                } :
+                                new() {
+                                    dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
+                                    // Dark mode breaks background blur, thus disable it fully.
+                                    // Setting this to false turns the BG black / white, but true turns it light / dark gray.
+                                    // fEnable = DarkMode,
+                                    // Sadly trying to flip this on demand turns the light mode background black at all times.
+                                    fEnable = true,
+                                    hRgnBlur = NULL,
+                                    fTransitionOnMaximized = false
+                                };
+                            DwmEnableBlurBehindWindow(HWnd, ref blurBehind);
                         }
-                        DwmExtendFrameIntoClientArea(HWnd, ref margins);
-                        DWM_BLURBEHIND blurBehind =
-                            IsTransparent ?
-                            new() {
-                                dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
-                                fEnable = true,
-                                hRgnBlur = InvisibleRegion,
-                                fTransitionOnMaximized = false
-                            } :
-                            new() {
-                                dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
-                                // Dark mode breaks background blur, thus disable it fully.
-                                // Setting this to false turns the BG black / white, but true turns it light / dark gray.
-                                // fEnable = DarkMode,
-                                // Sadly trying to flip this on demand turns the light mode background black at all times.
-                                fEnable = true,
-                                hRgnBlur = NULL,
-                                fTransitionOnMaximized = false
-                            };
-                        DwmEnableBlurBehindWindow(HWnd, ref blurBehind);
                     }
 
                     SetAcrylic(HWnd, color);
 
+                    if (ExtendedBorderedWindow && ExtendedBorderedWindowResizeOutside) {
+                        if (BackgroundResizeChildThread == null) {
+                            uint threadMain = GetCurrentThreadId();
+                            BackgroundResizeChildThread = new(() => {
+                                Win10BackgroundForm child = new(this, "Olympus Olympus Win32 Helper Background Resize Window", false);
+                                child.Fix(false, -16, 0, 0, 8);
+                                child.Show();
+                                BackgroundResizeChild = child;
+                                // AttachThreadInput(threadChild, threadMain, true);
+                                Application.Run(child);
+                            }) {
+                                Name = "Olympus Win32 Helper Background Resize Window Thread",
+                                IsBackground = true,
+                            };
+                            BackgroundResizeChildThread.SetApartmentState(ApartmentState.STA);
+                            BackgroundResizeChildThread.Start();
+                            while (BackgroundResizeChild == null)
+                                ;
+                            BackgroundResizeChild.FriendlyHandle = FindWindowEx(NULL, NULL, null, "Olympus Olympus Win32 Helper Background Resize Window");
+                        }
+                    } else {
+                        BackgroundResizeChild?.Invoke(child => {
+                            Application.Exit();
+                            child.Close();
+                            child.Dispose();
+                            BackgroundResizeChild = null;
+                        });
+                        BackgroundResizeChildThread?.Join();
+                        BackgroundResizeChildThread = null;
+                    }
+
                 } else if (IsTransparent) {
-                    Win10BackgroundForm? child = BackgroundChild;
+                    BackgroundResizeChild?.Invoke(child => {
+                        Application.Exit();
+                        child.Close();
+                        child.Dispose();
+                        BackgroundResizeChild = null;
+                    });
+                    BackgroundResizeChildThread?.Join();
+                    BackgroundResizeChildThread = null;
+
+                    Win10BackgroundForm? child = BackgroundAcrylicChild;
                     if (child == null) {
-                        child = new Win10BackgroundForm(this);
-                        child.Fix();
+                        child = new Win10BackgroundForm(this, "Olympus Olympus Win32 Helper Background Acrylic Window", true);
+                        child.Fix(false, 0, 0, 0, 0);
                     }
                     SetAcrylic(child.Handle, color);
-                    if (BackgroundChild == null) {
-                        BackgroundChild = child;
+                    if (BackgroundAcrylicChild == null) {
+                        BackgroundAcrylicChild = child;
                         child.Show();
                     }
 
@@ -511,9 +593,18 @@ namespace Olympus.NativeImpls {
                     }
 
                 } else if (forceUpdate) {
-                    BackgroundChild?.Close();
-                    BackgroundChild?.Dispose();
-                    BackgroundChild = null;
+                    BackgroundResizeChild?.Invoke(child => {
+                        Application.Exit();
+                        child.Close();
+                        child.Dispose();
+                        BackgroundResizeChild = null;
+                    });
+                    BackgroundResizeChildThread?.Join();
+                    BackgroundResizeChildThread = null;
+
+                    BackgroundAcrylicChild?.Close();
+                    BackgroundAcrylicChild?.Dispose();
+                    BackgroundAcrylicChild = null;
 
                     MARGINS margins = new() {
                         Left = -1,
@@ -540,11 +631,13 @@ namespace Olympus.NativeImpls {
 
         private static void SetAcrylic(IntPtr hwnd, Microsoft.Xna.Framework.Color color) {
             /* Acrylic accent flags:
-             * 0b00000000000000000000000000000001: ???????? Used by Windows Explorer for the task bar.
-             * 0b00000000000000000000000000000010: [WIN10?] Opaque(-ish?) but NOT Mica
+             * 0b00000000000000000000000000000001: ???????? Used by Windows Explorer for the task bar
+             * 0b00000000000000000000000000000010: [WIN10 ] Force accent color? (At least according to info online)
+             * 0b00000000000000000000000000000010: [WIN11+] Opaque(-ish?) but NOT Mica
+             * 0b00000000000000000000000000000100: [WIN10+] Backdrop is as big as entire display area (unless clipped by Win11 round corners)
              * 0b00000000000000000000000000000100: [WIN11+] FIX RESIZING LAG BUT fullscreen spills onto all screens when maximized
              * 0b00000000000000000000000000001000: ???????? Not used by anything?
-             * 0b00000000000000000000000000010000: [WIN11+] Seems to fix the aforementioned spilling
+             * 0b00000000000000000000000000010000: [WIN11+] Seems to fix the aforementioned spilling, only on 22000?
              * 0b00000000000000000000000000100000: [WIN10+] Left border
              * 0b00000000000000000000000001000000: [WIN10+] Top border
              * 0b00000000000000000000000010000000: [WIN10+] Right border
@@ -558,8 +651,16 @@ namespace Olympus.NativeImpls {
                 new() {
                     AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
                     AccentFlags =
-                        SystemHasAcrylicFixes ?
+                        (
+                        SystemHasAcrylicFixes && !ExtendedBorderedWindow ?
                         0b00000000000000000000000000010100 :
+                        0b00000000000000000000000000000000
+                        ) |
+                        (
+                        LegacyBorderedWindow ?
+                        0b00000000000000000000000111100000 :
+                        0b00000000000000000000000000000000
+                        ) |
                         0b00000000000000000000000000000000,
                     GradientColor = color.PackedValue, // Kinda lucky about alignment here.
             };
@@ -579,7 +680,7 @@ namespace Olympus.NativeImpls {
         }
 
         private IntPtr WndProc(IntPtr hwnd, WindowsMessage msg, IntPtr wParam, IntPtr lParam) {
-            if (hwnd != HWnd && hwnd != NULL)
+            if (hwnd != HWnd)
                 return CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
 
             // Console.WriteLine($"{hwnd}, {msg}: {wParam}, {lParam}");
@@ -591,10 +692,11 @@ namespace Olympus.NativeImpls {
             RECT rect;
             MONITORINFO monitorInfo;
             IntPtr monitor;
+            IntPtr hwndResize;
 
             switch (msg) {
                 case WindowsMessage.WM_MOVE:
-                    InPreMoveSize = false;
+                    WindowIdleForceRedraw = false;
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
                     if (Ready) {
@@ -612,10 +714,10 @@ namespace Olympus.NativeImpls {
                     break;
 
                 case WindowsMessage.WM_SIZE:
-                    InPreMoveSize = false;
-                    _IsMaximized = GetIsMaximized(HWnd);
-                    GetWindowRect(HWnd, out LastWindowRect);
-                    GetClientRect(HWnd, out LastClientRect);
+                    WindowIdleForceRedraw = false;
+                    _IsMaximized = GetIsMaximized(hwnd);
+                    GetWindowRect(hwnd, out LastWindowRect);
+                    GetClientRect(hwnd, out LastClientRect);
                     if (Ready) {
                         if (_IsMaximized && SetAcrylicOnSelf) {
                             // SOMEHOW flashing the window is needed to update both the background and button colors.
@@ -626,19 +728,25 @@ namespace Olympus.NativeImpls {
                             SetBackgroundBlur(null, true);
                         }
                     }
+                    if (ClipBackgroundAcrylicChild && BackgroundAcrylicChild != null) {
+                        // Note that this won't be round, but given how this should only affect Win10, who cares?
+                        // FIXME: Delete the old region? According to MSDN, Windows does that for us.
+                        SetWindowRgn(BackgroundAcrylicChild.Handle, CreateRectRgn(LastClientRect.Left, LastClientRect.Top, LastClientRect.Right, LastClientRect.Bottom), false);
+                    }
                     break;
 
-                case WindowsMessage.WM_SYSCOMMAND when ((uint) wParam & 0xFFF0) == /* SC_MOVE */ 0xF010:
+                case WindowsMessage.WM_SYSCOMMAND when ((ulong) wParam & 0xFFF0) == /* SC_MOVE */ 0xF010:
                 case WindowsMessage.WM_ENTERSIZEMOVE:
-                    InPreMoveSize = true;
+                case WindowsMessage.WM_ENTERIDLE:
+                    WindowIdleForceRedraw = true;
                     break;
                 case WindowsMessage.WM_EXITSIZEMOVE:
-                case WindowsMessage.WM_CAPTURECHANGED when ((uint) wParam) == 0:
-                    InPreMoveSize = false;
+                case WindowsMessage.WM_CAPTURECHANGED when ((ulong) wParam) == 0:
+                    WindowIdleForceRedraw = false;
                     break;
 
                 case WindowsMessage.WM_ACTIVATE:
-                    InPreMoveSize = false;
+                    WindowIdleForceRedraw = false;
                     _IsMaximized = GetIsMaximized(HWnd);
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
@@ -698,6 +806,11 @@ namespace Olympus.NativeImpls {
                             MaximizedOffset.Top = monitorInfo.WorkArea.Top - next->Top;
                             MaximizedOffset.Right = monitorInfo.WorkArea.Right - next->Right;
                             MaximizedOffset.Bottom = monitorInfo.WorkArea.Bottom - next->Bottom;
+                        } else if (ExtendedBorderedWindow && !IsIconic(hwnd)) {
+                            // Windows 10 loves to pretend that the non-client area is acrylic'd.
+                            next->Left -= 8;
+                            next->Right += 8;
+                            next->Bottom += 8;
                         } else {
                             // We SHOULDN'T + 1 this but not doing this will cost us one row of pixels in windowed mode.
                             // param->rgrc0.Top += 1;
@@ -729,6 +842,7 @@ namespace Olympus.NativeImpls {
                         }
                         return NULL;
                     }
+                    NCPaint(hwnd, wParam, System.Drawing.Color.Transparent);
                     break;
 
                 case WindowsMessage.WM_ERASEBKGND:
@@ -785,29 +899,75 @@ namespace Olympus.NativeImpls {
                     };
                     point = pointReal;
                     rect = LastClientRect;
+                    const int border = 8;
+                    // FIXME: GET THIS THE HELL OUT OF HERE.
+                    const int windowButtonWidth = border + 48 * 3 + 2 * 2 + 8;
                     if (hit == HitTestValues.HTCLIENT && ScreenToClient(hwnd, ref point)) {
                         // TODO: Ensure that this doesn't overlap with any UI elements!
                         if (point.Y < OffsetTop) {
                             if (hitDWM && point.Y > 0 && ((HitTestValues) rv) > HitTestValues.HTSYSMENU)
                                 return rv;
 
-                            if (point.Y < 8) {
-                                if (point.X < 8) {
-                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTTOPLEFT);
-                                }
-                                if (point.X >= rect.Right - 8) {
-                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTTOPRIGHT);
-                                }
-                                return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTTOP);
+                            if (point.Y < border && ExtendedBorderedWindow && ExtendedBorderedWindowResizeOutside) {
+                                return (IntPtr) HitTestValues.HTNOWHERE;
                             }
+
+                            if (ClientSideDecoration >= ClientSideDecorationMode.Full && point.Y >= border && point.X >= rect.Right - windowButtonWidth && point.X <= rect.Right - border) {
+                                return (IntPtr) HitTestValues.HTCLIENT;
+                            }
+
+                            // Windows 11 (maybe 10 too) allows the window to be moved in a weird way from the corners.
+                            if (_IsMaximized && (point.X <= 32 || point.X > rect.Right - 32)) {
+                                return (IntPtr) HitTestValues.HTCLIENT;
+                            }
+
+                            if (!(ExtendedBorderedWindow && ExtendedBorderedWindowResizeOutside)) {
+                                if (point.Y < border) {
+                                    if (point.X < border) {
+                                        return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTTOPLEFT);
+                                    }
+                                    if (point.X >= rect.Right - border) {
+                                        return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTTOPRIGHT);
+                                    }
+                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTTOP);
+                                }
+                                if (_IsMaximized || (ExtendedBorderedWindow && !ExtendedBorderedWindowResizeOutside && ClientSideDecoration < ClientSideDecorationMode.Title)) {
+                                    return (IntPtr) HitTestValues.HTCAPTION;
+                                }
+                                if (point.X < border) {
+                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTLEFT);
+                                }
+                                if (point.X >= rect.Right - border) {
+                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTRIGHT);
+                                }
+                            }
+
                             return (IntPtr) HitTestValues.HTCAPTION;
                         }
 
                         if (_IsMaximized && (
-                                point.X < 8 || point.X >= rect.Right - 8 ||
-                                point.Y < 8 || point.Y >= rect.Bottom - 8
+                                point.X < border || point.X >= rect.Right - border ||
+                                point.Y < border || point.Y >= rect.Bottom - border
                             ))
                             return (IntPtr) HitTestValues.HTNOWHERE;
+
+                        if (!_IsMaximized && ExtendedBorderedWindow && !ExtendedBorderedWindowResizeOutside) {
+                            if (point.Y >= rect.Bottom - border) {
+                                if (point.X < border) {
+                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTBOTTOMLEFT);
+                                }
+                                if (point.X >= rect.Right - border) {
+                                    return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTBOTTOMRIGHT);
+                                }
+                                return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTBOTTOM);
+                            }
+                            if (point.X < border) {
+                                return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTLEFT);
+                            }
+                            if (point.X >= rect.Right - border) {
+                                return (IntPtr) (_IsMaximized ? HitTestValues.HTNOWHERE : HitTestValues.HTRIGHT);
+                            }
+                        }
 
                         // Splash screens on Windows behave like full-sized titlebars.
                         if (!Ready)
@@ -834,13 +994,25 @@ namespace Olympus.NativeImpls {
                         }
                     }
                     break;
+
+                case WindowsMessage.WM_USER_ADE_MOVE_AFTER:
+                    SetWindowPos(hwnd, wParam, 0, 0, 0, 0, (uint) lParam);
+                    return NULL;
+
+                case WindowsMessage.WM_USER_ADE_MOVE:
+                    SetWindowPos(
+                        hwnd, NULL,
+                        unchecked((short) (ushort) (((ulong) wParam) >> 0)),
+                        unchecked((short) (ushort) (((ulong) wParam) >> 16)),
+                        unchecked((short) (ushort) (((ulong) lParam) >> 0)),
+                        unchecked((short) (ushort) (((ulong) lParam) >> 16)),
+                        /* SWP_NOACTIVATE | SWP_NOOWNERZORDER */ 0x0010 | 0x0200
+                    );
+                    return NULL;
+
             }
 
             rv = CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
-
-            // FixBackgroundChild:
-            // Excessive but eh whatever.
-            BackgroundChild?.Fix();
 
             switch (msg) {
                 case WindowsMessage.WM_MOVE:
@@ -853,6 +1025,38 @@ namespace Olympus.NativeImpls {
                     _IsMaximized = GetIsMaximized(HWnd);
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
+                    // Excessive but eh whatever.
+                    BackgroundAcrylicChild?.Fix(false, 0, 0, 0, 0);
+                    hwndResize = BackgroundResizeChild?.FriendlyHandle ?? NULL;
+                    if (hwndResize != NULL) {
+                        PostMessage(
+                            hwndResize, (int) WindowsMessage.WM_USER_ADE_CALL_FIX, NULL,
+                            (IntPtr) (
+                                ((unchecked((ulong) (byte) (sbyte) -16)) << 0) | 
+                                ((unchecked((ulong) (byte) (sbyte) 0)) << 8) |
+                                ((unchecked((ulong) (byte) (sbyte) 0)) << 16) |
+                                ((unchecked((ulong) (byte) (sbyte) 8)) << 24)
+                            )
+                        );
+                    }
+                    break;
+
+                case WindowsMessage.WM_WINDOWPOSCHANGED:
+                    // TODO: This likes to fire quite often.
+                    WINDOWPOS* posInfo = (WINDOWPOS*) lParam;
+                    Win10BackgroundForm? resizer = BackgroundResizeChild;
+                    hwndResize = resizer?.FriendlyHandle ?? NULL;
+                    GUITHREADINFO guiInfo = new() {
+                        cbSize = Marshal.SizeOf<GUITHREADINFO>()
+                    };
+                    if (resizer != null && hwndResize != NULL && posInfo->hwndInsertAfter != hwndResize && GetGUIThreadInfo(resizer.ThreadID, ref guiInfo) && (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == 0) {
+                        SetWindowPos(
+                            hwndResize, posInfo->hwndInsertAfter,
+                            0, 0,
+                            0, 0,
+                            /* SWP_NOSIZE | SWP_NOMOVE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_DEFERERASE | SWP_NOSENDCHANGING */ 0x0001 | 0x0002 | 0x0008 | 0x0010 | 0x2000 | 0x0400
+                        );
+                    }
                     break;
 
                 case WindowsMessage.WM_PAINT:
@@ -933,6 +1137,15 @@ namespace Olympus.NativeImpls {
 
         [DllImport("user32.dll")]
         static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+        [DllImport("user32.dll")]
+        static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
+
+        [DllImport("user32.dll")]
+        static extern int GetWindowRgn(IntPtr hWnd, IntPtr hRgn);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr hWndChildAfter, string? className, string? windowTitle);
 
 #endregion
 
@@ -1167,6 +1380,9 @@ namespace Olympus.NativeImpls {
         static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
 
         [DllImport("user32.dll")]
+        static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
+
+        [DllImport("user32.dll")]
         static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wp, IntPtr lp);
 
         [DllImport("user32.dll")]
@@ -1182,6 +1398,9 @@ namespace Olympus.NativeImpls {
         static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
 
         [DllImport("user32.dll")]
+        static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
         static extern IntPtr MonitorFromWindow(IntPtr hwnd, int dwFlags);
 
         [DllImport("user32.dll")]
@@ -1190,7 +1409,7 @@ namespace Olympus.NativeImpls {
         [DllImport("dwmapi.dll")]
         static extern bool DwmDefWindowProc(IntPtr hWnd, WindowsMessage msg, IntPtr wParam, IntPtr lParam, out IntPtr plResult);
 
-        [DllImport("user32.dll", SetLastError=true)]
+        [DllImport("user32.dll")]
         static extern bool TrackMouseEvent(ref TRACKMOUSEEVENT lpEventTrack);
 
 #endregion
@@ -1333,6 +1552,16 @@ namespace Olympus.NativeImpls {
 
 #region Transparent window
 
+        enum CombineRgnStyles {
+            RGN_AND = 1,
+            RGN_OR,
+            RGN_XOR,
+            RGN_DIFF,
+            RGN_COPY,
+            RGN_MAX,
+            RGN_MIN = RGN_AND,
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         public struct BLENDFUNCTION {
             public byte BlendOp;
@@ -1382,6 +1611,18 @@ namespace Olympus.NativeImpls {
         [DllImport("gdi32.dll")]
         static extern IntPtr CreateRectRgn(int x1, int y1, int x2, int y2);
 
+        [DllImport("gdi32.dll")]
+        static extern int CombineRgn(IntPtr hrgnDest, IntPtr hrgnSrc1, IntPtr hrgnSrc2, CombineRgnStyles fnCombineMode);
+
+        [DllImport("kernel32.dll")]
+        static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll")]
+        static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
 #endregion
 
 
@@ -1419,9 +1660,6 @@ namespace Olympus.NativeImpls {
 
         [DllImport("user32.dll")]
         static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
-
-        [DllImport("user32.dll")]
-        static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
 #endregion
 

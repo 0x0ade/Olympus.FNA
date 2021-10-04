@@ -1,6 +1,7 @@
 ﻿using FontStashSharp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using OlympUI.MegaCanvas;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -23,7 +24,7 @@ namespace OlympUI {
 
         private BasicMesh BackgroundMesh;
         private BasicMesh? ContentsMesh;
-        private RenderTarget2D? Contents;
+        private RenderTarget2DRegion? Contents;
         private Color PrevBackground;
         private Color PrevBorder;
         private float PrevBorderSize;
@@ -31,6 +32,7 @@ namespace OlympUI {
         private float PrevRadius;
         private bool PrevClip;
         private Point PrevWH;
+        private Point PrevContentsWH;
 
         public Panel() {
             BackgroundMesh = new BasicMesh(Game.GraphicsDevice) {
@@ -46,7 +48,7 @@ namespace OlympUI {
 
             BackgroundMesh?.Dispose();
             ContentsMesh?.Dispose();
-            Contents?.Dispose();
+            UI.MegaCanvas.Free(Contents);
         }
 
         public override void DrawContent() {
@@ -62,21 +64,25 @@ namespace OlympUI {
             if (Clip) {
                 GraphicsDevice gd = Game.GraphicsDevice;
 
-                if (Contents != null && Contents.IsDisposed)
+                if (Contents != null && (Contents.RT.IsDisposed || Contents.RT.Width < wh.X || Contents.RT.Height < wh.Y)) {
+                    UI.MegaCanvas.Free(Contents);
                     Contents = null;
-                if (Contents == null ||
-                    PrevWH != wh) {
-                    Contents?.Dispose();
-                    Contents = new RenderTarget2D(gd, wh.X, wh.Y, false, SurfaceFormat.Color, DepthFormat.None, UI.MultiSampleCount, RenderTargetUsage.PreserveContents);
                 }
+
+                if (Contents == null) {
+                    Contents = UI.MegaCanvas.GetPooled(wh.X, wh.Y) ?? throw new Exception("Oversized clipped panel!");
+                    PrevContentsWH = default;
+                }
+                Point contentsWH = new(Contents.RT.Width, Contents.RT.Height);
+
                 if (ContentsMesh == null ||
                     PrevBackground != background ||
                     PrevRadius != radius ||
+                    PrevContentsWH != contentsWH ||
                     PrevWH != wh) {
                     if (ContentsMesh == null) {
                         ContentsMesh = new BasicMesh(gd) {
-                            Texture = new("", () => Contents),
-                            WireFrame = false
+                            Texture = new(null, () => Contents.RT)
                         };
                     }
                     ContentsMesh.Texture.Dispose();
@@ -87,6 +93,8 @@ namespace OlympUI {
                     shapes.Add(new MeshShapes.Rect() {
                         Color = Color.White,
                         Size = new(wh.X, wh.Y),
+                        UVXYMin = new(0, 0),
+                        UVXYMax = new(contentsWH.X, contentsWH.Y),
                         Radius = radius,
                     });
 
@@ -95,7 +103,9 @@ namespace OlympUI {
 
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
-                gd.SetRenderTarget(Contents);
+                gd.SetRenderTarget(Contents.RT);
+                gd.ScissorRectangle = new(0, 0, wh.X, wh.Y);
+                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
                 gd.Clear(background);
                 Vector2 offsPrev = UI.TransformOffset;
                 UI.TransformOffset = -xy;
@@ -108,7 +118,7 @@ namespace OlympUI {
                 UI.TransformOffset = offsPrev;
 
             } else {
-                Contents?.Dispose();
+                UI.MegaCanvas.Free(Contents);
                 Contents = null;
                 ContentsMesh?.Dispose();
                 ContentsMesh = null;

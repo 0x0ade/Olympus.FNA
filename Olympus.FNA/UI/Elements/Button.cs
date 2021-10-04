@@ -59,6 +59,12 @@ namespace OlympUI {
             set => _ = GetChild<Label>() is Label label ? label.Text = value : null;
         }
 
+        public virtual string StyleState =>
+            !Enabled ? "Disabled" :
+            Pressed ? "Pressed" :
+            Hovered ? "Hovered" :
+            "Normal";
+
         public Button() {
             Interactive = InteractiveMode.Process;
         }
@@ -86,12 +92,7 @@ namespace OlympUI {
         }
 
         public override void Update(float dt) {
-            Style.Apply(
-                !Enabled ? "Disabled" :
-                Pressed ? "Pressed" :
-                Hovered ? "Hovered" :
-                "Normal"
-            );
+            Style.Apply(StyleState);
 
             base.Update(dt);
         }

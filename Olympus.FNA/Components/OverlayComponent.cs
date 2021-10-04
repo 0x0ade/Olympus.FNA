@@ -54,7 +54,7 @@ namespace Olympus {
             int x = (int) (width * offs) - (App.Window.ClientBounds.X % width);
             int y = (int) (height * offs) - (App.Window.ClientBounds.Y % height);
 
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Additive, SamplerState.LinearClamp, DepthStencilState.Default, RasterizerState.CullCounterClockwise);
+            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Additive, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
             SpriteBatch.Draw(overlay, new Rectangle(x + width * -1, y + height * -1, width, height), tint);
             SpriteBatch.Draw(overlay, new Rectangle(x + width * -0, y + height * -1, width, height), tint);
             SpriteBatch.Draw(overlay, new Rectangle(x + width * +1, y + height * -1, width, height), tint);

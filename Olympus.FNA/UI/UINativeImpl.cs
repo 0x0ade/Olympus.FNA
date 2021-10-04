@@ -15,6 +15,8 @@ namespace OlympUI {
 
         public abstract bool CaptureMouse { get; set; }
 
+        public abstract Point MouseOffset { get; }
+
         public UINativeImpl(Game game) {
             Game = game;
         }

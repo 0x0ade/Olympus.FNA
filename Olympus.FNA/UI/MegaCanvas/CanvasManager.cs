@@ -62,7 +62,7 @@ namespace OlympUI.MegaCanvas {
                         }
                     }
                     for (int i = PoolEntries.Length - 1; i >= PoolCullTarget; --i) {
-                        PoolEntry entry = PoolEntries[i];
+                        ref PoolEntry entry = ref PoolEntries[i];
                         if (!entry.IsNull) {
                             Free(ref entry);
                         }
@@ -91,7 +91,7 @@ namespace OlympUI.MegaCanvas {
 
             gd.SetRenderTarget(to);
             using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
             sb.Draw(from, toBounds, fromBounds, Color.White);
             sb.End();
 
@@ -201,29 +201,30 @@ namespace OlympUI.MegaCanvas {
                 PoolUsed.Remove(rt);
                 PoolUsedMemory -= rt.Width * rt.Height * 4;
 
-                if (!rt.IsDisposed) {
-                    if (PoolCullTriggered) {
-                        rt.Dispose();
-                        PoolTotalMemory -= rt.GetMemoryUsage();
+                if (rt.IsDisposed)
+                    return;
 
-                    } else if (PoolEntriesAlive >= PoolEntries.Length) {
-                        PoolCullTriggered = true;
-                        rt.Dispose();
-                        PoolTotalMemory -= rt.GetMemoryUsage();
+                if (PoolCullTriggered) {
+                    rt.Dispose();
+                    PoolTotalMemory -= rt.GetMemoryUsage();
 
-                    } else {
-                        for (int i = 0; i < PoolEntries.Length; i++) {
-                            if (PoolEntries[i].IsNull) {
-                                PoolEntries[i] = new(rt);
-                                PoolEntriesAlive++;
-                                return;
-                            }
+                } else if (PoolEntriesAlive >= PoolEntries.Length) {
+                    PoolCullTriggered = true;
+                    rt.Dispose();
+                    PoolTotalMemory -= rt.GetMemoryUsage();
+
+                } else {
+                    for (int i = 0; i < PoolEntries.Length; i++) {
+                        if (PoolEntries[i].IsNull) {
+                            PoolEntries[i] = new(rt);
+                            PoolEntriesAlive++;
+                            return;
                         }
-                        // This shouldn't ever be reached but eh.
-                        PoolCullTriggered = true;
-                        rt.Dispose();
-                        PoolTotalMemory -= rt.GetMemoryUsage();
                     }
+                    // This shouldn't ever be reached but eh.
+                    PoolCullTriggered = true;
+                    rt.Dispose();
+                    PoolTotalMemory -= rt.GetMemoryUsage();
                 }
             }
         }
@@ -240,10 +241,10 @@ namespace OlympUI.MegaCanvas {
 
                 gd.SetRenderTarget(tmp);
                 using SpriteBatch sb = new(gd);
-                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
                 sb.Draw(rt, new Vector2(0f, 0f), Color.White);
                 sb.End();
-                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
                 foreach (Rectangle rg in page.Spaces) {
                     sb.Draw(white, new Rectangle(rg.X, rg.Y, rg.Width, 1), Color.Green * 0.7f);
                     sb.Draw(white, new Rectangle(rg.X, rg.Bottom - 1, rg.Width, 1), Color.Green * 0.7f);
@@ -273,6 +274,15 @@ namespace OlympUI.MegaCanvas {
                     continue;
                 using FileStream fs = new(Path.Combine(dir, $"pooled_{i}.png"), FileMode.Create);
                 entry.RT.SaveAsPng(fs, entry.RT.Width, entry.RT.Height);
+            }
+
+            {
+                int i = 0;
+                foreach (RenderTarget2D rt in PoolUsed) {
+                    using FileStream fs = new(Path.Combine(dir, $"unpooled_{i}.png"), FileMode.Create);
+                    rt.SaveAsPng(fs, rt.Width, rt.Height);
+                    ++i;
+                }
             }
         }
 

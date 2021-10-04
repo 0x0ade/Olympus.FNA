@@ -24,6 +24,8 @@ namespace OlympUI {
         public static Action<Element> Cast<T>(Action<T> cb) where T : Element
             => el => cb((T) el);
 
+        public static readonly NullElement Null = new();
+
         protected bool IsDisposed;
 
         private readonly Style _Style;
@@ -66,9 +68,14 @@ namespace OlympUI {
         internal uint UpdateID;
 
         protected uint ReflowID;
+        protected uint ReflowLoopCycles;
+        protected uint ReflowLoopCyclesMax = 10;
         public bool Reflowing {
             get => ReflowID != UI.GlobalReflowID;
-            set => ReflowID = value ? 0 : UI.GlobalReflowID;
+            set {
+                ReflowLoopProtect();
+                ReflowID = value ? 0 : UI.GlobalReflowID;
+            }
         }
 
         protected uint RepaintID;
@@ -78,6 +85,7 @@ namespace OlympUI {
         }
 
         protected uint ConsecutiveCachedPaints;
+        protected uint ConsecutiveUncachedPaints;
 
         protected RenderTarget2DRegion? CachedTexture;
 
@@ -129,7 +137,7 @@ namespace OlympUI {
 
         public virtual bool? ForceDrawAllChildren { get; protected set; }
 
-        public virtual bool Cached { get; set; } = true;
+        public virtual bool? Cached { get; set; } = null;
         public virtual int CachePadding { get; set; } = 32;
 
         protected bool _Clip = false;
@@ -358,10 +366,17 @@ namespace OlympUI {
         private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) {
             switch (e.Action) {
                 case NotifyCollectionChangedAction.Add:
+                    HashSet<Element> nulls = new();
                     foreach (Element item in e.NewItems ?? throw new NullReferenceException("Child add didn't give new items")) {
+                        if (item is NullElement) {
+                            nulls.Add(item);
+                            continue;
+                        }
                         item.Parent = this;
                         item.InvalidateFull();
                     }
+                    foreach (Element item in nulls)
+                        Children.Remove(item);
                     break;
 
                 case NotifyCollectionChangedAction.Remove:
@@ -379,6 +394,7 @@ namespace OlympUI {
             }
 
             UI.Root.InvalidateCollect();
+            InvalidateFull();
         }
 
         public virtual void InvalidateFull() {
@@ -426,7 +442,7 @@ namespace OlympUI {
         }
 
         public virtual void DrawContent() {
-            if (ForceDrawAllChildren ?? (Cached || !Clip)) {
+            if (ForceDrawAllChildren ?? ((Cached ?? true) || !Clip)) {
                 foreach (Element el in Children) {
                     el.Paint();
                 }
@@ -459,14 +475,14 @@ namespace OlympUI {
             c.PackedValue = (uint) _RandID;
             c.A = 0xff;
             UI.SpriteBatch.DrawDebugRect(c, xywh);
-            if (Cached && ConsecutiveCachedPaints <= 2) {
-                UI.SpriteBatch.DrawDebugRect(Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2));
+            if ((Cached ?? true) && ConsecutiveCachedPaints <= 2) {
+                UI.SpriteBatch.DrawDebugRect(Cached == null ? Color.Green : ConsecutiveUncachedPaints <= 2 ? Color.Yellow : Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2));
             }
         }
 
         protected virtual void PaintContent() {
-            if (!Cached) {
-                CachedTexture?.Dispose();
+            if (!(Cached ?? (ConsecutiveUncachedPaints < 10))) {
+                UI.MegaCanvas.Free(CachedTexture);
                 CachedTexture = null;
                 DrawContent();
                 return;
@@ -495,6 +511,7 @@ namespace OlympUI {
             }
 
             if (!repainting) {
+                ConsecutiveUncachedPaints = 0;
                 if (ConsecutiveCachedPaints < 10) {
                     repainting = ConsecutiveCachedPaints < 5;
                     ConsecutiveCachedPaints++;
@@ -505,6 +522,14 @@ namespace OlympUI {
 
             } else {
                 ConsecutiveCachedPaints = 0;
+                if (ConsecutiveUncachedPaints < 10) {
+                    ConsecutiveUncachedPaints++;
+                } else if (Cached == null) {
+                    UI.MegaCanvas.Free(CachedTexture);
+                    CachedTexture = null;
+                    DrawContent();
+                    return;
+                }
             }
 
             if (repainting || UI.GlobalDrawDebug) {
@@ -512,6 +537,8 @@ namespace OlympUI {
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
                 gd.SetRenderTarget(CachedTexture.RT);
+                gd.ScissorRectangle = new(0, 0, whTexture.X, whTexture.Y);
+                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
                 gd.Clear(new(0, 0, 0, 0));
                 Vector2 offsPrev = UI.TransformOffset;
                 UI.TransformOffset = -xy + new Vector2(padding, padding);
@@ -646,7 +673,25 @@ namespace OlympUI {
 
         #region Layout Handler Logic
 
+        internal void INTERNAL_ReflowLoopReset() => ReflowLoopReset();
+        protected void ReflowLoopReset() {
+            ReflowLoopCycles = 0;
+        }
+
+        internal void INTERNAL_ReflowLoopCount() => ReflowLoopCount();
+        protected void ReflowLoopCount() {
+            if (ReflowLoopCycles >= ReflowLoopCyclesMax)
+                throw new Exception($"Element {this} stuck in reflow loop with unknown cause (was Reflowing ever reset?)");
+            ReflowLoopCycles++;
+        }
+
+        protected void ReflowLoopProtect() {
+            if (ReflowLoopCycles >= ReflowLoopCyclesMax)
+                throw new Exception($"Element {this} stuck in reflow loop, detected another reflow");
+        }
+
         public void ForceFullReflow() {
+            ReflowLoopReset();
             FirstPass:
             LayoutEvent reflow = LayoutEvent.Instance;
             foreach (LayoutPass pass in UI.Root.AllLayoutPasses) {
@@ -655,12 +700,15 @@ namespace OlympUI {
                 reflow.Recursive = false;
                 // No need to InvokeDown as reflows follow their own recursion rules.
                 Invoke(reflow);
-                if (Reflowing)
+                if (Reflowing) {
+                    ReflowLoopCount();
                     goto FirstPass;
+                }
             }
         }
 
         public void ForceFullReflowDown() {
+            ReflowLoopReset();
             FirstPass:
             LayoutEvent reflow = LayoutEvent.Instance;
             foreach (LayoutPass pass in UI.Root.AllLayoutPasses) {
@@ -669,8 +717,10 @@ namespace OlympUI {
                 reflow.Recursive = true;
                 // No need to InvokeDown as reflows follow their own recursion rules.
                 Invoke(reflow);
-                if (Reflowing)
+                if (Reflowing) {
+                    ReflowLoopCount();
                     goto FirstPass;
+                }
             }
         }
 

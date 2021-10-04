@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using OlympUI;
 using SDL2;
 using System;
 using System.Collections.Generic;
@@ -34,6 +35,9 @@ namespace Olympus.NativeImpls {
 
         public override bool ReduceBackBufferResizes => false;
 
+        public override Padding Padding => default;
+        public override ClientSideDecorationMode ClientSideDecoration => ClientSideDecorationMode.None;
+
 
         public override bool IsMouseFocus => SDL.SDL_GetMouseFocus() == Game.Window.Handle;
 
@@ -47,6 +51,8 @@ namespace Olympus.NativeImpls {
                 SDL.SDL_CaptureMouse(value ? SDL.SDL_bool.SDL_TRUE : SDL.SDL_bool.SDL_FALSE);
             }
         }
+
+        public override Point MouseOffset => default;
 
 
         public NativeNop(App app)

@@ -47,11 +47,13 @@ namespace OlympUI {
             if (CommonNames.TryGetValue(type, out string? value))
                 return value;
 
-            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<>))
-                return GetCommonName(type.GetGenericArguments()[0]);
+            for (Type? typeBase = type; typeBase != null; typeBase = typeBase.BaseType) {
+                if (typeBase.IsConstructedGenericType && typeBase.GetGenericTypeDefinition() == typeof(Reloadable<>))
+                    return GetCommonName(typeBase.GetGenericArguments()[0]);
 
-            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Fader<>))
-                return GetCommonName(type.GetGenericArguments()[0]);
+                if (typeBase.IsConstructedGenericType && typeBase.GetGenericTypeDefinition() == typeof(Fader<>))
+                    return GetCommonName(typeBase.GetGenericArguments()[0]);
+            }
 
             return type.Name;
         }
@@ -258,22 +260,6 @@ namespace OlympUI {
                 if (raw != default) {
                     value = (T) raw;
                     return true;
-                }
-            }
-
-            if (Type != null && Skin.Current is Skin skin) {
-                if (skin.TryGetValue(Type.Name, key, out raw) && raw != default) {
-                    value = (T) raw;
-                    return true;
-                }
-
-                if (Element != null) {
-                    foreach (string type in Element.Classes) {
-                        if (skin.TryGetValue(type, key, out raw) && raw != default) {
-                            value = (T) raw;
-                            return true;
-                        }
-                    }
                 }
             }
 

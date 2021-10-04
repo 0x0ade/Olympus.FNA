@@ -32,6 +32,9 @@ namespace Olympus.NativeImpls {
 
         public abstract bool ReduceBackBufferResizes { get; }
 
+        public abstract Padding Padding { get; }
+        public abstract ClientSideDecorationMode ClientSideDecoration { get; }
+
 
         public NativeImpl(App app)
             : base(app) {
@@ -50,5 +53,11 @@ namespace Olympus.NativeImpls {
         public abstract void BeginDrawBB(float dt);
         public abstract void EndDrawBB(float dt);
 
+    }
+
+    public enum ClientSideDecorationMode {
+        None,
+        Title,
+        Full
     }
 }

@@ -19,7 +19,7 @@ namespace Olympus {
             // FIXME: For some reason DWM hates FNA3D's D3D11 renderer and misrepresents the backbuffer too often on multi-GPU setups?!
 #if WINDOWS
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER"))) {
-                // Vulkan would be ideal but brings some performance weirdness.
+                // Vulkan or OpenGL would be ideal but brings some other weirdness.
                 // Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "Vulkan");
                 Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "OpenGL");
             }

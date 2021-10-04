@@ -274,7 +274,12 @@ namespace Olympus.NativeImpls {
 
 			WM_USER                        = 0x0400,
 
-			WM_REFLECT                     = WM_USER + 0x1C00,
+            WM_USER_ADE                    = WM_USER + 0x0ade,
+            WM_USER_ADE_CALL_FIX,
+            WM_USER_ADE_MOVE_AFTER,
+            WM_USER_ADE_MOVE,
+
+            WM_REFLECT                     = WM_USER + 0x1C00,
 		}
 	}
 }
