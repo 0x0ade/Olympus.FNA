@@ -145,9 +145,9 @@ namespace Olympus {
                                         H = 48,
                                         Layout = {
                                             Layouts.Fill(1, 0, 16, 0),
-                                            Layouts.Grow(-8, 0),
-                                            Layouts.Left(8),
-                                            Layouts.Top(8),
+                                            Layouts.Grow(-8 - NativeImpl.Native.Padding.Right * 2, 0),
+                                            Layouts.Left(8 + NativeImpl.Native.Padding.Right),
+                                            Layouts.Top(8 + NativeImpl.Native.Padding.Right),
                                             Layouts.Row(),
                                         },
                                         Init = Element.Cast((Group pathBar) => {
@@ -162,11 +162,14 @@ namespace Olympus {
                                     new Group() {
                                         ID = "ContentContainer",
                                         Cached = true,
-                                        CachePadding = 0,
+                                        CachePadding = new() {
+                                            Bottom = NativeImpl.Native.Padding.Bottom,
+                                        },
                                         Clip = true,
                                         Layout = {
                                             Layouts.Fill(1, 1, 0, LayoutConsts.Prev),
-                                            Layouts.Grow(-8, -8),
+                                            Layouts.Grow(-8 - NativeImpl.Native.Padding.Right * 2, -8 - NativeImpl.Native.Padding.Bottom),
+                                            Layouts.Left(NativeImpl.Native.Padding.Right),
                                         },
                                         Children = {
                                             Real ? Scener.RootContainer : new Label("recursion"),

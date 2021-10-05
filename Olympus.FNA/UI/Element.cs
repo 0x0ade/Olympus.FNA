@@ -138,7 +138,7 @@ namespace OlympUI {
         public virtual bool? ForceDrawAllChildren { get; protected set; }
 
         public virtual bool? Cached { get; set; } = null;
-        public virtual int CachePadding { get; set; } = 32;
+        public virtual Padding CachePadding { get; set; } = 32;
 
         protected bool _Clip = false;
         public virtual bool Clip {
@@ -491,8 +491,8 @@ namespace OlympUI {
             GraphicsDevice gd = Game.GraphicsDevice;
             Vector2 xy = ScreenXY;
             Point wh = WH;
-            int padding = CachePadding;
-            Point whTexture = new(wh.X + padding * 2, wh.Y + padding * 2);
+            Padding padding = CachePadding;
+            Point whTexture = new(wh.X + padding.X, wh.Y + padding.Y);
 
             bool repainting = Repainting;
 
@@ -541,7 +541,7 @@ namespace OlympUI {
                 gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
                 gd.Clear(new(0, 0, 0, 0));
                 Vector2 offsPrev = UI.TransformOffset;
-                UI.TransformOffset = -xy + new Vector2(padding, padding);
+                UI.TransformOffset = -xy + new Vector2(padding.Left, padding.Top);
                 SpriteBatch.BeginUI();
 
                 DrawContent();
@@ -555,12 +555,12 @@ namespace OlympUI {
             DrawCachedTexture(CachedTexture.RT, xy, padding, new(CachedTexture.Region.X, CachedTexture.Region.Y, whTexture.X, whTexture.Y));
         }
 
-        protected virtual void DrawCachedTexture(RenderTarget2D rt, Vector2 xy, int padding, Rectangle region) {
+        protected virtual void DrawCachedTexture(RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {
             SpriteBatch.Draw(
                 rt,
                 new Rectangle(
-                    (int) xy.X - padding,
-                    (int) xy.Y - padding,
+                    (int) xy.X - padding.Left,
+                    (int) xy.Y - padding.Top,
                     region.Width,
                     region.Height
                 ),

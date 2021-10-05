@@ -14,6 +14,9 @@ namespace OlympUI {
         public int Right;
         public int Bottom;
 
+        public int X => Left + Right;
+        public int Y => Top + Bottom;
+
         public int this[int side] {
             get => side switch {
                 0 => Left,
@@ -34,6 +37,14 @@ namespace OlympUI {
                 }
             }
         }
+
+        public static implicit operator int(Padding p) => Math.Max(Math.Max(p.Left, p.Right), Math.Max(p.Top, p.Bottom));
+        public static implicit operator Padding(int p) => new() {
+            Left = p,
+            Top = p,
+            Right = p,
+            Bottom = p,
+        };
 
     }
 }
