@@ -17,11 +17,12 @@ namespace Olympus {
             Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
 
             // FIXME: For some reason DWM hates FNA3D's D3D11 renderer and misrepresents the backbuffer too often on multi-GPU setups?!
+            // FIXME: Default to D3D11, but detect multi-GPU setups and use the non-Intel GPU with OpenGL (otherwise buggy drivers).
 #if WINDOWS
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER"))) {
-                // Vulkan or OpenGL would be ideal but brings some other weirdness.
                 // Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "Vulkan");
                 Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "OpenGL");
+                // Environment.SetEnvironmentVariable("FNA3D_OPENGL_FORCE_COMPATIBILITY_PROFILE", "1");
             }
 #endif
 
@@ -69,7 +70,7 @@ namespace Olympus {
             External.DllManager.PrepareResolver(typeof(Program).Assembly);
             // External.DllManager.PrepareResolver(typeof(Microsoft.Xna.Framework.Game).Assembly);
 
-            FNAPatches.Apply();
+            FNAHooks.Apply();
 
             using App game = new();
             game.Run();

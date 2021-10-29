@@ -11,6 +11,7 @@ namespace OlympUI {
         public override string? ID => "Root";
 
         internal bool Recollecting;
+        internal bool ReflowingForce;
 
         private readonly AutoRotatingPool<List<Element>> AllPool = new(8);
         private readonly AutoRotatingPool<List<Element>> AllOffScreenPool = new(8);
@@ -49,6 +50,10 @@ namespace OlympUI {
             }
 
             return null;
+        }
+
+        public void InvalidateForce() {
+            ReflowingForce = true;
         }
 
         public void InvalidateCollect() {

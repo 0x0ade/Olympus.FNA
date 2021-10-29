@@ -14,7 +14,7 @@ namespace OlympUI {
 
         public static readonly Root Root = new();
 
-        public static int MultiSampleCount = 8;
+        public static int MultiSampleCount = 4;
         public static Vector2 TransformOffset = default;
 
         public static uint GlobalReflowID = 1;
@@ -70,6 +70,10 @@ namespace OlympUI {
         public static void Initialize(Game game, UINativeImpl native) {
             Game = game;
             Native = native;
+
+            UIInput.Initialize();
+
+            UIInput.OnFastClick += OnFastClick;
         }
 
         public static void LoadContent() {
@@ -81,12 +85,21 @@ namespace OlympUI {
             };
         }
 
+        private static void OnFastClick(int x, int y, MouseButtons btn) {
+            Element? el = UIInput.MouseFocus ? Root.GetInteractiveChildAt(UIInput.Mouse.ToPoint()) : null;
+            el?.InvokeUp(new MouseEvent.Click() {
+                Button = btn,
+                Dragging = false
+            });
+        }
+
         public static void Update(float dt) {
             GlobalUpdateID++;
 
-            bool forceReflow = WHPrev != Root.WH;
+            bool forceReflow = WHPrev != Root.WH || Root.ReflowingForce;
             WHPrev = Root.WH;
             Root.Reflowing = forceReflow;
+            Root.ReflowingForce = false;
 
             RunOnceList.Clear();
 
@@ -282,7 +295,7 @@ namespace OlympUI {
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
-                DepthStencilState.None,
+                DepthStencilState.Default,
                 RasterizerStateCullCounterClockwiseScissoredWithMSAA,
                 null,
                 Matrix.CreateTranslation(new(TransformOffset, 0f))
@@ -293,12 +306,11 @@ namespace OlympUI {
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
-                DepthStencilState.None,
+                DepthStencilState.Default,
                 RasterizerStateCullCounterClockwiseScissoredNoMSAA,
                 null,
                 Matrix.CreateTranslation(new(TransformOffset, 0f))
             );
-
 
         public static void DrawDebugRect(this SpriteBatch batch, Color color, Rectangle rect) {
             batch.Draw(Assets.White, new Rectangle(rect.Left, rect.Top, 1, rect.Height), color);

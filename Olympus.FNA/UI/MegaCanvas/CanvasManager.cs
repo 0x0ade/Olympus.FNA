@@ -55,6 +55,7 @@ namespace OlympUI.MegaCanvas {
         public void Update() {
             lock (PoolEntries) {
                 if (PoolSquishFrame++ >= PoolSquishFrames || PoolCullTriggered) {
+                    PoolCullTriggered = false;
                     for (int i = PoolEntries.Length - 1; i >= 0; --i) {
                         ref PoolEntry entry = ref PoolEntries[i];
                         if (!entry.IsNull && (entry.IsDisposed || entry.Age++ >= PoolMaxAgeFrames)) {
@@ -85,24 +86,66 @@ namespace OlympUI.MegaCanvas {
             }
         }
 
-        public void Blit(Texture2D from, Rectangle fromBounds, RenderTarget2D to, Rectangle toBounds) {
+        private int _BlitID;
+
+        public void Blit(Texture2D from, Rectangle fromBounds, RenderTarget2D to, Rectangle toBounds)
+            => Blit(from, fromBounds, to, toBounds, new(1f, 1f, 1f, 1f));
+
+        public void Blit(Texture2D from, Rectangle fromBounds, RenderTarget2D to, Rectangle toBounds, Color color) {
+#if DEBUG && false
+            {
+                string path = Path.Combine(Environment.CurrentDirectory, "megacanvas");
+                if (!Directory.Exists(path))
+                    Directory.CreateDirectory(path);
+                path = Path.Combine(path, $"blit_{_BlitID++:D6}.png");
+                using FileStream fs = new(path, FileMode.Create);
+                to.SaveAsPng(fs, to.Width, to.Height);
+            }
+#endif
+
             GraphicsDevice gd = Graphics;
             GraphicsStateSnapshot gss = new(gd);
 
             gd.SetRenderTarget(to);
-            using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-            sb.Draw(from, toBounds, fromBounds, Color.White);
-            sb.End();
+            using BasicMesh mesh = new(gd) {
+                Shapes = {
+                    new MeshShapes.Quad() {
+                        XY1 = new(toBounds.Left, toBounds.Top),
+                        XY2 = new(toBounds.Right, toBounds.Top),
+                        XY3 = new(toBounds.Left, toBounds.Bottom),
+                        XY4 = new(toBounds.Right, toBounds.Bottom),
+                        UV1 = new(fromBounds.Left / (float) from.Width, fromBounds.Top / (float) from.Height),
+                        UV2 = new(fromBounds.Right / (float) from.Width, fromBounds.Top / (float) from.Height),
+                        UV3 = new(fromBounds.Left / (float) from.Width, fromBounds.Bottom / (float) from.Height),
+                        UV4 = new(fromBounds.Right / (float) from.Width, fromBounds.Bottom / (float) from.Height),
+                    },
+                },
+                MSAA = false,
+                Color = color,
+                Texture = new(null, () => from),
+                BlendState = BlendState.Opaque,
+            };
+            mesh.Draw();
 
             gss.Apply();
+
+#if DEBUG && false
+            {
+                string path = Path.Combine(Environment.CurrentDirectory, "megacanvas");
+                if (!Directory.Exists(path))
+                    Directory.CreateDirectory(path);
+                path = Path.Combine(path, $"blit_{_BlitID++:D6}.png");
+                using FileStream fs = new(path, FileMode.Create);
+                to.SaveAsPng(fs, to.Width, to.Height);
+            }
+#endif
         }
 
         public RenderTarget2DRegion? GetPacked(RenderTarget2D old)
             => GetPacked(old, new(0, 0, old.Width, old.Height));
 
         public RenderTarget2DRegion? GetPacked(RenderTarget2D old, Rectangle oldBounds) {
-            RenderTarget2DRegion? packed = GetRegion(oldBounds);
+            RenderTarget2DRegion? packed = GetPackedRegion(oldBounds);
             if (packed == null)
                 return null;
 
@@ -118,11 +161,11 @@ namespace OlympUI.MegaCanvas {
             if (packed == null)
                 return null;
 
-            Free(old);
+            old.Dispose();
             return packed;
         }
 
-        public RenderTarget2DRegion? GetRegion(Rectangle want) {
+        public RenderTarget2DRegion? GetPackedRegion(Rectangle want) {
             if (want.Width > MaxPackedSize || want.Height > MaxPackedSize)
                 return null;
 
@@ -137,18 +180,6 @@ namespace OlympUI.MegaCanvas {
                 Pages.Add(page);
                 return page.GetRegion(want);
             }
-        }
-
-        public void Free(RenderTarget2DRegion? rtrg) {
-            if (rtrg == null)
-                return;
-
-            if (rtrg.Page == null) {
-                FreePooled(rtrg.RT);
-                return;
-            }
-
-            rtrg.Page.Free(rtrg);
         }
 
         private void Free(ref PoolEntry entry) {
@@ -191,7 +222,7 @@ namespace OlympUI.MegaCanvas {
                     PoolTotalMemory += rt.GetMemoryUsage();
             }
 
-            return new(rt);
+            return new(this, rt);
         }
 
         public void FreePooled(RenderTarget2D? rt) {
@@ -241,10 +272,10 @@ namespace OlympUI.MegaCanvas {
 
                 gd.SetRenderTarget(tmp);
                 using SpriteBatch sb = new(gd);
-                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
                 sb.Draw(rt, new Vector2(0f, 0f), Color.White);
                 sb.End();
-                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
                 foreach (Rectangle rg in page.Spaces) {
                     sb.Draw(white, new Rectangle(rg.X, rg.Y, rg.Width, 1), Color.Green * 0.7f);
                     sb.Draw(white, new Rectangle(rg.X, rg.Bottom - 1, rg.Width, 1), Color.Green * 0.7f);

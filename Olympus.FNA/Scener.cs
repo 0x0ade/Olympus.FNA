@@ -53,7 +53,7 @@ namespace Olympus {
             Scene? prev = Stack.Count == 0 ? null : Stack.Peek();
             RootContainer.Children.Clear();
             RootContainer.Children.Add(scene.Root);
-            RootContainer.InvalidateFullDown();
+            UI.Root.InvalidateForce();
             Stack.Clear();
             Stack.Push(scene);
             scene.Enter(args);
@@ -68,7 +68,7 @@ namespace Olympus {
             Scene? prev = Stack.Count == 0 ? null : Stack.Peek();
             RootContainer.Children.Clear();
             RootContainer.Children.Add(scene.Root);
-            RootContainer.InvalidateFullDown();
+            UI.Root.InvalidateForce();
             Stack.Push(scene);
             scene.Enter(args);
             OnChange?.Invoke(prev, scene);

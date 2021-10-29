@@ -104,12 +104,11 @@ namespace Olympus {
                                         Children = {
                                             new SidebarPlayButton("play_wheel", "Everest", _ => { }),
                                             new SidebarPlayButton("play", "Vanilla", _ => { }),
-                                            new SidebarNavButton("update", "Updates", Scener.Get<TestScene>()),
                                             new SidebarNavButton("everest", "Home", Scener.Get<HomeScene>()),
                                             new SidebarNavButton("gamebanana", "Find Mods", Scener.Get<TestScene>()),
-                                            new SidebarNavButton("berry", "Installed", Scener.Get<TestScene>()),
                                             // new SidebarNavButton("loenn", "Lönn", Scener.Get<TestScene>()),
                                             new SidebarNavButton("ahorn", "Ahorn", new MetaMainScene() { Real = false }),
+                                            new SidebarNavButton("wiki", "Wiki", Scener.Get<TestScene>()),
                                         }
                                     },
                                     new Group() {
@@ -123,7 +122,8 @@ namespace Olympus {
                                             Layouts.Bottom(),
                                         },
                                         Children = {
-                                            new SidebarNavButton("cogwheel", "Options", Scener.Get<TestScene>()),
+                                            new SidebarNavButton("download", "Downloads", Scener.Get<TestScene>()),
+                                            new SidebarNavButton("cogwheel", "Settings", Scener.Get<ConfigurationScene>()),
                                         }
                                     },
                                 }
@@ -154,7 +154,7 @@ namespace Olympus {
                                             Scener.OnChange += (prev, next) => {
                                                 pathBar.Children.Clear();
                                                 foreach (Scene scene in Scener.Stack) {
-                                                    pathBar.Children.Add(new Header(scene.Name));
+                                                    pathBar.Children.Add(new HeaderBig(scene.Name));
                                                 }
                                             };
                                         })
@@ -370,10 +370,9 @@ namespace Olympus {
                     }
 
                     // Fix UVs manually as we're using a gradient texture.
-                    for (int i = 0; i < shapes.Vertices.Count; i++) {
-                        VertexPositionColorTexture vertex = shapes.Vertices[i];
+                    for (int i = 0; i < shapes.VerticesMax; i++) {
+                        ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
                         vertex.TextureCoordinate = new(1f, 1f);
-                        shapes.Vertices[i] = vertex;
                     }
 
                     shapes.AutoApply();

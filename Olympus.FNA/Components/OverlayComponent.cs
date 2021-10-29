@@ -17,6 +17,8 @@ namespace Olympus {
 
         public float Time = 0f;
 
+        private BasicMesh Mesh;
+
         public OverlayComponent(App app)
             : base(app) {
 
@@ -37,7 +39,7 @@ namespace Olympus {
             }
 
             float tintF = Ease.QuadInOut(Math.Max(0f, Math.Min(1f, Time)));
-            float tintA = tintF * 0.3f;
+            float tintA = tintF * 0.35f;
             Color tint = new(tintA, tintA, tintA, tintA);
 
             DisplayMode dm = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
@@ -53,18 +55,29 @@ namespace Olympus {
             float offs = App.Time * 0.001f % 1f;
             int x = (int) (width * offs) - (App.Window.ClientBounds.X % width);
             int y = (int) (height * offs) - (App.Window.ClientBounds.Y % height);
+            Vector2 uvTL = new(x / (float) overlay.Width, y / (float) overlay.Height);
+            Vector2 uvBR = new((x + width) / (float) overlay.Width, (y + height) / (float) overlay.Height);
 
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Additive, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * -1, y + height * -1, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * -0, y + height * -1, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * +1, y + height * -1, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * -1, y + height * -0, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * -0, y + height * -0, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * +1, y + height * -0, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * -1, y + height * +1, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * -0, y + height * +1, width, height), tint);
-            SpriteBatch.Draw(overlay, new Rectangle(x + width * +1, y + height * +1, width, height), tint);
-            SpriteBatch.End();
+            using BasicMesh mesh = new(GraphicsDevice) {
+                Shapes = {
+                    new MeshShapes.Quad() {
+                        XY1 = new(0, 0),
+                        XY2 = new(App.Width, 0),
+                        XY3 = new(0, App.Height),
+                        XY4 = new(App.Width, App.Height),
+                        UV1 = new(uvTL.X, uvTL.Y),
+                        UV2 = new(uvBR.X, uvTL.Y),
+                        UV3 = new(uvTL.X, uvBR.Y),
+                        UV4 = new(uvBR.X, uvBR.Y),
+                    },
+                },
+                MSAA = false,
+                Color = tint,
+                Texture = Assets.Overlay,
+                BlendState = BlendState.Additive,
+                SamplerState = SamplerState.LinearWrap,
+            };
+            mesh.Draw();
 
 #if false
             SpriteBatch.Begin();

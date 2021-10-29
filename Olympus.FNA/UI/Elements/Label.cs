@@ -1,5 +1,6 @@
 ﻿using FontStashSharp;
 using Microsoft.Xna.Framework;
+using MonoMod.Utils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -38,18 +39,21 @@ namespace OlympUI {
         }
 
         private void LayoutNormal(LayoutEvent e) {
-            WH = Style.GetCurrent<DynamicSpriteFont>().MeasureString(_Text).ToPointRound();
-        }
+            // FIXME: FontStashSharp can't even do basic font maximum size precomputations...
 
-    }
+            DynamicSpriteFont font = Style.GetCurrent<DynamicSpriteFont>();
+            Bounds bounds = new();
+            font.TextBounds(_Text, new(0f, 0f), ref bounds, new(1f, 1f));
+            WH = new((int) MathF.Round(bounds.X2), (int) MathF.Round(bounds.Y2));
 
-    public class Header : Label {
+            DynamicData fontExtra = new(font);
+            if (!fontExtra.TryGet("MaxHeight", out int? maxHeight)) {
+                font.TextBounds("The quick brown fox jumps over the lazy dog.", new(0f, 0f), ref bounds, new(1f, 1f));
+                maxHeight = (int) MathF.Round(bounds.Y2);
+                fontExtra.Set("MaxHeight", maxHeight);
+            }
 
-        public static readonly new Style DefaultStyle = new() {
-            Assets.FontHeader,
-        };
-        public Header(string text)
-            : base(text) {
+            WH.Y = Math.Max(WH.Y, maxHeight ?? 0);
         }
 
     }

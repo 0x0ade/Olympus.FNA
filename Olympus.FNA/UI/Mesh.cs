@@ -18,11 +18,14 @@ namespace OlympUI {
 
         public GraphicsDevice GraphicsDevice;
 
-        public DynamicVertexBuffer? VertexBuffer;
-        public DynamicIndexBuffer? IndexBuffer;
+        public BufferTypes BufferType = BufferTypes.Auto;
+        public VertexBuffer? VertexBuffer;
+        public IndexBuffer? IndexBuffer;
 
         protected bool IsDisposed;
-        protected bool ReloadQueued;
+        protected bool NextQueued;
+        protected int ReloadBufferAutoDraws;
+        protected int ReloadBufferAutoReloads;
 
         public Mesh(GraphicsDevice graphicsDevice) {
             GraphicsDevice = graphicsDevice;
@@ -32,7 +35,7 @@ namespace OlympUI {
             Dispose(false);
         }
 
-        public virtual void QueueReload() => ReloadQueued = true;
+        public virtual void QueueNext() => NextQueued = true;
         public abstract void Reload();
 
         public abstract void Draw();
@@ -53,65 +56,84 @@ namespace OlympUI {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
+
+        public enum BufferTypes {
+            Auto,
+            Static,
+            Dynamic,
+            None,
+        }
+
     }
 
-    public class Mesh<TEffect, TVertex> : Mesh where TEffect : Effect where TVertex : unmanaged {
+    public class Mesh<TEffect, TVertex> : Mesh where TEffect : Effect where TVertex : unmanaged, IVertexType {
 
         public Reloadable<TEffect> Effect;
         public bool DisposeEffect;
         public TVertex[] Vertices = new TVertex[0];
         public int VerticesMax = -1;
-        public ushort[] Indices = new ushort[0];
+        public short[] Indices = new short[0];
         public int IndicesMax = -1;
 
-        private List<TVertex>? VerticesNext;
-        private List<ushort>? IndicesNext;
+        private TVertex[]? VerticesNext;
+        private int VerticesMaxNext;
+        private short[]? IndicesNext;
+        private int IndicesMaxNext;
 
         public Func<GraphicsDevice, TEffect, bool>? BeforeDraw;
 
         public bool WireFrame;
         public bool MSAA = true;
-
-        protected int ReloadQueuedDelay = 0;
+        public BlendState BlendState = BlendState.AlphaBlend;
+        public SamplerState SamplerState = SamplerState.LinearClamp;
 
         public Mesh(GraphicsDevice graphicsDevice, Reloadable<TEffect> effect)
             : base(graphicsDevice) {
             Effect = effect;
         }
 
-        public override unsafe void Reload() {
-            TVertex[] vertices = Vertices;
-            int verticesMax = VerticesMax;
-            ushort[] indices = Indices;
-            int indicesMax = IndicesMax;
+        protected bool DequeueNext() {
+            bool dequeued = false;
 
             if (VerticesNext != null) {
-                List<TVertex> next = VerticesNext;
+#if OLYMPUS_MESH_COPYQUEUE
+                if (VerticesNext.Length > Vertices.Length)
+                    Vertices = new TVertex[VerticesNext.Length];
+                Array.Copy(VerticesNext, 0, Vertices, 0, Vertices.Length);
+#else
+                Vertices = VerticesNext;
+#endif
+                VerticesMax = VerticesMaxNext;
                 VerticesNext = null;
-                if (vertices.Length > next.Count) {
-                    fixed (TVertex* ptr = vertices)
-                        for (int i = next.Count - 1; i >= 0; --i)
-                            ptr[i] = next[i];
-                    VerticesMax = verticesMax = next.Count;
-                } else {
-                    Vertices = vertices = next.ToArray();
-                    VerticesMax = verticesMax = -1;
-                }
+                dequeued = true;
             }
 
             if (IndicesNext != null) {
-                List<ushort> next = IndicesNext;
+#if OLYMPUS_MESH_COPYQUEUE
+                if (IndicesNext.Length > Indices.Length)
+                    indices = Indices = new ushort[IndicesNext.Length];
+                Array.Copy(IndicesNext, 0, Indices, 0, Indices.Length);
+#else
+                Indices = IndicesNext;
+#endif
+                IndicesMax = IndicesMaxNext;
                 IndicesNext = null;
-                if (indices.Length > next.Count) {
-                    fixed (ushort* ptr = indices)
-                        for (int i = next.Count - 1; i >= 0; --i)
-                            ptr[i] = next[i];
-                    IndicesMax = indicesMax = next.Count;
-                } else {
-                    Indices = indices = next.ToArray();
-                    IndicesMax = indicesMax = -1;
-                }
+                dequeued = true;
             }
+
+            return dequeued;
+        }
+
+        public override void Reload() {
+            if (NextQueued) {
+                NextQueued = false;
+                DequeueNext();
+            }
+
+            TVertex[] vertices = Vertices;
+            int verticesMax = VerticesMax;
+            short[] indices = Indices;
+            int indicesMax = IndicesMax;
 
             if (verticesMax < 0)
                 verticesMax = vertices.Length;
@@ -131,22 +153,32 @@ namespace OlympUI {
             if (verticesMax == 0 || indicesMax == 0)
                 return;
 
-            if (VertexBuffer == null || VertexBuffer.IsDisposed || VertexBuffer.GraphicsDevice != GraphicsDevice)
-                VertexBuffer = new(GraphicsDevice, typeof(TVertex), verticesMax, BufferUsage.None);
+            if (VertexBuffer == null || VertexBuffer.IsDisposed || VertexBuffer.GraphicsDevice != GraphicsDevice) {
+                if (BufferType == BufferTypes.Dynamic) {
+                    VertexBuffer = new DynamicVertexBuffer(GraphicsDevice, typeof(TVertex), verticesMax, BufferUsage.None);
+                } else {
+                    VertexBuffer = new(GraphicsDevice, typeof(TVertex), verticesMax, BufferUsage.None);
+                }
+            }
             VertexBuffer.SetData(vertices, 0, verticesMax);
 
-            if (IndexBuffer == null || IndexBuffer.IsDisposed || IndexBuffer.GraphicsDevice != GraphicsDevice)
-                IndexBuffer = new(GraphicsDevice, IndexElementSize.SixteenBits, indicesMax, BufferUsage.None);
+            if (IndexBuffer == null || IndexBuffer.IsDisposed || IndexBuffer.GraphicsDevice != GraphicsDevice) {
+                if (BufferType == BufferTypes.Dynamic) {
+                    IndexBuffer = new DynamicIndexBuffer(GraphicsDevice, IndexElementSize.SixteenBits, indicesMax, BufferUsage.None);
+                } else {
+                    IndexBuffer = new(GraphicsDevice, IndexElementSize.SixteenBits, indicesMax, BufferUsage.None);
+                }
+            }
             IndexBuffer.SetData(indices, 0, indicesMax);
 
-            ReloadQueued = false;
+            NextQueued = false;
         }
 
-        public override void QueueReload()
-            => _ = (VerticesNext = null, IndicesNext = null, ReloadQueued = true);
+        public override void QueueNext()
+            => _ = (VerticesNext = null, IndicesNext = null, NextQueued = true);
 
-        public virtual void QueueReload(List<TVertex> vertices, List<ushort> indices)
-            => _ = (VerticesNext = vertices, IndicesNext = indices, ReloadQueued = true);
+        public virtual void QueueNext(TVertex[] vertices, int verticesMax, short[] indices, int indicesMax)
+            => _ = (VerticesNext = vertices, VerticesMaxNext = verticesMax, IndicesNext = indices, IndicesMaxNext = indicesMax, NextQueued = true);
 
         protected virtual bool AutoBeforeDraw() {
             GraphicsDevice gd = GraphicsDevice;
@@ -155,7 +187,7 @@ namespace OlympUI {
             if (!(BeforeDraw?.Invoke(gd, effect) ?? true))
                 return false;
 
-            gd.BlendState = BlendState.AlphaBlend;
+            gd.BlendState = BlendState;
             gd.DepthStencilState = DepthStencilState.Default;
             if (WireFrame) {
                 gd.RasterizerState = Assets.WireFrame;
@@ -164,18 +196,53 @@ namespace OlympUI {
             } else {
                 gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
             }
-            gd.SamplerStates[0] = SamplerState.LinearClamp;
+            gd.SamplerStates[0] = SamplerState;
 
             return true;
         }
 
         public override void Draw() {
-            // FIXME: Figure out why panels have wrong meshes!
-            if (ReloadQueued)
-                ReloadQueuedDelay = 3;
-            if ((ReloadQueuedDelay > 0 && --ReloadQueuedDelay > 0) ||
+            bool forceReload = false;
+            bool direct = false;
+
+            if (BufferType == BufferTypes.None) {
+                DequeueNext();
+                direct = true;
+
+            } else if (BufferType == BufferTypes.Auto) {
+                if (NextQueued) {
+                    NextQueued = false;
+                    DequeueNext();
+                    ReloadBufferAutoDraws = 0;
+                    if (ReloadBufferAutoReloads < 16) {
+                        ReloadBufferAutoReloads++;
+                    } else {
+                        if (VertexBuffer != null) {
+                            VertexBuffer.Dispose();
+                            VertexBuffer = null;
+                        }
+                        if (IndexBuffer != null) {
+                            IndexBuffer.Dispose();
+                            IndexBuffer = null;
+                        }
+                    }
+                    direct = true;
+
+                } else if (ReloadBufferAutoDraws < 128) {
+                    ReloadBufferAutoDraws++;
+                    ReloadBufferAutoReloads = 0;
+                    if (ReloadBufferAutoDraws == 128) {
+                        forceReload = true;
+                    } else {
+                        direct = true;
+                    }
+                }
+            }
+
+            if (!direct && (
+                forceReload || NextQueued ||
                 VertexBuffer == null || VertexBuffer.IsDisposed || VertexBuffer.GraphicsDevice != GraphicsDevice ||
-                IndexBuffer == null || IndexBuffer.IsDisposed || IndexBuffer.GraphicsDevice != GraphicsDevice)
+                IndexBuffer == null || IndexBuffer.IsDisposed || IndexBuffer.GraphicsDevice != GraphicsDevice))
                 Reload();
 
             int verticesMax = VerticesMax;
@@ -187,24 +254,37 @@ namespace OlympUI {
                 indicesMax = Indices.Length;
             indicesMax /= 3;
 
-            if (VertexBuffer == null || IndexBuffer == null || verticesMax == 0 || indicesMax == 0)
+            if (verticesMax == 0 || indicesMax == 0)
                 return;
 
             GraphicsDevice gd = GraphicsDevice;
             TEffect effect = Effect;
 
-            AutoBeforeDraw();
+            if (direct) {
+                AutoBeforeDraw();
 
-            gd.Indices = IndexBuffer;
-            gd.SetVertexBuffer(VertexBuffer);
-            foreach (EffectPass pass in effect.CurrentTechnique.Passes) {
-                pass.Apply();
-                gd.DrawIndexedPrimitives(
-                    PrimitiveType.TriangleList,
-                    0,
-                    0, verticesMax,
-                    0, indicesMax
-                );
+                foreach (EffectPass pass in effect.CurrentTechnique.Passes) {
+                    pass.Apply();
+                    gd.DrawUserIndexedPrimitives(
+                        PrimitiveType.TriangleList,
+                        Vertices, 0, verticesMax,
+                        Indices, 0, indicesMax
+                    );
+                }
+
+            } else if (VertexBuffer != null && IndexBuffer != null) {
+                AutoBeforeDraw();
+
+                gd.Indices = IndexBuffer;
+                gd.SetVertexBuffer(VertexBuffer);
+                foreach (EffectPass pass in effect.CurrentTechnique.Passes) {
+                    pass.Apply();
+                    gd.DrawIndexedPrimitives(
+                        PrimitiveType.TriangleList,
+                        0, 0, verticesMax,
+                        0, indicesMax
+                    );
+                }
             }
         }
 

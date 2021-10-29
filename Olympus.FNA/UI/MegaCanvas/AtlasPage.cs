@@ -1,4 +1,6 @@
-﻿using Microsoft.Xna.Framework;
+﻿// #define OLYMPUS_DEBUG_ATLASPAGE
+
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -28,6 +30,29 @@ namespace OlympUI.MegaCanvas {
 
             RT = new(Graphics, Manager.PageSize, Manager.PageSize, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
             Spaces.Add(new(0, 0, RT.Width, RT.Height));
+
+#if OLYMPUS_DEBUG_ATLASPAGE
+            GraphicsDevice gd = Graphics;
+            GraphicsStateSnapshot gss = new(gd);
+
+            gd.SetRenderTarget(RT);
+            using SpriteBatch sb = new(gd);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointWrap, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+            sb.Draw(
+                Assets.DebugUnused,
+                new Vector2(0f, 0f),
+                new Rectangle(0, 0, RT.Width, RT.Height),
+                Color.White,
+                0,
+                Vector2.Zero,
+                1f,
+                SpriteEffects.None,
+                0
+            );
+            sb.End();
+
+            gss.Apply();
+#endif
         }
 
         public void Dispose() {
@@ -68,8 +93,8 @@ namespace OlympUI.MegaCanvas {
                 return null;
 
             Rectangle taken = new(space.X, space.Y, want.Width, want.Height);
-            RenderTarget2DRegion rtrg = new(this, RT, taken);
-            bool full = true;
+            RenderTarget2DRegion rtrg = new(Manager, this, RT, taken);
+            bool replace = true;
             if (taken.Width < taken.Height) {
                 /*
                     +-----------+-----------+
@@ -87,8 +112,8 @@ namespace OlympUI.MegaCanvas {
                  */
                 if (taken.Right < space.Right) {
                     Rectangle free = new(taken.Right, space.Y, space.Right - taken.Right, space.Height);
-                    if (full) {
-                        full = false;
+                    if (replace) {
+                        replace = false;
                         Spaces[index] = free;
                     } else {
                         Spaces.Add(free);
@@ -96,8 +121,8 @@ namespace OlympUI.MegaCanvas {
                 }
                 if (taken.Bottom < space.Bottom) {
                     Rectangle free = new(space.X, taken.Bottom, taken.Width, space.Bottom - taken.Bottom);
-                    if (full) {
-                        full = false;
+                    if (replace) {
+                        replace = false;
                         Spaces[index] = free;
                     } else {
                         Spaces.Add(free);
@@ -121,8 +146,8 @@ namespace OlympUI.MegaCanvas {
                  */
                 if (taken.Right < space.Right) {
                     Rectangle free = new(taken.Right, space.Y, space.Right - taken.Right, taken.Height);
-                    if (full) {
-                        full = false;
+                    if (replace) {
+                        replace = false;
                         Spaces[index] = free;
                     } else {
                         Spaces.Add(free);
@@ -130,8 +155,8 @@ namespace OlympUI.MegaCanvas {
                 }
                 if (taken.Bottom < space.Bottom) {
                     Rectangle free = new(space.X, taken.Bottom, space.Width, space.Bottom - taken.Bottom);
-                    if (full) {
-                        full = false;
+                    if (replace) {
+                        replace = false;
                         Spaces[index] = free;
                     } else {
                         Spaces.Add(free);
@@ -139,7 +164,7 @@ namespace OlympUI.MegaCanvas {
                 }
             }
 
-            if (full)
+            if (replace)
                 Spaces.RemoveAt(index);
 
             Taken.Add(rtrg);
@@ -149,9 +174,35 @@ namespace OlympUI.MegaCanvas {
         public void Free(RenderTarget2DRegion? rtrg) {
             if (rtrg == null)
                 return;
-            Taken.Remove(rtrg);
+            if (rtrg.Page != this)
+                throw new Exception($"Attempting free of atlas region {rtrg.Region} that belongs to another page");
+            if (!Taken.Remove(rtrg))
+                throw new Exception($"Attempting double-free of atlas region {rtrg.Region}");
             Spaces.Add(rtrg.Region);
             Reclaimed++;
+
+#if OLYMPUS_DEBUG_ATLASPAGE
+            GraphicsDevice gd = Graphics;
+            GraphicsStateSnapshot gss = new(gd);
+
+            gd.SetRenderTarget(RT);
+            using SpriteBatch sb = new(gd);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointWrap, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+            sb.Draw(
+                Assets.DebugDisposed,
+                new Vector2(rtrg.Region.X, rtrg.Region.Y),
+                new Rectangle(0, 0, rtrg.Region.Width, rtrg.Region.Height),
+                Color.White,
+                0,
+                Vector2.Zero,
+                1f,
+                SpriteEffects.None,
+                0
+            );
+            sb.End();
+
+            gss.Apply();
+#endif
         }
 
         public void Cleanup() {

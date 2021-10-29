@@ -1,9 +1,11 @@
 ﻿using FontStashSharp;
+using FontStashSharp.Interfaces;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -47,15 +49,6 @@ namespace OlympUI {
         public static readonly Reloadable<DynamicSpriteFont> FontSmall = GetFont(
             16,
             "fonts/Poppins-Regular",
-            "fonts/NotoSansCJKjp-Regular",
-            "fonts/NotoSansCJKkr-Regular",
-            "fonts/NotoSansCJKsc-Regular",
-            "fonts/NotoSansCJKtc-Regular"
-        );
-
-        public static readonly Reloadable<DynamicSpriteFont> FontHeader = GetFont(
-            40,
-            "fonts/Renogare-Regular",
             "fonts/NotoSansCJKjp-Regular",
             "fonts/NotoSansCJKkr-Regular",
             "fonts/NotoSansCJKsc-Regular",
@@ -117,6 +110,9 @@ namespace OlympUI {
         });
 
         public static readonly Reloadable<Texture2D> Test = GetTexture("icon");
+
+        public static readonly Reloadable<Texture2D> DebugUnused = GetTexture("debug/unused");
+        public static readonly Reloadable<Texture2D> DebugDisposed = GetTexture("debug/disposed");
 
 
         /*
@@ -223,12 +219,22 @@ namespace OlympUI {
             FNA3D_Image_Free(ptr);
 
             gd.SamplerStates[0] = SamplerState.LinearClamp;
-            RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.DiscardContents);
+            RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
             gd.SetRenderTarget(rt);
-            using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-            sb.Draw(texRaw, Vector2.Zero, Color.White);
-            sb.End();
+            using BasicMesh mesh = new(gd) {
+                Shapes = {
+                    new MeshShapes.Quad() {
+                        XY1 = new(w * 0f, h * 0f),
+                        XY2 = new(w * 1f, h * 0f),
+                        XY3 = new(w * 0f, h * 1f),
+                        XY4 = new(w * 1f, h * 1f),
+                    },
+                },
+                MSAA = false,
+                Texture = new(null, () => texRaw),
+                BlendState = BlendState.Opaque,
+            };
+            mesh.Draw();
 
             gss.Apply();
             return rt;
@@ -261,12 +267,22 @@ namespace OlympUI {
             texRaw.SetDataPointerEXT(0, null, ptr, len);
             FNA3D_Image_Free(ptr);
 
-            RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 2, RenderTargetUsage.DiscardContents);
+            RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
             gd.SetRenderTarget(rt);
-            using SpriteBatch sb = new(gd);
-            sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-            sb.Draw(texRaw, Vector2.Zero, Color.White);
-            sb.End();
+            using BasicMesh mesh = new(gd) {
+                Shapes = {
+                    new MeshShapes.Quad() {
+                        XY1 = new(w * 0f, h * 0f),
+                        XY2 = new(w * 1f, h * 0f),
+                        XY3 = new(w * 0f, h * 1f),
+                        XY4 = new(w * 1f, h * 1f),
+                    },
+                },
+                MSAA = false,
+                Texture = new(null, () => texRaw),
+                BlendState = BlendState.Opaque,
+            };
+            mesh.Draw();
 
             gss.Apply();
             return rt;

@@ -15,13 +15,15 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public sealed class MeshShapes : IEnumerable {
+    public sealed unsafe class MeshShapes : IEnumerable {
 
-        public readonly List<VertexPositionColorTexture> Vertices = new();
-        public readonly List<ushort> Indices = new();
+        public VertexPositionColorTexture[] Vertices = new VertexPositionColorTexture[32];
+        public int VerticesMax = 0;
+        public short[] Indices = new short[128];
+        public int IndicesMax = 0;
 
         public Color Color = Color.White;
-        public int AutoPoints = 32;
+        public int AutoPoints = 16;
 
         public BasicMesh? Mesh;
 
@@ -29,38 +31,87 @@ namespace OlympUI {
             => Vector2.Normalize(new(b.Y - a.Y, a.X - b.X));
 
         public void Clear() {
-            Vertices.Clear();
-            Indices.Clear();
+            VerticesMax = 0;
+            IndicesMax = 0;
+        }
+
+        public void GrowVertices(int i) {
+            int max = VerticesMax + i;
+            if (Vertices.Length <= max) {
+                int size = Vertices.Length;
+                do {
+                    size <<= 1;
+                } while (size <= max);
+                Array.Resize(ref Vertices, size);
+            }
+        }
+
+        public void GrowIndices(int i) {
+            int max = IndicesMax + i;
+            if (Indices.Length <= max) {
+                int size = Indices.Length;
+                do {
+                    size <<= 1;
+                } while (size <= max);
+                Array.Resize(ref Indices, size);
+            }
+        }
+
+        public void AddVertex(VertexPositionColorTexture v) {
+            GrowVertices(1);
+            Vertices[VerticesMax++] = v;
+        }
+
+        public void AddIndex(short v) {
+            GrowIndices(1);
+            Indices[IndicesMax++] = v;
+        }
+
+        public void AddVertices(VertexPositionColorTexture[] arr) {
+            GrowVertices(arr.Length);
+            Array.Copy(arr, 0, Vertices, VerticesMax, arr.Length);
+            VerticesMax += arr.Length;
+        }
+
+        public void AddIndices(ushort[] arr) {
+            GrowIndices(arr.Length);
+            Array.Copy(arr, 0, Indices, IndicesMax, arr.Length);
+            IndicesMax += arr.Length;
         }
 
         public void Apply(BasicMesh mesh) {
             Mesh = mesh;
-            mesh.Vertices = Vertices.ToArray();
-            mesh.VerticesMax = -1;
-            mesh.Indices = Indices.ToArray();
-            mesh.IndicesMax = -1;
+            mesh.Vertices = Vertices;
+            mesh.VerticesMax = VerticesMax;
+            mesh.Indices = Indices;
+            mesh.IndicesMax = IndicesMax;
             mesh.Reload();
         }
 
         public MeshShapes Optimize() {
             VertexPositionColorTexture[] verticesOld = Vertices.ToArray();
-            ushort[] indicesOld = Indices.ToArray();
-            Dictionary<VertexPositionColorTexture, ushort> verticesMap = new();
-            ushort[] indicesMap = new ushort[verticesOld.Length];
+            int verticesOldMax = VerticesMax;
+            VerticesMax = 0;
+            Dictionary<VertexPositionColorTexture, short> verticesMap = new();
 
-            for (int i = 0; i < verticesOld.Length; i++) {
+            short[] indicesOld = Indices.ToArray();
+            int indicesOldMax = IndicesMax;
+            IndicesMax = 0;
+            short[] indicesMap = new short[verticesOldMax];
+
+            for (int i = 0; i < verticesOldMax; i++) {
                 VertexPositionColorTexture vertex = verticesOld[i];
-                if (verticesMap.TryGetValue(vertex, out ushort found)) {
+                if (verticesMap.TryGetValue(vertex, out short found)) {
                     indicesMap[i] = found;
                 } else {
-                    verticesMap.Add(vertex, (ushort) i);
-                    indicesMap[i] = (ushort) i;
-                    Vertices.Add(vertex);
+                    verticesMap.Add(vertex, (short) i);
+                    indicesMap[i] = (short) i;
+                    AddVertex(vertex);
                 }
             }
 
-            foreach (int i in indicesOld)
-                Indices.Add(indicesMap[i]);
+            for (int i = 0; i < indicesOldMax; i++)
+                AddIndex(indicesMap[indicesOld[i]]);
 
             return this;
         }
@@ -69,15 +120,16 @@ namespace OlympUI {
             if (Mesh == null)
                 return;
 
-            Mesh.QueueReload(Vertices, Indices);
+            Mesh.QueueNext(Vertices, VerticesMax, Indices, IndicesMax);
         }
 
-        public void Prepare(out int index) {
-            index = Vertices.Count;
+        public void Prepare(out int index, out int indexIndex) {
+            index = VerticesMax;
+            indexIndex = IndicesMax;
         }
 
-        public void Prepare(Color colorIn, out int index, out Color color) {
-            Prepare(out index);
+        public void Prepare(Color colorIn, out int index, out int indexIndex, out Color color) {
+            Prepare(out index, out indexIndex);
 
             if (colorIn == default) {
                 color = Color;
@@ -87,36 +139,56 @@ namespace OlympUI {
         }
 
         public void Add(Raw shape) {
-            int index = Vertices.Count;
-            int indexIndex = Indices.Count;
+            int index = VerticesMax;
+            int indexIndex = IndicesMax;
 
-            Vertices.AddRange(shape.Vertices);
+            AddVertices(shape.Vertices);
 
-            Indices.AddRange(shape.Indices);
-            for (int i = Indices.Count - 1; i >= indexIndex; --i)
-                Indices[i] = (ushort) (Indices[i] + index);
+            GrowIndices(shape.Indices.Length);
+            for (int i = shape.Indices.Length - 1; i >= 0; --i)
+                Indices[indexIndex + i] = (short) (shape.Indices[i] + index);
+            IndicesMax += shape.Indices.Length;
 
             AutoApply();
         }
 
         public void Add(Poly shape) {
-            Prepare(shape.Color, out int index, out Color color);
+            Prepare(shape.Color, out int index, out int indexIndex, out Color color);
 
             if (shape.Width != 0f) {
                 // Luckily lines are somewhat easy to deal with...
-                foreach (VertexPositionColorTexture vertex in shape)
-                    Vertices.Add(new VertexPositionColorTexture(vertex.Position, color, vertex.TextureCoordinate));
-
-                int count = (Vertices.Count - index) / 2;
-                for (int i = 0; i < count - 1; i++) {
-                    Indices.Add((ushort) (index + 2 * i + 2));
-                    Indices.Add((ushort) (index + 2 * i + 1));
-                    Indices.Add((ushort) (index + 2 * i + 0));
-
-                    Indices.Add((ushort) (index + 2 * i + 1));
-                    Indices.Add((ushort) (index + 2 * i + 2));
-                    Indices.Add((ushort) (index + 2 * i + 3));
+#if false
+                foreach (VertexPositionColorTexture vertex in shape) {
+                    AddVertex(new(vertex.Position, color, vertex.TextureCoordinate));
                 }
+#else
+                GrowVertices(shape.VertexCount);
+                fixed (VertexPositionColorTexture* vertices = &Vertices[index]) {
+                    VertexPositionColorTexture* iV = vertices - 1;
+                    foreach (VertexPositionColorTexture vertex in shape) {
+                        *(++iV) = new(vertex.Position, color, vertex.TextureCoordinate);
+                    }
+                }
+                VerticesMax += shape.VertexCount;
+#endif
+
+                int count = (VerticesMax - index) / 2 - 1;
+                GrowIndices(count * 6);
+                fixed (short* indices = &Indices[indexIndex]) {
+                    for (int i = count - 1; i >= 0; --i) {
+                        short* iI = &indices[6 * i];
+                        int iV = index + 2 * i;
+
+                        iI[0] = (short) (iV + 2);
+                        iI[1] = (short) (iV + 1);
+                        iI[2] = (short) (iV + 0);
+
+                        iI[3] = (short) (iV + 1);
+                        iI[4] = (short) (iV + 2);
+                        iI[5] = (short) (iV + 3);
+                    }
+                }
+                IndicesMax += count * 6;
 
                 AutoApply();
                 return;
@@ -157,41 +229,61 @@ namespace OlympUI {
                 );
             });
 
-            foreach (ContourVertex vertex in tess.Vertices)
-                Vertices.Add((VertexPositionColorTexture) vertex.Data);
+            ContourVertex[] tessVertices = tess.Vertices;
+            GrowVertices(tessVertices.Length);
+            fixed (VertexPositionColorTexture* vertices = &Vertices[index]) {
+                for (int i = tessVertices.Length - 1; i >= 0; --i)
+                    vertices[i] = (VertexPositionColorTexture) tessVertices[i].Data;
+            }
+            VerticesMax += tessVertices.Length;
 
             int triangles = tess.ElementCount;
-            for (int i = 0; i < triangles; i++) {
-                Indices.Add((ushort) (index + tess.Elements[i * 3 + 0]));
-                Indices.Add((ushort) (index + tess.Elements[i * 3 + 1]));
-                Indices.Add((ushort) (index + tess.Elements[i * 3 + 2]));
+            GrowIndices(triangles * 3);
+            fixed (short* indices = &Indices[indexIndex])
+            fixed (int* elements = tess.Elements) {
+                for (int i = 0; i < triangles; i++) {
+                    short* iI = &indices[3 * i];
+                    int* iE = &elements[3 * i];
+                    iI[0] = (short) (index + iE[0]);
+                    iI[1] = (short) (index + iE[1]);
+                    iI[2] = (short) (index + iE[2]);
+                }
             }
+            IndicesMax += triangles * 3;
 
             AutoApply();
         }
 
         public void Add(Quad shape) {
-            Prepare(shape.Color, out int index, out Color color);
+            Prepare(shape.Color, out int index, out int indexIndex, out Color color);
 
-            if (!shape.HasUV) {
-                Vertices.Add(new(new(shape.XY1, 0f), color, new Vector2(0f, 0f)));
-                Vertices.Add(new(new(shape.XY2, 0f), color, new Vector2(1f, 0f)));
-                Vertices.Add(new(new(shape.XY3, 0f), color, new Vector2(0f, 1f)));
-                Vertices.Add(new(new(shape.XY4, 0f), color, new Vector2(1f, 1f)));
-            } else {
-                Vertices.Add(new(new(shape.XY1, 0f), color, shape.UV1));
-                Vertices.Add(new(new(shape.XY2, 0f), color, shape.UV2));
-                Vertices.Add(new(new(shape.XY3, 0f), color, shape.UV3));
-                Vertices.Add(new(new(shape.XY4, 0f), color, shape.UV4));
+            GrowVertices(4);
+            fixed (VertexPositionColorTexture* vertices = &Vertices[index]) {
+                if (!shape.HasUV) {
+                    vertices[0] = new(new(shape.XY1, 0f), color, new Vector2(0f, 0f));
+                    vertices[1] = new(new(shape.XY2, 0f), color, new Vector2(1f, 0f));
+                    vertices[2] = new(new(shape.XY3, 0f), color, new Vector2(0f, 1f));
+                    vertices[3] = new(new(shape.XY4, 0f), color, new Vector2(1f, 1f));
+                } else {
+                    vertices[0] = new(new(shape.XY1, 0f), color, shape.UV1);
+                    vertices[1] = new(new(shape.XY2, 0f), color, shape.UV2);
+                    vertices[2] = new(new(shape.XY3, 0f), color, shape.UV3);
+                    vertices[3] = new(new(shape.XY4, 0f), color, shape.UV4);
+                }
             }
+            VerticesMax += 4;
 
-            Indices.Add((ushort) (index + 0));
-            Indices.Add((ushort) (index + 1));
-            Indices.Add((ushort) (index + 2));
+            GrowIndices(6);
+            fixed (short* indices = &Indices[indexIndex]) {
+                indices[0] = (short) (index + 0);
+                indices[1] = (short) (index + 1);
+                indices[2] = (short) (index + 2);
 
-            Indices.Add((ushort) (index + 3));
-            Indices.Add((ushort) (index + 2));
-            Indices.Add((ushort) (index + 1));
+                indices[3] = (short) (index + 3);
+                indices[4] = (short) (index + 2);
+                indices[5] = (short) (index + 1);
+            }
+            IndicesMax += 6;
 
             AutoApply();
         }
@@ -389,6 +481,11 @@ namespace OlympUI {
 
             public LineCornerType LineCornerType;
 
+            public int VertexCount =>
+                Width * 0.5f == 0f ? XYs.Count :
+                XYs[^1] == XYs[0] ? (XYs.Count * 4 - 2) :
+                (XYs.Count * 4 - 4);
+
             public void Add(Color color)
                 => Color = color;
 
@@ -460,7 +557,7 @@ namespace OlympUI {
                             switch (LineCornerType) {
                                 case LineCornerType.Cut:
                                 default:
-                                    if (MathF.Atan2(startD.X, startD.Y) < MathF.Atan2(endD.X, endD.Y)) {
+                                    if ((MathF.Atan2(endD.X, endD.Y) - MathF.Atan2(startD.X, startD.Y) + MathF.PI * 2f) % (MathF.PI * 2f) > MathF.PI) {
                                         startT = endT = iT;
                                     } else {
                                         startB = endB = iB;
@@ -507,7 +604,7 @@ namespace OlympUI {
                             switch (LineCornerType) {
                                 case LineCornerType.Cut:
                                 default:
-                                    if (MathF.Atan2(pD.X, pD.Y) < MathF.Atan2(nD.X, nD.Y)) {
+                                    if ((MathF.Atan2(pD.X, pD.Y) - MathF.Atan2(nD.X, nD.Y) + MathF.PI * 2f) % (MathF.PI * 2f) > MathF.PI) {
                                         pT = nT = iT;
                                     } else {
                                         pB = nB = iB;
@@ -545,7 +642,8 @@ namespace OlympUI {
                 get => _XY1;
                 set {
                     _XY1 = value;
-                    RecalcUV();
+                    if (((_RecalcUVFlags |= 0b000001) & 0b001111) == 0b001111)
+                        RecalcUV();
                 }
             }
             private Vector2 _XY2;
@@ -553,7 +651,8 @@ namespace OlympUI {
                 get => _XY2;
                 set {
                     _XY2 = value;
-                    RecalcUV();
+                    if (((_RecalcUVFlags |= 0b000010) & 0b001111) == 0b001111)
+                        RecalcUV();
                 }
             }
             private Vector2 _XY3;
@@ -561,7 +660,8 @@ namespace OlympUI {
                 get => _XY3;
                 set {
                     _XY3 = value;
-                    RecalcUV();
+                    if (((_RecalcUVFlags |= 0b000100) & 0b001111) == 0b001111)
+                        RecalcUV();
                 }
             }
             private Vector2 _XY4;
@@ -569,7 +669,8 @@ namespace OlympUI {
                 get => _XY4;
                 set {
                     _XY4 = value;
-                    RecalcUV();
+                    if (((_RecalcUVFlags |= 0b001000) & 0b001111) == 0b001111)
+                        RecalcUV();
                 }
             }
             public Vector2 UV1;
@@ -583,20 +684,23 @@ namespace OlympUI {
                 get => _UVXYMin;
                 set {
                     _UVXYMin = value;
-                    RecalcUV();
+                    if (((_RecalcUVFlags |= 0b010000) & 0b110000) == 0b110000)
+                        RecalcUV();
                 }
             }
             public Vector2 UVXYMax {
                 get => _UVXYMax;
                 set {
                     _UVXYMax = value;
-                    RecalcUV();
+                    if (((_RecalcUVFlags |= 0b100000) & 0b110000) == 0b110000)
+                        RecalcUV();
                 }
             }
             public Vector2 UVXYSize {
                 get => UVXYMax - UVXYMin;
                 set => UVXYMax = UVXYMin + value;
             }
+            private uint _RecalcUVFlags;
             private void RecalcUV() {
                 if (_UVXYMin == default && _UVXYMax == default) {
                     UV1 = default;

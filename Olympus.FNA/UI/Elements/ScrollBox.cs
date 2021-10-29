@@ -292,10 +292,9 @@ namespace OlympUI {
                 }
 
                 // Fix UVs manually as we're using a gradient texture.
-                for (int i = 0; i < shapes.Vertices.Count; i++) {
-                    VertexPositionColorTexture vertex = shapes.Vertices[i];
+                for (int i = 0; i < shapes.VerticesMax; i++) {
+                    ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
                     vertex.TextureCoordinate = new(1f, 1f);
-                    shapes.Vertices[i] = vertex;
                 }
 
                 shapes.AutoApply();

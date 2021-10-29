@@ -39,6 +39,12 @@ namespace Olympus {
             Scener.Push<HomeScene>();
         }
 
+        protected override void LoadContent() {
+            UI.LoadContent();
+
+            base.LoadContent();
+        }
+
         public override void Update(GameTime gameTime) {
             float dt = gameTime.GetDeltaTime();
 

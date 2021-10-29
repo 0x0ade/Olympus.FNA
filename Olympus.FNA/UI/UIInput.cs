@@ -15,7 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public static class UIInput {
+    public static unsafe class UIInput {
 
         public static KeyboardState KeyboardPrev;
         public static KeyboardState Keyboard;
@@ -31,9 +31,41 @@ namespace OlympUI {
         );
         public static Point MouseScrollDXY => new(0, (Mouse.ScrollWheelValue - MousePrev.ScrollWheelValue) / 120);
 
+        public static event Action<int, int, MouseButtons>? OnFastClick;
+
         private static bool PrevSet;
 
+        private static int MouseButtonsSubFrame;
+
+        public static void Initialize() {
+            SDL.SDL_GetEventFilter(out EventFilterPrev, out IntPtr userdata);
+            SDL.SDL_SetEventFilter(EventFilter, userdata);
+        }
+
+        private static SDL.SDL_EventFilter? EventFilterPrev;
+        private static readonly SDL.SDL_EventFilter EventFilter = (userdata, evtPtr) => {
+            SDL.SDL_Event* evt = (SDL.SDL_Event*) evtPtr;
+
+            switch (evt->type) {
+                case SDL.SDL_EventType.SDL_MOUSEBUTTONDOWN when evt->button.windowID == SDL.SDL_GetWindowID(UI.Game.Window.Handle):
+                    MouseButtonsSubFrame |= 1 << evt->button.button;
+                    break;
+
+                case SDL.SDL_EventType.SDL_MOUSEBUTTONUP when evt->button.windowID == SDL.SDL_GetWindowID(UI.Game.Window.Handle):
+                    if ((MouseButtonsSubFrame & (1 << evt->button.button)) != 0) {
+                        MouseButtonsSubFrame &= ~(1 << evt->button.button);
+                        MouseState mouseReal = Microsoft.Xna.Framework.Input.Mouse.GetState();
+                        OnFastClick?.Invoke(mouseReal.X, mouseReal.Y, (MouseButtons) evt->button.button);
+                    }
+                    break;
+            }
+
+            return EventFilterPrev?.Invoke(userdata, evtPtr) ?? 1;
+        };
+
         public static void Update() {
+            MouseButtonsSubFrame = 0;
+
             KeyboardPrev = Keyboard;
             Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
             MousePrev = Mouse;
@@ -125,12 +157,13 @@ namespace OlympUI {
     }
 
     public enum MouseButtons {
-        First   = 0b00001,
         Left    = 0b00001,
         Right   = 0b00010,
         Middle  = 0b00100,
         X1      = 0b01000,
         X2      = 0b10000,
+
+        First   = 0b00001,
         Last    = 0b10000,
     }
 }

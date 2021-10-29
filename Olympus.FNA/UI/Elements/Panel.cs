@@ -35,9 +35,8 @@ namespace OlympUI {
         private Point PrevContentsWH;
 
         public Panel() {
-            BackgroundMesh = new BasicMesh(Game.GraphicsDevice) {
-                Texture = Assets.GradientQuad,
-                WireFrame = false
+            BackgroundMesh = new(Game.GraphicsDevice) {
+                Texture = Assets.GradientQuad
             };
         }
 
@@ -48,7 +47,8 @@ namespace OlympUI {
 
             BackgroundMesh?.Dispose();
             ContentsMesh?.Dispose();
-            UI.MegaCanvas.Free(Contents);
+            Contents?.Dispose();
+            Contents = null;
         }
 
         public override void DrawContent() {
@@ -65,7 +65,7 @@ namespace OlympUI {
                 GraphicsDevice gd = Game.GraphicsDevice;
 
                 if (Contents != null && (Contents.RT.IsDisposed || Contents.RT.Width < wh.X || Contents.RT.Height < wh.Y)) {
-                    UI.MegaCanvas.Free(Contents);
+                    Contents?.Dispose();
                     Contents = null;
                 }
 
@@ -104,9 +104,15 @@ namespace OlympUI {
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
                 gd.SetRenderTarget(Contents.RT);
+                if (Contents.Page == null) {
+                    gd.Clear(ClearOptions.Target, background, 0, 0);
+                } else {
+                    gd.ScissorRectangle = Contents.Region;
+                    SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                    SpriteBatch.Draw(Assets.White, Contents.Region, background);
+                    SpriteBatch.End();
+                }
                 gd.ScissorRectangle = new(0, 0, wh.X, wh.Y);
-                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
-                gd.Clear(background);
                 Vector2 offsPrev = UI.TransformOffset;
                 UI.TransformOffset = -xy;
                 SpriteBatch.BeginUI();
@@ -118,7 +124,7 @@ namespace OlympUI {
                 UI.TransformOffset = offsPrev;
 
             } else {
-                UI.MegaCanvas.Free(Contents);
+                Contents?.Dispose();
                 Contents = null;
                 ContentsMesh?.Dispose();
                 ContentsMesh = null;
@@ -139,20 +145,20 @@ namespace OlympUI {
                 int shadowEnd = -1;
 
                 if (shadow >= 0.01f) {
-                    float shadowWidth = 10f * shadow;
-                    shapes.Prepare(out shadowIndex);
+                    float shadowWidth = 5f * shadow;
+                    shapes.Prepare(out shadowIndex, out _);
                     shapes.Add(new MeshShapes.Rect() {
-                        Color = Color.Black * (0.2f + 0.5f * Math.Min(1f, shadow * 0.25f)),
+                        Color = Color.Black * (0.2f + 0.5f * Math.Min(1f, shadow * 0.125f)),
                         XY1 = new(-shadowWidth, -shadowWidth),
                         Size = new(wh.X + shadowWidth * 2f, wh.Y + shadowWidth * 2f),
                         Radius = Math.Max(shadowWidth, radius),
                         Border = shadowWidth,
                     });
-                    shadowEnd = shapes.Vertices.Count;
+                    shadowEnd = shapes.VerticesMax;
 
                     // Turn outer edge transparent and move it if necessary.
-                    for (int i = shadowIndex; i < shapes.Vertices.Count; i += 2) {
-                        VertexPositionColorTexture vertex = shapes.Vertices[i];
+                    for (int i = shadowIndex; i < shapes.VerticesMax; i += 2) {
+                        ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
                         vertex.Color = Color.Transparent;
                         vertex.TextureCoordinate = new(0f, 0f);
                         // vertex.Position.X += Math.Sign(vertex.Position.X - shadowWidth) * shadowWidth * 0.125f;
@@ -161,7 +167,6 @@ namespace OlympUI {
                         } else {
                             vertex.Position.Y += shadowWidth * 1.5f;
                         }
-                        shapes.Vertices[i] = vertex;
                     }
 
                     // Fix shadow inner vs rect outer radius gap by adjusting the shadow inner edge to the rect outer edge.
@@ -174,13 +179,12 @@ namespace OlympUI {
                         Radius = Math.Max(0.0001f, radius),
                         Border = 1f,
                     });
-                    for (int i = shadowIndex + 1; i < shapes.Vertices.Count; i += 2) {
-                        VertexPositionColorTexture vertex = shapes.Vertices[i];
+                    for (int i = shadowIndex + 1; i < shapes.VerticesMax; i += 2) {
+                        ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
                         if ((shadowWidth * 2f + 8f) > wh.Y && vertex.Position.Y <= shadowWidth + 1)
                             vertex.Color *= 0.9f + 0.1f * Math.Min(1f, shadow - 1f);
                         vertex.TextureCoordinate = new(1f, 1f);
                         vertex.Position = tmp.Vertices[i - shadowIndex - 1].Position;
-                        shapes.Vertices[i] = vertex;
                     }
                 }
 
@@ -202,12 +206,11 @@ namespace OlympUI {
                 }
 
                 // Fix UVs manually as we're using a gradient texture.
-                for (int i = 0; i < shapes.Vertices.Count; i++) {
-                    VertexPositionColorTexture vertex = shapes.Vertices[i];
+                for (int i = 0; i < shapes.VerticesMax; i++) {
+                    ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
                     if (shadowIndex <= i && i < shadowEnd)
                         continue;
                     vertex.TextureCoordinate = new(1f, 1f);
-                    shapes.Vertices[i] = vertex;
                 }
 
                 shapes.AutoApply();

@@ -16,5 +16,29 @@ namespace Olympus {
 
         public static readonly Reloadable<Texture2D> Splash = GetTexture("splash");
 
+        public static readonly Reloadable<DynamicSpriteFont> FontHeaderBig = GetFont(
+            40,
+            "fonts/Renogare-Regular",
+            "fonts/Poppins-Regular"
+        );
+
+        public static readonly Reloadable<DynamicSpriteFont> FontHeaderMedium = GetFont(
+            30,
+            "fonts/Renogare-Regular",
+            "fonts/Poppins-Regular"
+        );
+
+        public static readonly Reloadable<DynamicSpriteFont> FontHeaderSmall = GetFont(
+            20,
+            "fonts/Renogare-Regular",
+            "fonts/Poppins-Regular"
+        );
+
+        public static readonly Reloadable<DynamicSpriteFont> FontHeaderSmaller = GetFont(
+            15,
+            "fonts/Renogare-Regular",
+            "fonts/Poppins-Regular"
+        );
+
     }
 }

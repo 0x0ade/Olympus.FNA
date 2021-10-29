@@ -57,6 +57,10 @@ namespace OlympUI {
         public void Apply() {
             GraphicsDevice graphicsDevice = GraphicsDevice;
             graphicsDevice.Textures[0] = null;
+            if (HasVertexTexture) {
+                graphicsDevice.VertexTextures[0] = null;
+                graphicsDevice.VertexSamplerStates[0] = VertexSamplerState;
+            }
             if (RenderTargets.Length == 0)
                 graphicsDevice.SetRenderTarget(null);
             else

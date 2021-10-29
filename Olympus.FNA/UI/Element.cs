@@ -138,7 +138,7 @@ namespace OlympUI {
         public virtual bool? ForceDrawAllChildren { get; protected set; }
 
         public virtual bool? Cached { get; set; } = null;
-        public virtual Padding CachePadding { get; set; } = 32;
+        public virtual Padding CachePadding { get; set; } = 16;
 
         protected bool _Clip = false;
         public virtual bool Clip {
@@ -309,10 +309,8 @@ namespace OlympUI {
                 return;
             IsDisposed = true;
 
-            if (CachedTexture != null) {
-                UI.MegaCanvas.Free(CachedTexture);
-                CachedTexture = null;
-            }
+            CachedTexture?.Dispose();
+            CachedTexture = null;
         }
 
         public void Dispose() {
@@ -425,6 +423,21 @@ namespace OlympUI {
             }
         }
 
+        public virtual void InvalidateCachedTexture() {
+            for (Element? el = this; el != null; el = el.Parent) {
+                el.CachedTexture?.Dispose();
+                el.CachedTexture = null;
+            }
+        }
+
+        public virtual void InvalidateCachedTextureDown() {
+            foreach (Element el in Children) {
+                el.CachedTexture?.Dispose();
+                el.CachedTexture = null;
+                el.InvalidateCachedTextureDown();
+            }
+        }
+
         #endregion
 
 
@@ -481,11 +494,41 @@ namespace OlympUI {
         }
 
         protected virtual void PaintContent() {
-            if (!(Cached ?? (ConsecutiveUncachedPaints < 10))) {
-                UI.MegaCanvas.Free(CachedTexture);
+            if (Cached == false /* and not null */) {
+                CachedTexture?.Dispose();
                 CachedTexture = null;
                 DrawContent();
                 return;
+            }
+
+            bool repainting = Repainting;
+            Repainting = false;
+            bool pack = false;
+
+            if (!repainting) {
+                ConsecutiveUncachedPaints = 0;
+                if (ConsecutiveCachedPaints < 16) {
+                    ConsecutiveCachedPaints++;
+                    if (ConsecutiveCachedPaints < 8 && Cached == null) {
+                        DrawContent();
+                        return;
+                    }
+
+                } else {
+                    pack = true;
+                }
+
+            } else {
+                ConsecutiveCachedPaints = 0;
+                if (ConsecutiveUncachedPaints < 16) {
+                    ConsecutiveUncachedPaints++;
+
+                } else if (Cached == null) {
+                    CachedTexture?.Dispose();
+                    CachedTexture = null;
+                    DrawContent();
+                    return;
+                }
             }
 
             GraphicsDevice gd = Game.GraphicsDevice;
@@ -494,52 +537,39 @@ namespace OlympUI {
             Padding padding = CachePadding;
             Point whTexture = new(wh.X + padding.X, wh.Y + padding.Y);
 
-            bool repainting = Repainting;
-
-            if (CachedTexture != null && (((repainting || UI.GlobalDrawDebug) && CachedTexture.Page != null) || CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
-                UI.MegaCanvas.Free(CachedTexture);
+            if (CachedTexture != null && (CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
+                CachedTexture?.Dispose();
                 CachedTexture = null;
-                repainting = true;
             }
 
-            if (CachedTexture == null)
+            if ((repainting || UI.GlobalDrawDebug) && CachedTexture != null && CachedTexture.Page != null) {
+                CachedTexture?.Dispose();
+                CachedTexture = null;
+            }
+
+            if (CachedTexture == null) {
                 CachedTexture = UI.MegaCanvas.GetPooled(whTexture.X, whTexture.Y);
+                repainting = true;
+            }
 
             if (CachedTexture == null) {
                 DrawContent();
                 return;
             }
 
-            if (!repainting) {
-                ConsecutiveUncachedPaints = 0;
-                if (ConsecutiveCachedPaints < 10) {
-                    repainting = ConsecutiveCachedPaints < 5;
-                    ConsecutiveCachedPaints++;
-
-                } else if (CachedTexture.Page == null && !UI.GlobalDrawDebug) {
-                    CachedTexture = UI.MegaCanvas.GetPackedAndFree(CachedTexture, new(0, 0, whTexture.X, whTexture.Y)) ?? CachedTexture;
-                }
-
-            } else {
-                ConsecutiveCachedPaints = 0;
-                if (ConsecutiveUncachedPaints < 10) {
-                    ConsecutiveUncachedPaints++;
-                } else if (Cached == null) {
-                    UI.MegaCanvas.Free(CachedTexture);
-                    CachedTexture = null;
-                    DrawContent();
-                    return;
-                }
-            }
-
             if (repainting || UI.GlobalDrawDebug) {
-                Repainting = false;
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
                 gd.SetRenderTarget(CachedTexture.RT);
+                if (false && CachedTexture.Page == null) {
+                    gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
+                } else {
+                    gd.ScissorRectangle = CachedTexture.Region;
+                    SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                    SpriteBatch.Draw(Assets.White, CachedTexture.Region, new(0, 0, 0, 0));
+                    SpriteBatch.End();
+                }
                 gd.ScissorRectangle = new(0, 0, whTexture.X, whTexture.Y);
-                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
-                gd.Clear(new(0, 0, 0, 0));
                 Vector2 offsPrev = UI.TransformOffset;
                 UI.TransformOffset = -xy + new Vector2(padding.Left, padding.Top);
                 SpriteBatch.BeginUI();
@@ -550,6 +580,13 @@ namespace OlympUI {
                 gss.Apply();
                 UI.TransformOffset = offsPrev;
                 SpriteBatch.BeginUI();
+
+            } else if (!repainting && pack && CachedTexture.Page == null) {
+                RenderTarget2DRegion? packed = UI.MegaCanvas.GetPackedAndFree(CachedTexture, new(0, 0, whTexture.X, whTexture.Y));
+                if (packed != null) {
+                    CachedTexture = packed;
+                    InvalidateCachedTextureDown();
+                }
             }
 
             DrawCachedTexture(CachedTexture.RT, xy, padding, new(CachedTexture.Region.X, CachedTexture.Region.Y, whTexture.X, whTexture.Y));

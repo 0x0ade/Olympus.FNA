@@ -124,7 +124,7 @@ namespace Olympus {
 
 
         protected override void LoadContent() {
-            UI.LoadContent();
+            Graphics.GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.PlatformContents;
 
             SpriteBatch?.Dispose();
             SpriteBatch = new SpriteBatch(GraphicsDevice);
@@ -220,9 +220,9 @@ namespace Olympus {
 
                 // XNA - and thus in turn FNA - love to re-center the window on device changes.
                 Point pos = Native.WindowPosition;
-                FNAPatches.ApplyWindowChangesWithoutCenter = true;
+                FNAHooks.ApplyWindowChangesWithoutCenter = true;
                 m_GameWindow_OnClientSizeChanged.Invoke(Window, EmptyArgs);
-                FNAPatches.ApplyWindowChangesWithoutCenter = false;
+                FNAHooks.ApplyWindowChangesWithoutCenter = false;
 
                 // In some circumstances, fixing the window position is required, but only on device changes.
                 if (Native.WindowPosition != pos)
@@ -259,7 +259,7 @@ namespace Olympus {
                 FakeBackbuffer = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, UI.MultiSampleCount, RenderTargetUsage.PreserveContents);
             GraphicsDevice.SetRenderTarget(FakeBackbuffer);
             GraphicsDevice.Viewport = new(0, 0, Width, Height);
-            GraphicsDevice.Clear(new Color(0f, 0f, 0f, 0f));
+            GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
             Native.BeginDrawRT(dt);
 
             // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
@@ -276,15 +276,15 @@ namespace Olympus {
 
             GraphicsDevice.SetRenderTarget(null);
             if (Native.CanRenderTransparentBackground) {
-                GraphicsDevice.Clear(new Color(0f, 0f, 0f, 0f));
+                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
             } else if (Native.DarkMode) {
-                GraphicsDevice.Clear(new Color(0.1f, 0.1f, 0.1f, 1f));
+                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
             } else {
-                GraphicsDevice.Clear(new Color(0.9f, 0.9f, 0.9f, 1f));
+                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
             }
             Native.BeginDrawBB(dt);
             Viewport viewBB = GraphicsDevice.Viewport;
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
             SpriteBatch.Draw(
                 FakeBackbuffer,
                 new Rectangle(0, 0, viewBB.Width, viewBB.Height),

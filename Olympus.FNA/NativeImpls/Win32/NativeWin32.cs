@@ -37,9 +37,10 @@ namespace Olympus.NativeImpls {
         static readonly bool ExtendedBorderedWindow = SetAcrylicOnSelf && !SystemHasAcrylicFixes;
         static readonly bool ExtendedBorderedWindowResizeOutside = false; // TODO
         static readonly bool LegacyBorderedWindow = ExtendedBorderedWindow;
+        static readonly bool SetAcrylicOnSelfMaximized = false; // TODO
 
-        static readonly bool IsOpenGL = Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER")?.ToLowerInvariant() == "opengl";
-        static readonly bool IsVulkan = Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER")?.ToLowerInvariant() == "vulkan";
+        static bool IsOpenGL => FNAHooks.FNA3DDriver?.ToLowerInvariant() == "opengl";
+        static bool IsVulkan => FNAHooks.FNA3DDriver?.ToLowerInvariant() == "vulkan";
 
         private IntPtr HWnd;
         private IntPtr HDc;
@@ -77,7 +78,6 @@ namespace Olympus.NativeImpls {
         private TimeSpan LastTickStart;
         private TimeSpan LastTickEnd;
         private volatile bool ManuallyBlinking;
-
 
         private Thread? BGThread;
         private bool BGThreadRedraw;
@@ -133,7 +133,7 @@ namespace Olympus.NativeImpls {
             }
         }
 
-        public override bool CanRenderTransparentBackground => SystemHasAcrylic && (ClientSideDecoration == ClientSideDecorationMode.Title || !_IsMaximized);
+        public override bool CanRenderTransparentBackground => SystemHasAcrylic && (ClientSideDecoration == ClientSideDecorationMode.Title || SetAcrylicOnSelfMaximized || !_IsMaximized);
 
         public override bool IsActive {
             get {
@@ -363,7 +363,7 @@ namespace Olympus.NativeImpls {
 
         public override void BeginDrawBB(float dt) {
             // One background color for light mode, three for dark mode (focused black vs focused gray vs unfocused), whyyyy
-            if (_IsMaximized && ClientSideDecoration == ClientSideDecorationMode.Title) {
+            if (!SetAcrylicOnSelfMaximized && _IsMaximized && ClientSideDecoration == ClientSideDecorationMode.Title) {
                 // The "ideal" maximized dark bg is 0x2e2e2e BUT it's too bright for the overlay.
                 // Light mode is too dark to be called light mode.
                 Microsoft.Xna.Framework.Color bg =
@@ -447,7 +447,7 @@ namespace Olympus.NativeImpls {
             // Use the system theme color, otherwise the titlebar controls won't match.
             Microsoft.Xna.Framework.Color color =
                 // FIXME: Maximized background blur leaves an unblurred area at the right edge with self-acrylic.
-                (SetAcrylicOnSelf && _IsMaximized) ? default :
+                (SetAcrylicOnSelf && !SetAcrylicOnSelfMaximized && _IsMaximized) ? default :
                 // Force-disable blur.
                 alpha < 0f ? default :
                 // System-wide transparency is disabled by the user.
@@ -480,7 +480,7 @@ namespace Olympus.NativeImpls {
                                 Top = -1,
                                 Bottom = -1,
                             };
-                            if (!IsTransparent && _IsMaximized) {
+                            if (!IsTransparent && !SetAcrylicOnSelfMaximized && _IsMaximized) {
                                 // Blame DWM for showing the supposedly invisible "window outside of screen" area with ^^^.
                                 WorkaroundDWMMaximizedTitleBarSize = true;
                                 margins = new() {
@@ -629,7 +629,7 @@ namespace Olympus.NativeImpls {
             return false;
         }
 
-        private static void SetAcrylic(IntPtr hwnd, Microsoft.Xna.Framework.Color color) {
+        private void SetAcrylic(IntPtr hwnd, Microsoft.Xna.Framework.Color color) {
             /* Acrylic accent flags:
              * 0b00000000000000000000000000000001: ???????? Used by Windows Explorer for the task bar
              * 0b00000000000000000000000000000010: [WIN10 ] Force accent color? (At least according to info online)
@@ -637,7 +637,7 @@ namespace Olympus.NativeImpls {
              * 0b00000000000000000000000000000100: [WIN10+] Backdrop is as big as entire display area (unless clipped by Win11 round corners)
              * 0b00000000000000000000000000000100: [WIN11+] FIX RESIZING LAG BUT fullscreen spills onto all screens when maximized
              * 0b00000000000000000000000000001000: ???????? Not used by anything?
-             * 0b00000000000000000000000000010000: [WIN11+] Seems to fix the aforementioned spilling, only on 22000?
+             * 0b00000000000000000000000000010000: [WIN11+] PERMANENT: Clip backdrop. Seems to fix the aforementioned spilling, only on 22000? But also clips too hard in maximized mode.
              * 0b00000000000000000000000000100000: [WIN10+] Left border
              * 0b00000000000000000000000001000000: [WIN10+] Top border
              * 0b00000000000000000000000010000000: [WIN10+] Right border
@@ -652,18 +652,19 @@ namespace Olympus.NativeImpls {
                     AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
                     AccentFlags =
                         (
-                        SystemHasAcrylicFixes && !ExtendedBorderedWindow ?
-                        0b00000000000000000000000000010100 :
-                        0b00000000000000000000000000000000
+                        SystemHasAcrylicFixes && !_IsMaximized ?
+                        0b00000000000000000000000000010100U :
+                        0b00000000000000000000000000000000U
                         ) |
                         (
                         LegacyBorderedWindow ?
-                        0b00000000000000000000000111100000 :
-                        0b00000000000000000000000000000000
+                        0b00000000000000000000000111100000U :
+                        0b00000000000000000000000000000000U
                         ) |
-                        0b00000000000000000000000000000000,
+                        0b00000000000000000000000000000000U,
                     GradientColor = color.PackedValue, // Kinda lucky about alignment here.
             };
+            
             WindowCompositionAttributeData data = new() {
                 Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
                 Data = (IntPtr) (&accent),
@@ -779,10 +780,10 @@ namespace Olympus.NativeImpls {
                         // Call the original WndProc for easier resizing,
                         // BUT undo the title bar at the top.
                         // Fun fact: There's no extra resize region at the top!
-                        NCCALCSIZE_PARAMS* param = (NCCALCSIZE_PARAMS*) lParam;
-                        RECT prev = param->rgrc0;
+                        NCCALCSIZE_PARAMS* ncsize = (NCCALCSIZE_PARAMS*) lParam;
+                        RECT prev = ncsize->RgRc0;
                         CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
-                        RECT* next = &param->rgrc0;
+                        RECT* next = &ncsize->RgRc0;
                         OffsetLeft = next->Left - prev.Left;
                         OffsetTop = next->Top - prev.Top;
                         next->Top = prev.Top;
@@ -842,7 +843,7 @@ namespace Olympus.NativeImpls {
                         }
                         return NULL;
                     }
-                    NCPaint(hwnd, wParam, System.Drawing.Color.Transparent);
+                    // NCPaint(hwnd, wParam, System.Drawing.Color.Transparent);
                     break;
 
                 case WindowsMessage.WM_ERASEBKGND:
@@ -1049,9 +1050,9 @@ namespace Olympus.NativeImpls {
                     GUITHREADINFO guiInfo = new() {
                         cbSize = Marshal.SizeOf<GUITHREADINFO>()
                     };
-                    if (resizer != null && hwndResize != NULL && posInfo->hwndInsertAfter != hwndResize && GetGUIThreadInfo(resizer.ThreadID, ref guiInfo) && (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == 0) {
+                    if (resizer != null && hwndResize != NULL && posInfo->HWndInsertAfter != hwndResize && GetGUIThreadInfo(resizer.ThreadID, ref guiInfo) && (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == 0) {
                         SetWindowPos(
-                            hwndResize, posInfo->hwndInsertAfter,
+                            hwndResize, posInfo->HWndInsertAfter,
                             0, 0,
                             0, 0,
                             /* SWP_NOSIZE | SWP_NOMOVE | SWP_NOREDRAW | SWP_NOACTIVATE | SWP_DEFERERASE | SWP_NOSENDCHANGING */ 0x0001 | 0x0002 | 0x0008 | 0x0010 | 0x2000 | 0x0400
@@ -1159,15 +1160,45 @@ namespace Olympus.NativeImpls {
             ACCENT_ENABLE_BLURBEHIND,
             ACCENT_ENABLE_ACRYLICBLURBEHIND,
             ACCENT_ENABLE_HOSTBACKDROP,
+            ACCENT_TRANSPARENT,
             ACCENT_INVALID_STATE,
+        }
+
+        enum CornerStyle {
+            CORNER_DEFAULT,
+            CORNER_SQUARE,
+            CORNER_ROUND,
+            CORNER_LIGHTSHADOW_ROUND_SMALL,
+            CORNER_LIGHTSHADOW_ROUND,
+            CORNER_INVALID,
+        }
+
+        enum BackdropStyle {
+            BACKDROP_DEFAULT,
+            BACKDROP_MICA,
+            // Anything past Mica is transparent
+            BACKDROP_TRANSPARENT,
+        }
+
+        enum PartColorTarget {
+            PART_BORDER,
+            PART_NC_BACKGROUND,
+            PART_NC_TEXT,
+            PART_NC_INVALID,
         }
 
         [StructLayout(LayoutKind.Sequential)]
         struct AccentPolicy {
             public AccentState AccentState;
-            public int AccentFlags;
+            public uint AccentFlags;
             public uint GradientColor;
             public int AnimationId;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct PartColorPolicy {
+            public PartColorTarget Part;
+            public uint Color;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -1205,7 +1236,11 @@ namespace Olympus.NativeImpls {
             WCA_EXCLUDED_FROM_DDA,
             WCA_PASSIVEUPDATEMODE,
             WCA_USEDARKMODECOLORS,
-            WCA_LAST
+            WCA_CORNER_STYLE,
+            WCA_PART_COLOR,
+            WCA_DISABLE_MOVESIZE_FEEDBACK,
+            WCA_BACKDROP_STYLE,
+            WCA_LAST,
         }
 
         enum DwmWindowAttribute {
@@ -1273,21 +1308,21 @@ namespace Olympus.NativeImpls {
 
         [StructLayout(LayoutKind.Sequential)]
         struct WINDOWPOS {
-            public IntPtr hwnd;
-            public IntPtr hwndInsertAfter;
-            public int x;
-            public int y;
-            public int cx;
-            public int cy;
-            public uint flags;
+            public IntPtr HWnd;
+            public IntPtr HWndInsertAfter;
+            public int X;
+            public int Y;
+            public int CX;
+            public int CY;
+            public uint Flags;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         struct NCCALCSIZE_PARAMS {
-            public RECT rgrc0;
-            public RECT rgrc1;
-            public RECT rgrc2;
-            public WINDOWPOS* lppos;
+            public RECT RgRc0;
+            public RECT RgRc1;
+            public RECT RgRc2;
+            public WINDOWPOS* Pos;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -1313,6 +1348,15 @@ namespace Olympus.NativeImpls {
             public RECT Monitor;
             public RECT WorkArea;
             public uint Flags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct MINMAXINFO {
+            public POINT Reserved;
+            public POINT MaxSize;
+            public POINT MaxPosition;
+            public POINT MinTrackSize;
+            public POINT MaxTrackSize;
         }
 
         enum HitTestValues {

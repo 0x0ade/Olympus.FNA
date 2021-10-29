@@ -50,7 +50,7 @@ namespace OlympUI {
             Vector2 c = wh.ToVector2() * 0.5f;
             radius -= width;
 
-            const int edges = 64;
+            const int edges = 32;
 
             float progA = 0f;
             float progB = Progress;
@@ -76,7 +76,9 @@ namespace OlympUI {
             if (progBE - progAE >= 1) {
                 MeshShapes.Poly poly = new() {
                     Color = color,
-                    Width = width
+                    Width = width,
+                    UVXYMin = new(1, 1),
+                    UVXYMax = new(1, 1)
                 };
 
                 for (int edge = progAE; edge <= progBE; edge++) {

@@ -129,6 +129,10 @@ namespace Olympus {
                                             Layout = { Layouts.Fill(1, 0) },
                                             Enabled = false
                                         },
+                                        new PathTest() {
+                                            H = 200,
+                                            Layout = { Layouts.Fill(1, 0) },
+                                        },
                                     },
                                 }
                             }
@@ -152,6 +156,63 @@ namespace Olympus {
                     },
                 }
             };
+
+        public class PathTest : Element {
+
+            public static readonly new Style DefaultStyle = new() {
+                new ColorFader(new Color(1f, 0f, 0.5f, 1f) * 0.25f)
+            };
+
+            private BasicMesh Mesh;
+            private Color PrevColor;
+            private Point PrevWH;
+
+            public PathTest() {
+                Mesh = new BasicMesh(Game.GraphicsDevice) {
+                    Texture = OlympUI.Assets.White
+                };
+            }
+
+            public override void DrawContent() {
+                SpriteBatch.End();
+
+                Color color = Style.GetCurrent<Color>();
+                Point wh = WH;
+
+                if (PrevColor != color ||
+                    PrevWH != wh) {
+                    MeshShapes shapes = Mesh.Shapes;
+                    shapes.Clear();
+
+                    if (color != default) {
+                        shapes.Add(new MeshShapes.Poly() {
+                            color,
+                            25f,
+                            new Vector2(W * 0f, H * 0f),
+                            new Vector2(W * 1f, H * 0f),
+                            new Vector2(W * 1f, H * 1f),
+                            new Vector2(W * 0.45f, H * 0.75f),
+                            new Vector2(W * 0.65f, H * 0.25f),
+                            new Vector2(W * 0f, H * 0f),
+                        });
+                    }
+
+                    shapes.AutoApply();
+                }
+
+                Mesh.WireFrame = false;
+                Mesh.Draw(UI.CreateTransform(ScreenXY));
+                Mesh.WireFrame = true;
+                Mesh.Draw(UI.CreateTransform(ScreenXY));
+
+                SpriteBatch.BeginUI();
+                base.DrawContent();
+
+                PrevColor = color;
+                PrevWH = wh;
+            }
+
+        }
 
     }
 
