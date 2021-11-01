@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 using static Olympus.NativeImpls.NativeImpl;
 
 namespace Olympus {
-    public class App : Game {
+    public unsafe class App : Game {
 
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
         public static App Instance;
@@ -41,6 +41,8 @@ namespace Olympus {
         private Rectangle PrevClientBounds = new();
 
         private RenderTarget2D? FakeBackbuffer;
+        private Reloadable<Texture2D> FakeBackbufferReloadable;
+        private BasicMesh FakeBackbufferMesh;
 
 
         private uint DrawCount = 0;
@@ -77,7 +79,7 @@ namespace Olympus {
 
             Graphics = new GraphicsDeviceManager(this);
             Graphics.PreferredDepthStencilFormat = DepthFormat.None;
-            Graphics.PreferMultiSampling = false;
+            Graphics.PreferMultiSampling = true;
             Graphics.PreferredBackBufferWidth = 1100;
             Graphics.PreferredBackBufferHeight = 600;
             SDL.SDL_SetWindowMinimumSize(Window.Handle, 800, 600);
@@ -100,6 +102,7 @@ namespace Olympus {
 #else
             Native = new NativeNop(this);
 #endif
+
         }
 
 
@@ -125,9 +128,32 @@ namespace Olympus {
 
         protected override void LoadContent() {
             Graphics.GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.PlatformContents;
+            Graphics.GraphicsDevice.PresentationParameters.MultiSampleCount = UI.MultiSampleCount;
 
             SpriteBatch?.Dispose();
             SpriteBatch = new SpriteBatch(GraphicsDevice);
+
+            FakeBackbufferReloadable = new(null, () => FakeBackbuffer);
+            FakeBackbufferMesh = new(GraphicsDevice) {
+                Shapes = {
+                    // Will be updated in Draw.
+                    new MeshShapes.Quad() {
+                        XY1 = new(0, 0),
+                        XY2 = new(1, 0),
+                        XY3 = new(0, 1),
+                        XY4 = new(1, 1),
+                        UV1 = new(0, 0),
+                        UV2 = new(1, 0),
+                        UV3 = new(0, 1),
+                        UV4 = new(1, 1),
+                    },
+                },
+                MSAA = false,
+                Texture = FakeBackbufferReloadable,
+                BlendState = BlendState.AlphaBlend,
+                SamplerState = SamplerState.LinearClamp,
+            };
+            FakeBackbufferMesh.Reload();
 
             base.LoadContent();
         }
@@ -250,49 +276,80 @@ namespace Olympus {
                     BackgroundOpacityTime = 1f;
             }
 
-            if (FakeBackbuffer != null && (FakeBackbuffer.Width < Width || FakeBackbuffer.Height < Height)) {
-                FakeBackbuffer.Dispose();
-                FakeBackbuffer = null;
-            }
-
-            if (FakeBackbuffer == null || FakeBackbuffer.IsDisposed)
-                FakeBackbuffer = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, UI.MultiSampleCount, RenderTargetUsage.PreserveContents);
-            GraphicsDevice.SetRenderTarget(FakeBackbuffer);
-            GraphicsDevice.Viewport = new(0, 0, Width, Height);
-            GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
-            Native.BeginDrawRT(dt);
-
-            // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
-            if (ManualUpdate) {
-                if (ManualUpdateSkip) {
-                    ManualUpdateSkip = false;
-                } else {
-                    base.Update(gameTime);
+            if (WidthOverride != null || HeightOverride != null) {
+                if (FakeBackbuffer != null && (FakeBackbuffer.Width < Width || FakeBackbuffer.Height < Height)) {
+                    FakeBackbuffer.Dispose();
+                    FakeBackbuffer = null;
                 }
-            }
 
-            base.Draw(gameTime);
-            Native.EndDrawRT(dt);
+                if (FakeBackbuffer == null || FakeBackbuffer.IsDisposed) {
+                    FakeBackbuffer = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, UI.MultiSampleCount, RenderTargetUsage.PlatformContents);
+                    FakeBackbufferReloadable.Dispose();
+                }
 
-            GraphicsDevice.SetRenderTarget(null);
-            if (Native.CanRenderTransparentBackground) {
+                GraphicsDevice.SetRenderTarget(FakeBackbuffer);
+                GraphicsDevice.Viewport = new(0, 0, Width, Height);
                 GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
-            } else if (Native.DarkMode) {
-                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
+                Native.BeginDrawRT(dt);
+
+                // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
+                if (ManualUpdate) {
+                    if (ManualUpdateSkip) {
+                        ManualUpdateSkip = false;
+                    } else {
+                        base.Update(gameTime);
+                    }
+                }
+
+                base.Draw(gameTime);
+                Native.EndDrawRT(dt);
+
+                GraphicsDevice.SetRenderTarget(null);
+                if (Native.CanRenderTransparentBackground) {
+                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
+                } else if (Native.DarkMode) {
+                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
+                } else {
+                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
+                }
+                Native.BeginDrawBB(dt);
+                Viewport viewBB = GraphicsDevice.Viewport;
+                Vector2 viewBBUV = new(Width / (float) FakeBackbuffer.Width, Height / (float) FakeBackbuffer.Height);
+                fixed (VertexPositionColorTexture* vertices = &FakeBackbufferMesh.Vertices[0]) {
+                    vertices[1].Position = new(viewBB.Width, 0, 0);
+                    vertices[1].TextureCoordinate = new(viewBBUV.X, 0);
+                    vertices[2].Position = new(0, viewBB.Height, 0);
+                    vertices[2].TextureCoordinate = new(0, viewBBUV.Y);
+                    vertices[3].Position = new(viewBB.Width, viewBB.Height, 0);
+                    vertices[3].TextureCoordinate = new(viewBBUV.X, viewBBUV.Y);
+                }
+                FakeBackbufferMesh.QueueNext();
+                FakeBackbufferMesh.Draw();
+                Native.EndDrawBB(dt);
+
             } else {
-                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
+                GraphicsDevice.Viewport = new(0, 0, Width, Height);
+                if (Native.CanRenderTransparentBackground) {
+                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
+                } else if (Native.DarkMode) {
+                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
+                } else {
+                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
+                }
+                Native.BeginDrawDirect(dt);
+
+                // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
+                if (ManualUpdate) {
+                    if (ManualUpdateSkip) {
+                        ManualUpdateSkip = false;
+                    } else {
+                        base.Update(gameTime);
+                    }
+                }
+
+                base.Draw(gameTime);
+                Native.EndDrawDirect(dt);
             }
-            Native.BeginDrawBB(dt);
-            Viewport viewBB = GraphicsDevice.Viewport;
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-            SpriteBatch.Draw(
-                FakeBackbuffer,
-                new Rectangle(0, 0, viewBB.Width, viewBB.Height),
-                new Rectangle(0, 0, Width, Height),
-                new Color(1f, 1f, 1f, 1f)
-            );
-            SpriteBatch.End();
-            Native.EndDrawBB(dt);
 
             DrawCount++;
         }

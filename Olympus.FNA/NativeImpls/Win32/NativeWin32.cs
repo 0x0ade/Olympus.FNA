@@ -224,6 +224,9 @@ namespace Olympus.NativeImpls {
             ExtendedBorderedWindow ? ClientSideDecorationMode.Full :
             ClientSideDecorationMode.Title;
 
+        public BasicMesh? WindowBackgroundMesh;
+        public float WindowBackgroundOpacity;
+
 
         private bool _IsMouseFocus;
         public override bool IsMouseFocus => _IsMouseFocus;
@@ -317,12 +320,36 @@ namespace Olympus.NativeImpls {
             _DarkMode = !_DarkMode;
             DarkMode = !_DarkMode;
 
-            // Start the background thread.
+            // Do other late init stuff.
+
             BGThread = new(BGThreadLoop) {
                 Name = "Olympus Win32 Helper Background Thread",
                 IsBackground = true,
             };
             BGThread.Start();
+
+            WindowBackgroundMesh = new(App.GraphicsDevice) {
+                Shapes = {
+                    // Will be updated in BeginDrawBB.
+                    new MeshShapes.Quad() {
+                        XY1 = new(0, 0),
+                        XY2 = new(1, 0),
+                        XY3 = new(0, 2),
+                        XY4 = new(1, 2),
+                    },
+                    new MeshShapes.Quad() {
+                        XY1 = new(1, 1),
+                        XY2 = new(2, 1),
+                        XY3 = new(1, 2),
+                        XY4 = new(2, 2),
+                    },
+                },
+                MSAA = false,
+                Texture = OlympUI.Assets.White,
+                BlendState = BlendState.Opaque,
+                SamplerState = SamplerState.PointClamp,
+            };
+            WindowBackgroundMesh.Reload();
         }
 
         public override Microsoft.Xna.Framework.Point FixWindowPositionDisplayDrag(Microsoft.Xna.Framework.Point pos) {
@@ -364,36 +391,45 @@ namespace Olympus.NativeImpls {
         public override void BeginDrawBB(float dt) {
             // One background color for light mode, three for dark mode (focused black vs focused gray vs unfocused), whyyyy
             if (!SetAcrylicOnSelfMaximized && _IsMaximized && ClientSideDecoration == ClientSideDecorationMode.Title) {
+                WindowBackgroundOpacity = 1.5f;
+            } else {
+                WindowBackgroundOpacity -= dt * 2f;
+            }
+            if (WindowBackgroundOpacity > 0f && WindowBackgroundMesh != null) {
                 // The "ideal" maximized dark bg is 0x2e2e2e BUT it's too bright for the overlay.
                 // Light mode is too dark to be called light mode.
-                Microsoft.Xna.Framework.Color bg =
+                float a = Math.Min(WindowBackgroundOpacity, 1f);
+                a = a * a * a * a * a;
+                WindowBackgroundMesh.Color =
                     DarkMode ?
-                    new(0x1e, 0x1e, 0x1e, 0xff) :
-                    new(0xe0, 0xe0, 0xe0, 0xff);
-                SpriteBatch sb = App.SpriteBatch;
-                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-                sb.Draw(
-                    OlympUI.Assets.White,
-                    new Microsoft.Xna.Framework.Rectangle(
-                        0, 0,
-                        App.Width - WindowControlsWidth, App.Height
-                    ),
-                    bg
-                );
-                sb.Draw(
-                    OlympUI.Assets.White,
-                    new Microsoft.Xna.Framework.Rectangle(
-                        App.Width - WindowControlsWidth, WindowControlsHeight,
-                        WindowControlsWidth, App.Height - WindowControlsHeight
-                    ),
-                    bg
-                );
-                sb.End();
+                    (new Microsoft.Xna.Framework.Color(0x1e, 0x1e, 0x1e, 0xff) * a) :
+                    (new Microsoft.Xna.Framework.Color(0xe0, 0xe0, 0xe0, 0xff) * a);
+                fixed (VertexPositionColorTexture* vertices = &WindowBackgroundMesh.Vertices[0]) {
+                    vertices[1].Position = new(App.Width - WindowControlsWidth, 0, 0);
+                    vertices[2].Position = new(0, App.Height, 0);
+                    vertices[3].Position = new(App.Width - WindowControlsWidth, App.Height, 0);
+                    vertices[4].Position = new(App.Width - WindowControlsWidth, WindowControlsHeight, 0);
+                    vertices[5].Position = new(App.Width, WindowControlsHeight, 0);
+                    vertices[6].Position = new(App.Width - WindowControlsWidth, App.Height, 0);
+                    vertices[7].Position = new(App.Width, App.Height, 0);
+                }
+                WindowBackgroundMesh.QueueNext();
+                WindowBackgroundMesh.Draw();
             }
         }
 
         public override void EndDrawBB(float dt) {
             LastTickEnd = App.GlobalWatch.Elapsed;
+        }
+
+        public override void BeginDrawDirect(float dt) {
+            BeginDrawBB(dt);
+            BeginDrawRT(dt);
+        }
+
+        public override void EndDrawDirect(float dt) {
+            EndDrawRT(dt);
+            EndDrawBB(dt);
         }
 
 
@@ -421,7 +457,7 @@ namespace Olympus.NativeImpls {
                         GetGUIThreadInfo(guiThread, ref guiInfo);
                         redraw = (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == GuiThreadInfoFlags.GUI_INMOVESIZE;
                     }
-                } 
+                }
 
                 if (redraw) {
                     BGThreadRedraw = true;
@@ -753,7 +789,7 @@ namespace Olympus.NativeImpls {
                     GetClientRect(HWnd, out LastClientRect);
                     break;
 
-                case WindowsMessage.WM_WININICHANGE:
+                case WindowsMessage.WM_SETTINGCHANGE:
                 case WindowsMessage.WM_THEMECHANGED:
                 case WindowsMessage.WM_DWMCOMPOSITIONCHANGED:
                     _IsMaximized = GetIsMaximized(HWnd);
@@ -761,8 +797,8 @@ namespace Olympus.NativeImpls {
                     GetClientRect(HWnd, out LastClientRect);
                     _DarkModePreferred = null;
                     _IsTransparentPreferred = null;
-                    _DarkMode = !_DarkMode;
-                    DarkMode = !_DarkMode;
+                    _DarkMode = !(DarkModePreferred ?? _DarkMode);
+                    DarkMode = DarkModePreferred ?? !_DarkMode;
                     break;
 
                 case WindowsMessage.WM_DISPLAYCHANGE:

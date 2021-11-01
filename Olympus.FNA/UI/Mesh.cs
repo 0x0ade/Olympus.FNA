@@ -192,9 +192,9 @@ namespace OlympUI {
             if (WireFrame) {
                 gd.RasterizerState = Assets.WireFrame;
             } else if (MSAA) {
-                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredWithMSAA;
+                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseUnscissoredWithMSAA;
             } else {
-                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA;
+                gd.RasterizerState = UI.RasterizerStateCullCounterClockwiseUnscissoredNoMSAA;
             }
             gd.SamplerStates[0] = SamplerState;
 
@@ -299,7 +299,7 @@ namespace OlympUI {
 
     }
 
-    public class BasicMesh : Mesh<BasicEffect, VertexPositionColorTexture> {
+    public class BasicMesh : Mesh<MiniEffect, VertexPositionColorTexture> {
 
         public Reloadable<Texture2D> Texture = Assets.White;
         public bool DisposeTexture;
@@ -317,7 +317,7 @@ namespace OlympUI {
         }
 
         public BasicMesh(GraphicsDevice graphicsDevice)
-            : base(graphicsDevice, Assets.BasicEffect) {
+            : base(graphicsDevice, Assets.MiniEffect) {
             _Shapes = new() {
                 Mesh = this
             };
@@ -336,16 +336,14 @@ namespace OlympUI {
 
         protected override bool AutoBeforeDraw() {
             GraphicsDevice gd = GraphicsDevice;
-            BasicEffect effect = Effect;
+            MiniEffect effect = Effect;
 
             if (!base.AutoBeforeDraw())
                 return false;
 
             gd.Textures[0] = Texture;
-            effect.DiffuseColor = new Vector3(Color.R / 255f, Color.G / 255f, Color.B / 255f);
-            effect.Alpha = Color.A / 255f;
-
-            effect.World = Transform ?? CreateTransform();
+            effect.Color = Color.ToVector4();
+            effect.Transform = Transform ?? CreateTransform();
 
             return true;
         }

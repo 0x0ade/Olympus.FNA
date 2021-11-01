@@ -138,7 +138,7 @@ namespace Olympus {
                     "";
                 const int debugOutline = 1;
 
-                SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseUnscissoredNoMSAA);
                 SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 0), Color.Black);
                 SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 2, debugOutline * 1), Color.Black);
                 SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 2), Color.Black);

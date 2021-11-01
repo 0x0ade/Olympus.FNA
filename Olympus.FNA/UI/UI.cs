@@ -28,29 +28,29 @@ namespace OlympUI {
         public static Element? Dragging;
         public static Element? Focusing;
 
-        // FIXME: Sometimes toggling MSAA is more expensive than disabling MSAA?!
-        public static bool? ForceMSAA = true;
+        public static bool? ForceMSAA = null;
+        public static bool ForceDisableCache = false;
 
-        private static readonly RasterizerState _RasterizerStateCullCounterClockwiseScissoredWithMSAA = new() {
-            Name = $"{nameof(UI)}.{nameof(RasterizerStateCullCounterClockwiseScissoredWithMSAA)}",
+        private static readonly RasterizerState _RasterizerStateCullCounterClockwiseUnscissoredWithMSAA = new() {
+            Name = $"{nameof(UI)}.{nameof(RasterizerStateCullCounterClockwiseUnscissoredWithMSAA)}",
             CullMode = CullMode.CullCounterClockwiseFace,
-            ScissorTestEnable = true,
+            ScissorTestEnable = false,
             MultiSampleAntiAlias = true,
         };
-        private static readonly RasterizerState _RasterizerStateCullCounterClockwiseScissoredNoMSAA = new() {
-            Name = $"{nameof(UI)}.{nameof(RasterizerStateCullCounterClockwiseScissoredNoMSAA)}",
+        private static readonly RasterizerState _RasterizerStateCullCounterClockwiseUnscissoredNoMSAA = new() {
+            Name = $"{nameof(UI)}.{nameof(RasterizerStateCullCounterClockwiseUnscissoredNoMSAA)}",
             CullMode = CullMode.CullCounterClockwiseFace,
-            ScissorTestEnable = true,
+            ScissorTestEnable = false,
             MultiSampleAntiAlias = false,
         };
 
-        public static RasterizerState RasterizerStateCullCounterClockwiseScissoredWithMSAA =>
-            (ForceMSAA ?? true) ? _RasterizerStateCullCounterClockwiseScissoredWithMSAA :
-            _RasterizerStateCullCounterClockwiseScissoredNoMSAA;
+        public static RasterizerState RasterizerStateCullCounterClockwiseUnscissoredWithMSAA =>
+            (ForceMSAA ?? true) ? _RasterizerStateCullCounterClockwiseUnscissoredWithMSAA :
+            _RasterizerStateCullCounterClockwiseUnscissoredNoMSAA;
 
-        public static RasterizerState RasterizerStateCullCounterClockwiseScissoredNoMSAA =>
-            (ForceMSAA ?? false) ? _RasterizerStateCullCounterClockwiseScissoredWithMSAA :
-            _RasterizerStateCullCounterClockwiseScissoredNoMSAA;
+        public static RasterizerState RasterizerStateCullCounterClockwiseUnscissoredNoMSAA =>
+            (ForceMSAA ?? false) ? _RasterizerStateCullCounterClockwiseUnscissoredWithMSAA :
+            _RasterizerStateCullCounterClockwiseUnscissoredNoMSAA;
 
 #pragma warning disable CS8618 // Initialize and LoadContent always run first.
         public static Game Game;
@@ -296,7 +296,7 @@ namespace OlympUI {
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
                 DepthStencilState.Default,
-                RasterizerStateCullCounterClockwiseScissoredWithMSAA,
+                RasterizerStateCullCounterClockwiseUnscissoredWithMSAA,
                 null,
                 Matrix.CreateTranslation(new(TransformOffset, 0f))
             );
@@ -307,7 +307,7 @@ namespace OlympUI {
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
                 DepthStencilState.Default,
-                RasterizerStateCullCounterClockwiseScissoredNoMSAA,
+                RasterizerStateCullCounterClockwiseUnscissoredNoMSAA,
                 null,
                 Matrix.CreateTranslation(new(TransformOffset, 0f))
             );

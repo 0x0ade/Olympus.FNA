@@ -104,6 +104,9 @@ namespace OlympUI {
             VertexColorEnabled = true,
         });
 
+        public static readonly Reloadable<MiniEffect> MiniEffect = Get("MiniEffect", () => new MiniEffect(UI.Game.GraphicsDevice));
+        public static readonly Reloadable<MiniEffect> MaskEffect = Get<MiniEffect>("MaskEffect", () => new MaskEffect(UI.Game.GraphicsDevice));
+
         public static readonly Reloadable<RasterizerState> WireFrame = Get("WireFrame", () => new RasterizerState() {
             FillMode = FillMode.WireFrame,
             CullMode = CullMode.None

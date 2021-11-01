@@ -494,7 +494,7 @@ namespace OlympUI {
         }
 
         protected virtual void PaintContent() {
-            if (Cached == false /* and not null */) {
+            if (Cached == false /* and not null */ || UI.ForceDisableCache) {
                 CachedTexture?.Dispose();
                 CachedTexture = null;
                 DrawContent();
@@ -560,16 +560,10 @@ namespace OlympUI {
             if (repainting || UI.GlobalDrawDebug) {
                 SpriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
+                CachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
                 gd.SetRenderTarget(CachedTexture.RT);
-                if (false && CachedTexture.Page == null) {
-                    gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
-                } else {
-                    gd.ScissorRectangle = CachedTexture.Region;
-                    SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
-                    SpriteBatch.Draw(Assets.White, CachedTexture.Region, new(0, 0, 0, 0));
-                    SpriteBatch.End();
-                }
-                gd.ScissorRectangle = new(0, 0, whTexture.X, whTexture.Y);
+                gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
+                CachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
                 Vector2 offsPrev = UI.TransformOffset;
                 UI.TransformOffset = -xy + new Vector2(padding.Left, padding.Top);
                 SpriteBatch.BeginUI();

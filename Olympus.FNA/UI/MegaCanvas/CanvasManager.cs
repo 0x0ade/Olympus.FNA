@@ -17,7 +17,7 @@ namespace OlympUI.MegaCanvas {
         public int MaxSize = 4096;
         public int PageSize = 4096;
         public int MaxPackedSize = 2048;
-        public int MultiSampleCount = 0;
+        public int MultiSampleCount;
 
         public readonly PoolEntry[] PoolEntries = new PoolEntry[64];
         public int PoolEntriesAlive = 0;
@@ -33,8 +33,16 @@ namespace OlympUI.MegaCanvas {
 
         public readonly List<AtlasPage> Pages = new();
 
+        private BasicMesh BlitMesh;
+        private Texture2D? BlitTexture;
+
         public CanvasManager(GraphicsDevice graphics) {
             Graphics = graphics;
+            BlitMesh = new(graphics) {
+                MSAA = false,
+                Texture = new(null, () => BlitTexture),
+                BlendState = BlendState.Opaque,
+            };
         }
 
         public void Dispose() {
@@ -50,6 +58,8 @@ namespace OlympUI.MegaCanvas {
             foreach (AtlasPage page in Pages)
                 page.Dispose();
             Pages.Clear();
+
+            BlitMesh.Dispose();
         }
 
         public void Update() {
@@ -107,24 +117,22 @@ namespace OlympUI.MegaCanvas {
             GraphicsStateSnapshot gss = new(gd);
 
             gd.SetRenderTarget(to);
-            using BasicMesh mesh = new(gd) {
-                Shapes = {
-                    new MeshShapes.Quad() {
-                        XY1 = new(toBounds.Left, toBounds.Top),
-                        XY2 = new(toBounds.Right, toBounds.Top),
-                        XY3 = new(toBounds.Left, toBounds.Bottom),
-                        XY4 = new(toBounds.Right, toBounds.Bottom),
-                        UV1 = new(fromBounds.Left / (float) from.Width, fromBounds.Top / (float) from.Height),
-                        UV2 = new(fromBounds.Right / (float) from.Width, fromBounds.Top / (float) from.Height),
-                        UV3 = new(fromBounds.Left / (float) from.Width, fromBounds.Bottom / (float) from.Height),
-                        UV4 = new(fromBounds.Right / (float) from.Width, fromBounds.Bottom / (float) from.Height),
-                    },
-                },
-                MSAA = false,
-                Color = color,
-                Texture = new(null, () => from),
-                BlendState = BlendState.Opaque,
-            };
+            BasicMesh mesh = BlitMesh;
+            BlitTexture = from;
+            mesh.Texture.Dispose();
+            mesh.Color = color;
+            MeshShapes shapes = mesh.Shapes;
+            shapes.Clear();
+            shapes.Add(new MeshShapes.Quad() {
+                XY1 = new(toBounds.Left, toBounds.Top),
+                XY2 = new(toBounds.Right, toBounds.Top),
+                XY3 = new(toBounds.Left, toBounds.Bottom),
+                XY4 = new(toBounds.Right, toBounds.Bottom),
+                UV1 = new(fromBounds.Left / (float) from.Width, fromBounds.Top / (float) from.Height),
+                UV2 = new(fromBounds.Right / (float) from.Width, fromBounds.Top / (float) from.Height),
+                UV3 = new(fromBounds.Left / (float) from.Width, fromBounds.Bottom / (float) from.Height),
+                UV4 = new(fromBounds.Right / (float) from.Width, fromBounds.Bottom / (float) from.Height),
+            });
             mesh.Draw();
 
             gss.Apply();
@@ -208,7 +216,7 @@ namespace OlympUI.MegaCanvas {
             if (rt == null) {
                 int widthReal = Math.Min(MaxSize, (int) MathF.Ceiling(width / PoolPadding + 1) * PoolPadding);
                 int heightReal = Math.Min(MaxSize, (int) MathF.Ceiling(height / PoolPadding + 1) * PoolPadding);
-                rt = new(Graphics, widthReal, heightReal, false, SurfaceFormat.Color, DepthFormat.None, MultiSampleCount, RenderTargetUsage.PreserveContents);
+                rt = new(Graphics, widthReal, heightReal, false, SurfaceFormat.Color, DepthFormat.None, MultiSampleCount, RenderTargetUsage.PlatformContents);
                 fresh = true;
 
             } else {
@@ -272,10 +280,10 @@ namespace OlympUI.MegaCanvas {
 
                 gd.SetRenderTarget(tmp);
                 using SpriteBatch sb = new(gd);
-                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseUnscissoredNoMSAA);
                 sb.Draw(rt, new Vector2(0f, 0f), Color.White);
                 sb.End();
-                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseScissoredNoMSAA);
+                sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseUnscissoredNoMSAA);
                 foreach (Rectangle rg in page.Spaces) {
                     sb.Draw(white, new Rectangle(rg.X, rg.Y, rg.Width, 1), Color.Green * 0.7f);
                     sb.Draw(white, new Rectangle(rg.X, rg.Bottom - 1, rg.Width, 1), Color.Green * 0.7f);

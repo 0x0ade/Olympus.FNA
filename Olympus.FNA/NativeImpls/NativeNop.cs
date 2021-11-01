@@ -81,5 +81,11 @@ namespace Olympus.NativeImpls {
         public override void EndDrawBB(float dt) {
         }
 
+        public override void BeginDrawDirect(float dt) {
+        }
+
+        public override void EndDrawDirect(float dt) {
+        }
+
     }
 }

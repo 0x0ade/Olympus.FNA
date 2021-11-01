@@ -20,6 +20,7 @@ namespace OlympUI {
         private BasicMesh Mesh;
 
         private float Time;
+        private float TimeOffs;
 
         public Spinner() {
             Cached = false;
@@ -31,6 +32,7 @@ namespace OlympUI {
 
         public override void Update(float dt) {
             Time = (Time + dt * 0.5f) % 1f;
+            TimeOffs = (TimeOffs + dt * 0.1f) % 1f;
             InvalidatePaint();
             base.Update(dt);
         }
@@ -54,6 +56,7 @@ namespace OlympUI {
 
             float progA = 0f;
             float progB = Progress;
+            float timeOffs = 0;
 
             if (progB >= 0f) {
                 progB *= edges;
@@ -61,6 +64,7 @@ namespace OlympUI {
             } else {
                 float t = Time;
                 float offs = edges * t * 2f;
+                timeOffs = TimeOffs;
                 if (t < 0.5f) {
                     progA = offs + 0f;
                     progB = offs + edges * t * 2f;
@@ -71,7 +75,7 @@ namespace OlympUI {
             }
 
             int progAE = (int) MathF.Floor(progA);
-            int progBE = (int) MathF.Ceiling(progB - 1);
+            int progBE = (int) MathF.Ceiling(progB);
 
             if (progBE - progAE >= 1) {
                 MeshShapes.Poly poly = new() {
@@ -90,7 +94,7 @@ namespace OlympUI {
                         f = progB;
                     }
 
-                    f = (1f - f / edges + 0.5f) * MathF.PI * 2f;
+                    f = (1f - f / edges + 0.5f + timeOffs) * MathF.PI * 2f;
                     poly.Add(new Vector2(
                         c.X + MathF.Sin(f) * radius,
                         c.Y + MathF.Cos(f) * radius

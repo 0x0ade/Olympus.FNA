@@ -34,6 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="ContentSrc\**\*" />
     <Content Include="..\Content\**\*" Condition="$(CopyContent)">
       <LinkBase>Content</LinkBase>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -41,6 +42,11 @@
     <Content Include="..\lib\$(PlatformLibs)\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="ContentSrc\effects\MaskEffect.fx" />
+    <None Remove="UI\Effects\Dummy.cs~RF730501.TMP" />
   </ItemGroup>
 
   <ItemGroup>
@@ -52,5 +58,12 @@
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
     <PackageReference Include="YamlDotNet" Version="11.2.1" />
   </ItemGroup>
+
+  <Target Name="EffectBuild" AfterTargets="PreBuildEvent" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <ItemGroup>
+      <EffectSource Include="$(ProjectDir)ContentSrc\effects\*.fx" />
+    </ItemGroup>
+    <Exec Command="&quot;$(SolutionDir)EffectBuild\efb.exe&quot; &quot;%(EffectSource.Identity)&quot; &quot;$(SolutionDir)Content\effects\$([System.IO.Path]::GetFileName('%(EffectSource.Identity)'))o&quot;" />
+  </Target>
 
 </Project>

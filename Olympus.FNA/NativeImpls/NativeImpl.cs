@@ -53,6 +53,9 @@ namespace Olympus.NativeImpls {
         public abstract void BeginDrawBB(float dt);
         public abstract void EndDrawBB(float dt);
 
+        public abstract void BeginDrawDirect(float dt);
+        public abstract void EndDrawDirect(float dt);
+
     }
 
     public enum ClientSideDecorationMode {

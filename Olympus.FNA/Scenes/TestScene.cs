@@ -123,7 +123,11 @@ namespace Olympus {
                                         },
                                         new Button("Toggle Clip") {
                                             Layout = { Layouts.Fill(1, 0) },
-                                            Callback = el => el.GetParent<ScrollBox>().GetParent<Element>().Clip = !el.GetParent<ScrollBox>().GetParent<Element>().Clip
+                                            Callback = el => {
+                                                Element container = el.GetParent<ScrollBox>().GetParent<Element>();
+                                                container.Clip = !container.Clip;
+                                                container.Cached = container.Clip;
+                                            }
                                         },
                                         new Button("Disabled Button") {
                                             Layout = { Layouts.Fill(1, 0) },
