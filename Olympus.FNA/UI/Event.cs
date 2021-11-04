@@ -180,7 +180,7 @@ namespace OlympUI {
     /// Special event that is used and handled internally.
     /// </summary>
     public sealed class LayoutEvent : Event {
-        public static readonly LayoutEvent Instance = new(LayoutForce.None, true, LayoutPass.Normal, LayoutSubpass.Normal);
+        public static readonly LayoutEvent Instance = new(LayoutForce.None, true, LayoutPass.Normal, LayoutSubpass.AfterChildren);
 
         public LayoutForce ForceReflow;
         public bool Recursive;
@@ -212,7 +212,8 @@ namespace OlympUI {
 
     public enum LayoutSubpass {
         Pre = -10000,
-        Normal = 0,
+        BeforeChildren = -1,
+        AfterChildren = 0,
         Late = 30000,
         Post = 50000,
         Force = 90000
@@ -293,7 +294,7 @@ namespace OlympUI {
                             pass -= offs;
                         }
                     }
-                    LayoutSubpass subpass = LayoutSubpass.Normal;
+                    LayoutSubpass subpass = LayoutSubpass.AfterChildren;
                     if (method.GetCustomAttribute<LayoutPassAttribute>() is LayoutPassAttribute attrib) {
                         pass = attrib.Pass ?? pass;
                         subpass = attrib.Subpass ?? subpass;
@@ -365,9 +366,9 @@ namespace OlympUI {
         }
 
         public void Add(Action<LayoutEvent> handler)
-            => Add(LayoutPass.Normal, LayoutSubpass.Normal, handler);
+            => Add(LayoutPass.Normal, LayoutSubpass.AfterChildren, handler);
         public void Add(LayoutPass pass, Action<LayoutEvent> handler)
-            => Add(pass, LayoutSubpass.Normal, handler);
+            => Add(pass, LayoutSubpass.AfterChildren, handler);
         public void Add(LayoutPass pass, LayoutSubpass subpass, Action<LayoutEvent> handler) {
             List<Action<LayoutEvent>> list = GetHandlers(pass, subpass);
             list.Add(handler);
@@ -429,7 +430,7 @@ namespace OlympUI {
             int i;
             for (i = 0; i < handlers.Handlers.Count; i++) {
                 HandlerSublist subhandlers = handlers.Handlers[i];
-                if (subhandlers.Pass >= LayoutSubpass.Normal)
+                if (subhandlers.Pass >= LayoutSubpass.AfterChildren)
                     break;
 
                 e.Status = EventStatus.Normal;

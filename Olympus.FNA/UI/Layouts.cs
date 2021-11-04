@@ -103,12 +103,14 @@ namespace OlympUI {
                 } else if (!el.Style.TryGetCurrent("Spacing", out spacingReal)) {
                     spacingReal = 0;
                 }
-                Vector2 offs = el.InnerXY.ToVector2();
+                Padding padding = el.Padding;
+                Vector2 offs = padding.LT.ToVector2();
                 int y = 0;
                 foreach (Element child in el.Children) {
                     child.RealXY = child.XY + offs + new Vector2(0f, y);
                     y += child.H + spacingReal;
                 }
+                el.H = y + padding.B;
             }
         );
 
@@ -122,29 +124,31 @@ namespace OlympUI {
                 } else if (!el.Style.TryGetCurrent("Spacing", out spacingReal)) {
                     spacingReal = 0;
                 }
-                Vector2 offs = el.InnerXY.ToVector2();
+                Padding padding = el.Padding;
+                Vector2 offs = padding.LT.ToVector2();
                 int x = 0;
                 foreach (Element child in el.Children) {
                     child.RealXY = child.XY + offs + new Vector2(x, 0f);
                     x += child.W + spacingReal;
                 }
+                el.W = x + padding.R;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Left(int offs = 0) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
                 if (p == null)
                     return;
                 el.X = offs;
-                el.RealX = p.InnerXY.X + el.X;
+                el.RealX = p.Padding.L + el.X;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Left(float fract, float offs = 0f) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
@@ -152,24 +156,24 @@ namespace OlympUI {
                     return;
                 (int offsWhole, float offsFract) = Fract(offs);
                 el.X = (int) Math.Floor(p.InnerWH.X * fract + offsWhole + el.W * offsFract);
-                el.RealX = p.InnerXY.X + el.X;
+                el.RealX = p.Padding.L + el.X;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Top(int offs = 0) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
                 if (p == null)
                     return;
                 el.Y = offs;
-                el.RealY = p.InnerXY.Y + el.Y;
+                el.RealY = p.Padding.T + el.Y;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Top(float fract, float offs = 0f) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
@@ -177,36 +181,36 @@ namespace OlympUI {
                     return;
                 (int offsWhole, float offsFract) = Fract(offs);
                 el.Y = (int) Math.Floor(p.InnerWH.Y * fract + offsWhole + el.H * offsFract);
-                el.RealY = p.InnerXY.Y + el.Y;
+                el.RealY = p.Padding.T + el.Y;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Right(int offs = 0) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
                 if (p == null)
                     return;
                 el.X = p.InnerWH.X - el.W - offs;
-                el.RealX = p.InnerXY.X + el.X;
+                el.RealX = p.Padding.L + el.X;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Bottom(int offs = 0) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
                 if (p == null)
                     return;
                 el.Y = p.InnerWH.Y - el.H - offs;
-                el.RealY = p.InnerXY.Y + el.Y;
+                el.RealY = p.Padding.T + el.Y;
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Move(int offsX = 0, int offsY = 0) => (
-            LayoutPass.Post, LayoutSubpass.Normal,
+            LayoutPass.Post, LayoutSubpass.AfterChildren,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
@@ -226,7 +230,7 @@ namespace OlympUI {
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Fill(float fractX = 1f, float fractY = 1f, int offsX = 0, int offsY = 0) => (
-            LayoutPass.Normal, LayoutSubpass.Pre,
+            LayoutPass.Normal, LayoutSubpass.Pre + 1,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
@@ -236,22 +240,22 @@ namespace OlympUI {
                 offsY = ResolveConstsY(el, p, offsY);
                 if (fractX > 0f && fractY > 0f) {
                     el.XY = new(0, 0);
-                    el.RealXY = p.InnerXY.ToVector2();
+                    el.RealXY = p.Padding.LT.ToVector2();
                     el.WH = (p.InnerWH.ToVector2() * new Vector2(fractX, fractY)).ToPoint() - new Point(offsX, offsY);
                 } else if (fractX > 0f) {
                     el.XY.X = 0;
-                    el.RealXY = new(p.InnerXY.X, el.RealXY.Y);
+                    el.RealXY = new(p.Padding.L, el.RealXY.Y);
                     el.WH.X = (int) (p.InnerWH.X * fractX) - offsX;
                 } else if (fractY > 0f) {
                     el.XY.Y = 0;
-                    el.RealXY = new(el.RealXY.X, p.InnerXY.Y);
+                    el.RealXY = new(el.RealXY.X, p.Padding.T);
                     el.WH.Y = (int) (p.InnerWH.Y * fractY) - offsY;
                 }
             }
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) FillFull(float fractX = 1f, float fractY = 1f, int offsX = 0, int offsY = 0) => (
-            LayoutPass.Normal, LayoutSubpass.Pre,
+            LayoutPass.Normal, LayoutSubpass.Pre + 1,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
@@ -260,15 +264,15 @@ namespace OlympUI {
                 offsX = ResolveConstsX(el, p, offsX);
                 offsY = ResolveConstsY(el, p, offsY);
                 if (fractX > 0f && fractY > 0f) {
-                    el.XY = -p.InnerXY.ToVector2();
+                    el.XY = -p.Padding.LT.ToVector2();
                     el.RealXY = new(0, 0);
                     el.WH = (p.WH.ToVector2() * new Vector2(fractX, fractY)).ToPoint() - new Point(offsX, offsY);
                 } else if (fractX > 0f) {
-                    el.XY.X = -p.InnerXY.X;
+                    el.XY.X = -p.Padding.L;
                     el.RealXY = new(0, el.RealXY.Y);
                     el.WH.X = (int) (p.WH.X * fractX) - offsX;
                 } else if (fractY > 0f) {
-                    el.XY.Y = -p.InnerXY.Y;
+                    el.XY.Y = -p.Padding.T;
                     el.RealXY = new(el.RealXY.X, 0);
                     el.WH.Y = (int) (p.WH.Y * fractY) - offsY;
                 }
@@ -276,7 +280,7 @@ namespace OlympUI {
         );
 
         public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Grow(int offsX = 0, int offsY = 0) => (
-            LayoutPass.Normal, LayoutSubpass.Pre,
+            LayoutPass.Normal, LayoutSubpass.Pre + 1,
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;

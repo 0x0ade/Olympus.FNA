@@ -229,14 +229,14 @@ namespace OlympUI {
             Axis = axis;
             switch (axis) {
                 case ScrollAxis.X:
-                    Layout.Add(LayoutPass.Pre, LayoutSubpass.Normal, AxisX_LayoutReset);
-                    Layout.Add(LayoutPass.Post, LayoutSubpass.Normal, AxisX_LayoutNormal);
+                    Layout.Add(LayoutPass.Pre, LayoutSubpass.AfterChildren, AxisX_LayoutReset);
+                    Layout.Add(LayoutPass.Post, LayoutSubpass.AfterChildren, AxisX_LayoutNormal);
                     Events.Add<MouseEvent.Drag>(AxisX_OnDrag);
                     break;
 
                 case ScrollAxis.Y:
-                    Layout.Add(LayoutPass.Pre, LayoutSubpass.Normal, AxisY_LayoutReset);
-                    Layout.Add(LayoutPass.Post, LayoutSubpass.Normal, AxisY_LayoutNormal);
+                    Layout.Add(LayoutPass.Pre, LayoutSubpass.AfterChildren, AxisY_LayoutReset);
+                    Layout.Add(LayoutPass.Post, LayoutSubpass.AfterChildren, AxisY_LayoutNormal);
                     Events.Add<MouseEvent.Drag>(AxisY_OnDrag);
                     break;
 

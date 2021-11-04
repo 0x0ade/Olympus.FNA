@@ -257,8 +257,14 @@ namespace OlympUI {
             set => RealXY = XY = value - ScreenXY;
         }
 
-        public virtual Point InnerXY => new(0, 0);
-        public virtual Point InnerWH => WH;
+        public virtual Padding Padding => new();
+        public virtual Point InnerWH {
+            get {
+                Padding padding = Padding;
+                Point wh = WH;
+                return new(wh.X - padding.W, wh.Y - padding.H);
+            }
+        }
 
         public Rectangle ScreenXYWH {
             get {
@@ -374,6 +380,7 @@ namespace OlympUI {
                         }
                         item.Parent = this;
                         item.InvalidateFull();
+                        item.InvalidateFullDown();
                     }
                     foreach (Element item in nulls)
                         Children.Remove(item);
@@ -478,6 +485,9 @@ namespace OlympUI {
         // TODO: Element painting is a general TODO area.
 
         public virtual void Paint() {
+            if (!Visible)
+                return;
+
             PaintContent();
             if (UI.GlobalDrawDebug) {
                 DrawDebug();
@@ -537,7 +547,7 @@ namespace OlympUI {
             Vector2 xy = ScreenXY;
             Point wh = WH;
             Padding padding = CachePadding;
-            Point whTexture = new(wh.X + padding.X, wh.Y + padding.Y);
+            Point whTexture = new(wh.X + padding.W, wh.Y + padding.H);
 
             if (CachedTexture != null && (CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
                 CachedTexture?.Dispose();

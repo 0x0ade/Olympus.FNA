@@ -14,6 +14,10 @@ using System.Threading.Tasks;
 namespace Olympus {
     public class HomeScene : Scene {
 
+#pragma warning disable CS8618 // Generate is called early.
+        public Element ManageList;
+#pragma warning restore CS8618
+
         public override Element Generate()
             => new Group() {
                 Style = {
@@ -94,7 +98,7 @@ namespace Olympus {
                             Layouts.Column(),
                         },
                         Children = {
-                            new HeaderMedium("Installed"),
+                            new HeaderMedium("Manage"),
                             new Group() {
                                 Clip = true,
                                 Cached = true,
@@ -107,7 +111,7 @@ namespace Olympus {
                                         Layout = {
                                             Layouts.Fill(1, 1)
                                         },
-                                        Content = new Group() {
+                                        Content = ManageList = new Group() {
                                             Style = {
                                                 { "Spacing", 8 },
                                             },
@@ -117,6 +121,7 @@ namespace Olympus {
                                             },
                                             Children = {
 
+                                                /*
                                                 new Panel() {
                                                     Layout = {
                                                         Layouts.Fill(1, 0),
@@ -152,6 +157,7 @@ namespace Olympus {
                                                         new Label("idk what this should say"),
                                                     }
                                                 },
+                                                */
 
                                             }
                                         }
@@ -227,6 +233,55 @@ namespace Olympus {
 
                 },
             };
+
+        public override void Enter(params object[] args) {
+            ReloadManageList();
+        }
+
+        private Task? _ReloadManageListTask;
+        public Task ReloadManageList()
+            => (_ReloadManageListTask?.IsCompleted ?? true) ? (_ReloadManageListTask = Task.Run(_ReloadManageList)) : _ReloadManageListTask;
+        private async Task? _ReloadManageList() {
+            await UI.Run(() => {
+                ManageList.Clear();
+                ManageList.Add(new Panel() {
+                    Layout = {
+                        Layouts.Fill(1, 0),
+                    },
+                    Children = {
+                        new Group() {
+                            Layout = {
+                                Layouts.Left(0.5f, -0.5f),
+                                Layouts.Row(8),
+                            },
+                            Children = {
+                                new Label("Loading") {
+                                    Layout = { Layouts.Top(0.5f, -0.5f) },
+                                },
+                                new Spinner(),
+                            }
+                        }
+                    }
+                });
+            });
+
+            await Task.Delay(3000);
+
+            await UI.Run(() => {
+                ManageList.Clear();
+                ManageList.Add(new Panel() {
+                    Layout = {
+                        Layouts.Fill(1, 0),
+                        Layouts.Column(),
+                    },
+                    Children = {
+                        new HeaderSmall("Everest"),
+                        new HeaderSmaller("Version: 1.4.0.0-fna + 1.3102.0-azure-39c72"),
+                        new Label("idk what this should say"),
+                    }
+                });
+            });
+        }
 
     }
 

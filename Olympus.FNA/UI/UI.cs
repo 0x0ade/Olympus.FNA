@@ -59,6 +59,8 @@ namespace OlympUI {
         public static CanvasManager MegaCanvas;
 #pragma warning restore CS8618
 
+        private static readonly AutoRotatingPool<List<Action>> RunListPool = new(8);
+        private static List<Action> RunList = RunListPool.Next();
         private static readonly AutoRotatingPool<List<Action>> RunLateListPool = new(8);
         private static List<Action> RunLateList = RunLateListPool.Next();
         private static HashSet<Action> RunOnceList = new();
@@ -102,6 +104,20 @@ namespace OlympUI {
             Root.ReflowingForce = false;
 
             RunOnceList.Clear();
+
+            #region RunList
+            {
+                List<Action> runList;
+                lock (RunListPool) {
+                    runList = RunList;
+                    RunList = RunListPool.Next();
+                }
+                foreach (Action run in runList)
+                    run();
+                runList.Clear();
+
+            }
+            #endregion
 
             #region Input and other event handling
             {
@@ -244,11 +260,14 @@ namespace OlympUI {
             }
             #endregion
 
-            #region RunLate
+            #region RunLateList
             {
 
-                List<Action> runLateList = RunLateList;
-                RunLateList = RunLateListPool.Next();
+                List<Action> runLateList;
+                lock (RunLateListPool) {
+                    runLateList = RunLateList;
+                    RunLateList = RunLateListPool.Next();
+                }
                 foreach (Action runLate in runLateList)
                     runLate();
                 runLateList.Clear();
@@ -269,13 +288,26 @@ namespace OlympUI {
             SpriteBatch.End();
         }
 
+        public static MaybeAwaitable Run(Action run) {
+            MaybeAwaitable awaitable = new(() => true);
+            Action runReal = () => {
+                run();
+                awaitable.SetResult();
+            };
+            lock (RunListPool)
+                RunList.Add(runReal);
+            return awaitable;
+        }
+
         public static void RunLate(Action runLate) {
-            RunLateList.Add(runLate);
+            lock (RunLateListPool)
+                RunLateList.Add(runLate);
         }
 
         public static void RunOnce(Action runLate) {
-            if (RunOnceList.Add(runLate))
-                runLate();
+            lock (RunOnceList)
+                if (RunOnceList.Add(runLate))
+                    runLate();
         }
 
         public static Matrix CreateTransform()

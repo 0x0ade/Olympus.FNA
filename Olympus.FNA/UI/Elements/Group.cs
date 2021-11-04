@@ -18,12 +18,7 @@ namespace OlympUI {
             { "Spacing", 0 },
         };
 
-        public override Point InnerXY {
-            get {
-                int padding = Style.GetCurrent<int>("Padding");
-                return new(padding, padding);
-            }
-        }
+        public override Padding Padding => new(Style.GetCurrent<int>("Padding"));
         public override Point InnerWH {
             get {
                 int padding = Style.GetCurrent<int>("Padding");
@@ -111,30 +106,30 @@ namespace OlympUI {
             if (forceWH.Y >= 0)
                 wh.Y = forceWH.Y;
 
-            Point paddingTL = InnerXY;
+            Padding padding = Padding;
 
             if (wh.X < 0 && wh.Y < 0) {
                 foreach (Element child in Children) {
-                    Point childMax = child.RealXY.ToPoint() - paddingTL + child.WH;
+                    Point childMax = child.RealXY.ToPoint() - padding.LT + child.WH;
                     wh.X = Math.Max(wh.X, childMax.X);
                     wh.Y = Math.Max(wh.Y, childMax.Y);
                 }
 
             } else if (wh.X < 0) {
                 foreach (Element child in Children) {
-                    wh.X = Math.Max(wh.X, (int) child.RealX - paddingTL.X + child.W);
+                    wh.X = Math.Max(wh.X, (int) child.RealX - padding.L + child.W);
                 }
 
             } else if (wh.Y < 0) {
                 foreach (Element child in Children) {
-                    wh.Y = Math.Max(wh.Y, (int) child.RealY - paddingTL.Y + child.H);
+                    wh.Y = Math.Max(wh.Y, (int) child.RealY - padding.T + child.H);
                 }
             }
 
             Point minWH = MinWH;
             minWH = new(
-                Math.Max(minWH.X, paddingTL.X * 2),
-                Math.Max(minWH.Y, paddingTL.Y * 2)
+                Math.Max(minWH.X, padding.W),
+                Math.Max(minWH.Y, padding.H)
             );
             Point maxWH = MaxWH;
             if (minWH.X >= 0 && wh.X < minWH.X)
@@ -146,27 +141,26 @@ namespace OlympUI {
             if (maxWH.Y >= 0 && maxWH.Y < wh.Y)
                 wh.Y = maxWH.Y;
 
-            int padding = Style.GetCurrent<int>("Padding");
-            wh.X += padding * 2;
-            wh.Y += padding * 2;
+            wh.X += padding.W;
+            wh.Y += padding.H;
 
             AutoWH = WH = wh;
         }
 
         public virtual void RepositionChildren() {
-            Vector2 padding = InnerXY.ToVector2();
+            Vector2 padding = Padding.LT.ToVector2();
             foreach (Element child in Children) {
                 child.RealXY = child.XY + padding;
             }
         }
 
         [LayoutPass(LayoutPass.Normal, LayoutSubpass.Late)]
-        private void LayoutNormalChildren(LayoutEvent e) {
+        private void LayoutRepositionChildren(LayoutEvent e) {
             RepositionChildren();
         }
 
-        [LayoutPass(LayoutPass.Normal, LayoutSubpass.Pre - 1)]
-        private void LayoutNormalPost(LayoutEvent e) {
+        [LayoutPass(LayoutPass.Normal, LayoutSubpass.Pre)]
+        private void LayoutResize(LayoutEvent e) {
             Resize(new(WHFalse, WHFalse));
         }
 
