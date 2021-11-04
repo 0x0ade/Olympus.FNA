@@ -21,12 +21,7 @@ namespace Olympus {
         private Skin? SkinDark;
         private Skin? SkinLight;
 
-        private bool DrawDebug =
-#if DEBUG
-            true;
-#else
-            false;
-#endif
+        private Label DebugLabel;
 
         public MainComponent(App app)
             : base(app) {
@@ -36,11 +31,25 @@ namespace Olympus {
 
             UI.Initialize(App, NativeImpl.Native);
             UI.Root.Children.Add(Scener.Get<MetaMainScene>().Generate());
+            UI.Root.Children.Add(DebugLabel = new Label("") {
+                Style = {
+                    Color.Red,
+                    OlympUI.Assets.FontMonoOutlined,
+                },
+#if DEBUG
+                Visible = true,
+#else
+                Visible = false,
+#endif
+            });
             Scener.Push<HomeScene>();
         }
 
         protected override void LoadContent() {
             UI.LoadContent();
+
+            // Otherwise it keeps fooling itself.
+            DebugLabel.CachePool = new(UI.MegaCanvas, false);
 
             base.LoadContent();
         }
@@ -49,7 +58,7 @@ namespace Olympus {
             float dt = gameTime.GetDeltaTime();
 
             if (UIInput.Pressed(Keys.F1)) {
-                DrawDebug = !DrawDebug;
+                DebugLabel.Visible = !DebugLabel.Visible;
             }
 
             if (UIInput.Pressed(Keys.F2)) {
@@ -97,6 +106,22 @@ namespace Olympus {
             // UI.Root.WH = new(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height - (Native.IsMaximized ? 8 : 1));
             UI.Root.WH = new(App.Width, App.Height - (Native.IsMaximized ? 8 : 1));
 
+            if (DebugLabel.Visible) {
+                DebugLabel.Text =
+                    $"FPS: {App.FPS}\n" +
+                    $"Mouse: {UIInput.Mouse}\n" +
+                    $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
+                    $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
+                    $"Pool MAIN Available: {UI.MegaCanvas.Pool.EntriesAlive}\n" +
+                    $"Pool MAIN Used: {UI.MegaCanvas.Pool.Used.Count}\n" +
+                    $"Pool MAIN Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.Pool.UsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.Pool.TotalMemory)} \n" +
+                    $"Pool MSAA Available: {UI.MegaCanvas.PoolMSAA.EntriesAlive}\n" +
+                    $"Pool MSAA Used: {UI.MegaCanvas.PoolMSAA.Used.Count}\n" +
+                    $"Pool MSAA Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.PoolMSAA.UsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.PoolMSAA.TotalMemory)} \n" +
+                    $"Atlas Pages: {UI.MegaCanvas.Pages.Count} x {GetHumanFriendlyBytes(UI.MegaCanvas.PageSize * UI.MegaCanvas.PageSize * 4)} \n" +
+                    "";
+            }
+
             Scener.Update(dt);
             UI.Update(dt);
         }
@@ -124,28 +149,6 @@ namespace Olympus {
 
             UI.Paint();
             Scener.Draw();
-
-            if (DrawDebug) {
-                string debug =
-                    $"FPS: {App.FPS}\n" +
-                    $"Mouse: {UIInput.Mouse}\n" +
-                    $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
-                    $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
-                    $"Pool Available: {UI.MegaCanvas.PoolEntriesAlive}\n" +
-                    $"Pool Used: {UI.MegaCanvas.PoolUsed.Count}\n" +
-                    $"Pool Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.PoolUsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.PoolTotalMemory)} \n" +
-                    $"Atlas Pages: {UI.MegaCanvas.Pages.Count} x {GetHumanFriendlyBytes(UI.MegaCanvas.PageSize * UI.MegaCanvas.PageSize * 4)} \n" +
-                    "";
-                const int debugOutline = 1;
-
-                SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.Default, UI.RasterizerStateCullCounterClockwiseUnscissoredNoMSAA);
-                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 0), Color.Black);
-                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 2, debugOutline * 1), Color.Black);
-                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 2), Color.Black);
-                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 0, debugOutline * 1), Color.Black);
-                SpriteBatch.DrawString(OlympUI.Assets.FontMono, debug, new Vector2(debugOutline * 1, debugOutline * 1), Color.Red);
-                SpriteBatch.End();
-            }
         }
 
         private static string GetHumanFriendlyBytes(long bytes) {

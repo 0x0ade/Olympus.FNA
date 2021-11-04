@@ -57,6 +57,22 @@ namespace OlympUI {
 
         public static readonly Reloadable<DynamicSpriteFont> FontMono = GetFont(16, "fonts/Perfect DOS VGA 437");
 
+        public static readonly Reloadable<DynamicSpriteFont> FontMonoOutlined =
+            Get($"Font 'fonts/Perfect DOS VGA 437' Size '16' Outlined", () => {
+                FontSystem font = new(new() {
+                    TextureWidth = 2048,
+                    TextureHeight = 2048,
+                    PremultiplyAlpha = true,
+                    // FontResolutionFactor = 2f,
+                    KernelWidth = 1,
+                    KernelHeight = 1,
+                    Effect = FontSystemEffect.Stroked,
+                    EffectAmount = 1
+                });
+                font.AddFonts("fonts/Perfect DOS VGA 437");
+                return font.GetFont(16);
+            });
+
         public static readonly Reloadable<Texture2D> White = Get("White", () => {
             Texture2D tex = new(UI.Game.GraphicsDevice, 1, 1, false, SurfaceFormat.Color);
             byte[] data = new byte[tex.Width * tex.Height * sizeof(uint)];
@@ -190,7 +206,7 @@ namespace OlympUI {
                 PremultiplyAlpha = true,
                 // FontResolutionFactor = 2f,
                 KernelWidth = 1,
-                KernelHeight = 1,
+                KernelHeight = 1
             });
             font.AddFonts(paths);
             return font;

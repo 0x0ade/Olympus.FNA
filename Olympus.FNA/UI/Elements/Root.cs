@@ -26,6 +26,7 @@ namespace OlympUI {
         public List<Element> AllInteractive;
 
         public Root() {
+            Cached = false;
             All = AllPool.Next();
             AllLayoutPasses = AllLayoutPassesPool.Next();
             AllOffScreen = AllOffScreenPool.Next();

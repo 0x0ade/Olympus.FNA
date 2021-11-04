@@ -172,6 +172,7 @@ namespace Olympus {
             private Point PrevWH;
 
             public PathTest() {
+                MSAA = true;
                 Mesh = new BasicMesh(Game.GraphicsDevice) {
                     Texture = OlympUI.Assets.White
                 };

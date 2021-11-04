@@ -335,6 +335,7 @@ namespace Olympus {
             private Point PrevWH;
 
             public SidebarNavButtonIndicator(SidebarNavButton button) {
+                MSAA = true;
                 Button = button;
                 Mesh = new BasicMesh(Game.GraphicsDevice) {
                     Texture = OlympUI.Assets.GradientQuad

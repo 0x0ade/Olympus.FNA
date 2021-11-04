@@ -79,7 +79,7 @@ namespace Olympus {
 
             Graphics = new GraphicsDeviceManager(this);
             Graphics.PreferredDepthStencilFormat = DepthFormat.None;
-            Graphics.PreferMultiSampling = true;
+            Graphics.PreferMultiSampling = false;
             Graphics.PreferredBackBufferWidth = 1100;
             Graphics.PreferredBackBufferHeight = 600;
             SDL.SDL_SetWindowMinimumSize(Window.Handle, 800, 600);
@@ -128,7 +128,7 @@ namespace Olympus {
 
         protected override void LoadContent() {
             Graphics.GraphicsDevice.PresentationParameters.RenderTargetUsage = RenderTargetUsage.PlatformContents;
-            Graphics.GraphicsDevice.PresentationParameters.MultiSampleCount = UI.MultiSampleCount;
+            // Graphics.GraphicsDevice.PresentationParameters.MultiSampleCount = UI.MultiSampleCount;
 
             SpriteBatch?.Dispose();
             SpriteBatch = new SpriteBatch(GraphicsDevice);

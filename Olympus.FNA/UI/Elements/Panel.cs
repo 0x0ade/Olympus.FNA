@@ -103,8 +103,8 @@ namespace OlympUI {
             }
 
             if (BackgroundMask == null || Background == null) {
-                BackgroundMask = UI.MegaCanvas.GetPooled(wh.X, wh.Y) ?? throw new Exception("Oversized clipped panel!");
-                Background = UI.MegaCanvas.GetPooled(whPadded.X, whPadded.Y) ?? throw new Exception("Oversized clipped panel!");
+                BackgroundMask = UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y) ?? throw new Exception("Oversized clipped panel!");
+                Background = UI.MegaCanvas.PoolMSAA.Get(whPadded.X, whPadded.Y) ?? throw new Exception("Oversized clipped panel!");
                 PrevWH = default;
             }
 
@@ -249,7 +249,7 @@ namespace OlympUI {
                 }
 
                 if (Contents == null) {
-                    Contents = UI.MegaCanvas.GetPooled(wh.X, wh.Y) ?? throw new Exception("Oversized clipped panel!");
+                    Contents = UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y) ?? throw new Exception("Oversized clipped panel!");
                     PrevContentsWH = default;
                 }
                 Point contentsWH = new(Contents.RT.Width, Contents.RT.Height);

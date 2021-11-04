@@ -220,6 +220,7 @@ namespace OlympUI {
         public readonly ScrollAxis Axis;
 
         public ScrollHandle(ScrollAxis axis) {
+            MSAA = true;
             Interactive = InteractiveMode.Process;
             Mesh = new BasicMesh(Game.GraphicsDevice) {
                 Texture = Assets.GradientQuad

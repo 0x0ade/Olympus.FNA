@@ -93,7 +93,7 @@ namespace OlympUI.MegaCanvas {
                 return null;
 
             Rectangle taken = new(space.X, space.Y, want.Width, want.Height);
-            RenderTarget2DRegion rtrg = new(Manager, this, RT, taken);
+            RenderTarget2DRegion rtrg = new(this, RT, taken);
             bool replace = true;
             if (taken.Width < taken.Height) {
                 /*

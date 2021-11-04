@@ -139,6 +139,8 @@ namespace OlympUI {
 
         public virtual bool? Cached { get; set; } = null;
         public virtual Padding CachePadding { get; set; } = 16;
+        public virtual CanvasPool? CachePool { get; set; }
+        public virtual bool MSAA { get; set; } = false;
 
         protected bool _Clip = false;
         public virtual bool Clip {
@@ -396,7 +398,7 @@ namespace OlympUI {
         }
 
         public virtual void InvalidateFull() {
-            for (Element? el = this; el != null && !el.Reflowing; el = el.Parent) {
+            for (Element? el = this; el != null; el = el.Parent) {
                 el.Reflowing = true;
                 el.Repainting = true;
             }
@@ -411,7 +413,7 @@ namespace OlympUI {
         }
 
         public virtual void InvalidatePaint() {
-            for (Element? el = this; el != null && !el.Reflowing; el = el.Parent) {
+            for (Element? el = this; el != null; el = el.Parent) {
                 el.Repainting = true;
             }
         }
@@ -509,7 +511,7 @@ namespace OlympUI {
                 ConsecutiveUncachedPaints = 0;
                 if (ConsecutiveCachedPaints < 16) {
                     ConsecutiveCachedPaints++;
-                    if (ConsecutiveCachedPaints < 8 && Cached == null) {
+                    if (ConsecutiveCachedPaints < 8 && Cached == null && !MSAA) {
                         DrawContent();
                         return;
                     }
@@ -523,7 +525,7 @@ namespace OlympUI {
                 if (ConsecutiveUncachedPaints < 16) {
                     ConsecutiveUncachedPaints++;
 
-                } else if (Cached == null) {
+                } else if (Cached == null && !MSAA) {
                     CachedTexture?.Dispose();
                     CachedTexture = null;
                     DrawContent();
@@ -548,7 +550,7 @@ namespace OlympUI {
             }
 
             if (CachedTexture == null) {
-                CachedTexture = UI.MegaCanvas.GetPooled(whTexture.X, whTexture.Y);
+                CachedTexture = (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whTexture.X, whTexture.Y);
                 repainting = true;
             }
 

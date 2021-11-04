@@ -98,7 +98,7 @@ namespace OlympUI {
 
             bool forceReflow = WHPrev != Root.WH || Root.ReflowingForce;
             WHPrev = Root.WH;
-            Root.Reflowing = forceReflow;
+            Root.Reflowing |= forceReflow;
             Root.ReflowingForce = false;
 
             RunOnceList.Clear();

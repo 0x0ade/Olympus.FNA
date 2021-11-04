@@ -6,12 +6,15 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace OlympUI.MegaCanvas {
     public sealed class CanvasManager : IDisposable {
 
         public readonly GraphicsDevice Graphics;
+        public readonly Thread MainThread;
+        public bool IsOnMainThread => MainThread == Thread.CurrentThread;
 
         public int MinSize = 8;
         public int MaxSize = 4096;
@@ -19,41 +22,31 @@ namespace OlympUI.MegaCanvas {
         public int MaxPackedSize = 2048;
         public int MultiSampleCount;
 
-        public readonly PoolEntry[] PoolEntries = new PoolEntry[64];
-        public int PoolEntriesAlive = 0;
-        public readonly HashSet<RenderTarget2D> PoolUsed = new();
-        public long PoolUsedMemory = 0;
-        public long PoolTotalMemory = 0;
-        public int PoolPadding = 128;
-        private int PoolSquishFrame = 0;
-        public int PoolSquishFrames = 60 * 15;
-        public int PoolMaxAgeFrames = 60 * 5;
-        public int PoolCullTarget = 32;
-        public bool PoolCullTriggered = false;
+        public readonly CanvasPool Pool;
+        public readonly CanvasPool PoolMSAA;
 
         public readonly List<AtlasPage> Pages = new();
 
         private BasicMesh BlitMesh;
         private Texture2D? BlitTexture;
 
+        private readonly Queue<Action> Queued = new();
+
         public CanvasManager(GraphicsDevice graphics) {
             Graphics = graphics;
+            MainThread = Thread.CurrentThread;
             BlitMesh = new(graphics) {
                 MSAA = false,
                 Texture = new(null, () => BlitTexture),
                 BlendState = BlendState.Opaque,
             };
+            Pool = new(this, false);
+            PoolMSAA = new(this, true);
         }
 
         public void Dispose() {
-            for (int i = 0; i < PoolEntries.Length; i++) {
-                PoolEntries[i].RT?.Dispose();
-                PoolEntries[i] = default;
-            }
-            PoolEntriesAlive = 0;
-            PoolUsedMemory = 0;
-            PoolTotalMemory = 0;
-            PoolSquishFrame = 0;
+            Pool.Dispose();
+            PoolMSAA.Dispose();
 
             foreach (AtlasPage page in Pages)
                 page.Dispose();
@@ -63,36 +56,27 @@ namespace OlympUI.MegaCanvas {
         }
 
         public void Update() {
-            lock (PoolEntries) {
-                if (PoolSquishFrame++ >= PoolSquishFrames || PoolCullTriggered) {
-                    PoolCullTriggered = false;
-                    for (int i = PoolEntries.Length - 1; i >= 0; --i) {
-                        ref PoolEntry entry = ref PoolEntries[i];
-                        if (!entry.IsNull && (entry.IsDisposed || entry.Age++ >= PoolMaxAgeFrames)) {
-                            Free(ref entry);
-                        }
-                    }
-                    for (int i = PoolEntries.Length - 1; i >= PoolCullTarget; --i) {
-                        ref PoolEntry entry = ref PoolEntries[i];
-                        if (!entry.IsNull) {
-                            Free(ref entry);
-                        }
-                    }
-
-                } else {
-                    for (int i = PoolEntries.Length - 1; i >= 0; --i) {
-                        ref PoolEntry entry = ref PoolEntries[i];
-                        if (!entry.IsDisposed && entry.Age++ >= PoolMaxAgeFrames) {
-                            Free(ref entry);
-                        }
-                    }
-                }
-            }
+            Pool.Update();
+            PoolMSAA.Update();
 
             lock (Pages) {
                 foreach (AtlasPage page in Pages) {
                     page.Update();
                 }
+            }
+
+            if (Queued.Count > 0) {
+                lock (Queued) {
+                    foreach (Action a in Queued)
+                        a();
+                    Queued.Clear();
+                }
+            }
+        }
+
+        public void Queue(Action a) {
+            lock (Queued) {
+                Queued.Append(a);
             }
         }
 
@@ -190,84 +174,6 @@ namespace OlympUI.MegaCanvas {
             }
         }
 
-        private void Free(ref PoolEntry entry) {
-            entry.RT?.Dispose();
-            PoolTotalMemory -= entry.RT?.GetMemoryUsage() ?? 0;
-            entry = default;
-            PoolEntriesAlive--;
-        }
-
-        public RenderTarget2DRegion? GetPooled(int width, int height) {
-            if (width < MinSize || height < MinSize ||
-                width > MaxSize || height > MaxSize)
-                return null;
-            
-            RenderTarget2D? rt = null;
-            bool fresh;
-
-            lock (PoolEntries) {
-                if (PoolEntries.TryGetSmallest(width, height, out PoolEntry entry, out int index)) {
-                    PoolEntries[index] = default;
-                    PoolEntriesAlive--;
-                    rt = entry.RT;
-                }
-            }
-
-            if (rt == null) {
-                int widthReal = Math.Min(MaxSize, (int) MathF.Ceiling(width / PoolPadding + 1) * PoolPadding);
-                int heightReal = Math.Min(MaxSize, (int) MathF.Ceiling(height / PoolPadding + 1) * PoolPadding);
-                rt = new(Graphics, widthReal, heightReal, false, SurfaceFormat.Color, DepthFormat.None, MultiSampleCount, RenderTargetUsage.PlatformContents);
-                fresh = true;
-
-            } else {
-                fresh = false;
-            }
-
-            lock (PoolEntries) {
-                PoolUsed.Add(rt);
-                PoolUsedMemory += rt.GetMemoryUsage();
-                if (fresh)
-                    PoolTotalMemory += rt.GetMemoryUsage();
-            }
-
-            return new(this, rt);
-        }
-
-        public void FreePooled(RenderTarget2D? rt) {
-            if (rt == null)
-                return;
-            lock (PoolEntries) {
-                PoolUsed.Remove(rt);
-                PoolUsedMemory -= rt.Width * rt.Height * 4;
-
-                if (rt.IsDisposed)
-                    return;
-
-                if (PoolCullTriggered) {
-                    rt.Dispose();
-                    PoolTotalMemory -= rt.GetMemoryUsage();
-
-                } else if (PoolEntriesAlive >= PoolEntries.Length) {
-                    PoolCullTriggered = true;
-                    rt.Dispose();
-                    PoolTotalMemory -= rt.GetMemoryUsage();
-
-                } else {
-                    for (int i = 0; i < PoolEntries.Length; i++) {
-                        if (PoolEntries[i].IsNull) {
-                            PoolEntries[i] = new(rt);
-                            PoolEntriesAlive++;
-                            return;
-                        }
-                    }
-                    // This shouldn't ever be reached but eh.
-                    PoolCullTriggered = true;
-                    rt.Dispose();
-                    PoolTotalMemory -= rt.GetMemoryUsage();
-                }
-            }
-        }
-
         public void Dump(string dir) {
             GraphicsDevice gd = Graphics;
             GraphicsStateSnapshot gss = new(gd);
@@ -306,46 +212,28 @@ namespace OlympUI.MegaCanvas {
             }
 
             gss.Apply();
+            
+            foreach ((string Name, CanvasPool Pool) pool in new (string, CanvasPool)[] {
+                ("main", Pool),
+                ("msaa", PoolMSAA),
+            }) {
+                for (int i = pool.Pool.Entries.Length - 1; i >= 0; --i) {
+                    CanvasPool.Entry entry = pool.Pool.Entries[i];
+                    if (entry.IsDisposed)
+                        continue;
+                    using FileStream fs = new(Path.Combine(dir, $"pooled_{pool.Name}_{i}.png"), FileMode.Create);
+                    entry.RT.SaveAsPng(fs, entry.RT.Width, entry.RT.Height);
+                }
 
-            for (int i = PoolEntries.Length - 1; i >= 0; --i) {
-                PoolEntry entry = PoolEntries[i];
-                if (entry.IsDisposed)
-                    continue;
-                using FileStream fs = new(Path.Combine(dir, $"pooled_{i}.png"), FileMode.Create);
-                entry.RT.SaveAsPng(fs, entry.RT.Width, entry.RT.Height);
-            }
-
-            {
-                int i = 0;
-                foreach (RenderTarget2D rt in PoolUsed) {
-                    using FileStream fs = new(Path.Combine(dir, $"unpooled_{i}.png"), FileMode.Create);
-                    rt.SaveAsPng(fs, rt.Width, rt.Height);
-                    ++i;
+                {
+                    int i = 0;
+                    foreach (RenderTarget2D rt in pool.Pool.Used) {
+                        using FileStream fs = new(Path.Combine(dir, $"unpooled_{pool.Name}_{i}.png"), FileMode.Create);
+                        rt.SaveAsPng(fs, rt.Width, rt.Height);
+                        ++i;
+                    }
                 }
             }
-        }
-
-        public struct PoolEntry : ISizeable {
-            
-            public RenderTarget2D? RT;
-
-            public int Width { get; set; }
-            public int Height { get; set; }
-
-            public int Age;
-
-            [MemberNotNullWhen(false, nameof(RT))]
-            public bool IsDisposed => RT?.IsDisposed ?? true;
-            [MemberNotNullWhen(false, nameof(RT))]
-            public bool IsNull => RT == null;
-
-            public PoolEntry(RenderTarget2D rt) {
-                RT = rt;
-                Width = rt.Width;
-                Height = rt.Height;
-                Age = 0;
-            }
-
         }
 
     }
