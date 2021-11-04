@@ -93,7 +93,10 @@ namespace OlympUI {
             return layout;
         }
 
-        public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Column(int? spacing = null) => (
+        public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Column(bool resize) =>
+            Column(null, resize);
+
+        public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Column(int? spacing = null, bool resize = true) => (
             LayoutPass.Normal, LayoutSubpass.Late,
             (LayoutEvent e) => {
                 Element el = e.Element;
@@ -110,11 +113,15 @@ namespace OlympUI {
                     child.RealXY = child.XY + offs + new Vector2(0f, y);
                     y += child.H + spacingReal;
                 }
-                el.H = y + padding.B;
+                if (resize)
+                    el.H = y + padding.B;
             }
         );
 
-        public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Row(int? spacing = null) => (
+        public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Row(bool resize) =>
+            Row(null, resize);
+
+        public static (LayoutPass, LayoutSubpass, Action<LayoutEvent>) Row(int? spacing = null, bool resize = true) => (
             LayoutPass.Normal, LayoutSubpass.Late,
             (LayoutEvent e) => {
                 Element el = e.Element;
@@ -131,7 +138,8 @@ namespace OlympUI {
                     child.RealXY = child.XY + offs + new Vector2(x, 0f);
                     x += child.W + spacingReal;
                 }
-                el.W = x + padding.R;
+                if (resize)
+                    el.W = x + padding.R;
             }
         );
 

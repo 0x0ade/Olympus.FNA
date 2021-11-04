@@ -18,7 +18,7 @@ namespace Olympus {
             => new Group() {
                 Layout = {
                     Layouts.Fill(),
-                    Layouts.Row()
+                    Layouts.Row(false)
                 },
                 Children = {
 

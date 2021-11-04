@@ -36,13 +36,13 @@ namespace Olympus {
                             Layouts.Fill(1f, 0.4f, 0, 32),
                             Layouts.Top(),
                             Layouts.Left(),
-                            Layouts.Column(),
+                            Layouts.Column(false),
                         },
                         Children = {
                             new Group() {
                                 Layout = {
                                     Layouts.Fill(1, 1, 0, LayoutConsts.Prev),
-                                    Layouts.Row(),
+                                    Layouts.Row(false),
                                 },
                                 Children = {
 
@@ -50,7 +50,7 @@ namespace Olympus {
                                         Layout = {
                                             Layouts.Fill(1f / 3f, 1, 8 / 2, 0),
                                             Layouts.Move(8 * 0, 0),
-                                            Layouts.Column(),
+                                            Layouts.Column(false),
                                         },
                                         Children = {
                                             new HeaderSmall("Cool Mod"),
@@ -62,7 +62,7 @@ namespace Olympus {
                                         Layout = {
                                             Layouts.Fill(1f / 3f, 1, 8, 0),
                                             Layouts.Move(8 * 1, 0),
-                                            Layouts.Column(),
+                                            Layouts.Column(false),
                                         },
                                         Children = {
                                             new HeaderSmall("Popular Mod"),
@@ -74,7 +74,7 @@ namespace Olympus {
                                         Layout = {
                                             Layouts.Fill(1f / 3f, 1, 8 / 2, 0),
                                             Layouts.Move(8 * 2, 0),
-                                            Layouts.Column(),
+                                            Layouts.Column(false),
                                         },
                                         Children = {
                                             new HeaderSmall("Some Mod"),
@@ -95,7 +95,7 @@ namespace Olympus {
                             Layouts.Fill(0.7f, 0.6f, 32, 0),
                             Layouts.Bottom(),
                             Layouts.Left(),
-                            Layouts.Column(),
+                            Layouts.Column(false),
                         },
                         Children = {
                             new HeaderMedium("Manage"),
@@ -175,7 +175,7 @@ namespace Olympus {
                             Layouts.Fill(0.3f, 0.6f, 0, 0),
                             Layouts.Bottom(),
                             Layouts.Right(),
-                            Layouts.Column(),
+                            Layouts.Column(false),
                         },
                         Children = {
                             new HeaderMedium("News"),

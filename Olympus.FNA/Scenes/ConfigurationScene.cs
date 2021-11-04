@@ -43,7 +43,7 @@ namespace Olympus {
                                 new Group() {
                                     Layout = {
                                         Layouts.Fill(1, 0),
-                                        Layouts.Row(),
+                                        Layouts.Row(false),
                                     },
                                     Children = {
                                         new Group() {

@@ -22,7 +22,7 @@ namespace Olympus {
                 ID = "MetaMainScene",
                 Layout = {
                     Layouts.Fill(),
-                    Layouts.Column()
+                    Layouts.Column(false)
                 },
                 Children = {
                     NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? Element.Null :
@@ -79,7 +79,7 @@ namespace Olympus {
                         },
                         Layout = {
                             Layouts.Fill(1, 1, 0, LayoutConsts.Prev),
-                            Layouts.Row(),
+                            Layouts.Row(false),
                         },
                         Children = {
                             new Group() {
@@ -137,7 +137,7 @@ namespace Olympus {
                                 Layout = {
                                     Layouts.Fill(1, 1, LayoutConsts.Prev, 0),
                                     Layouts.Grow(8, 8),
-                                    Layouts.Column(),
+                                    Layouts.Column(false),
                                 },
                                 Children = {
                                     new Group() {
@@ -148,7 +148,7 @@ namespace Olympus {
                                             Layouts.Grow(-8 - NativeImpl.Native.Padding.Right * 2, 0),
                                             Layouts.Left(8 + NativeImpl.Native.Padding.Right),
                                             Layouts.Top(8 + NativeImpl.Native.Padding.Right),
-                                            Layouts.Row(),
+                                            Layouts.Row(false),
                                         },
                                         Init = Element.Cast((Group pathBar) => {
                                             Scener.OnChange += (prev, next) => {
