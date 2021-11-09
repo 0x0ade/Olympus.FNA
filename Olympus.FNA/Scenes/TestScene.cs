@@ -181,7 +181,7 @@ namespace Olympus {
             public override void DrawContent() {
                 SpriteBatch.End();
 
-                Color color = Style.GetCurrent<Color>();
+                Style.GetCurrent(out Color color);
                 Point wh = WH;
 
                 if (PrevColor != color ||

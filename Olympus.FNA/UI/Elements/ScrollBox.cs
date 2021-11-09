@@ -268,9 +268,9 @@ namespace OlympUI {
             Point wh = WH;
 
             Style.GetCurrent(out Color color);
-            Style.GetCurrent("Width", out float width);
-            Style.GetCurrent("WidthMax", out int widthMax);
-            Style.GetCurrent("Radius", out float radius);
+            Style.GetCurrent(out float width);
+            Style.GetCurrent(out int widthMax);
+            Style.GetCurrent(out float radius);
 
             if (PrevColor != color ||
                 PrevWidth != width ||
@@ -312,7 +312,7 @@ namespace OlympUI {
         #region X axis scroll layout
 
         private void AxisX_LayoutReset(LayoutEvent e) {
-            Style.GetReal("WidthMax", out int widthMax);
+            Style.GetReal(out int widthMax);
             XY = RealXY = default;
             WH = new(0, widthMax);
         }
@@ -321,8 +321,8 @@ namespace OlympUI {
             ScrollBox box = Parent as ScrollBox ?? throw new Exception("Scroll handles belong into scroll boxes!");
             Element content = box.Content;
 
-            Style.GetReal("WidthMax", out int widthMax);
-            box.Style.GetReal("BarPadding", out int padding);
+            Style.GetReal(out int widthMax);
+            box.Style.GetReal(out int barPadding);
 
             int boxSize = box.WH.X;
             int contentSize = content.WH.X;
@@ -343,13 +343,13 @@ namespace OlympUI {
                 }
             }
 
-            size = Math.Max(1, tail - pos - padding * 2);
+            size = Math.Max(1, tail - pos - barPadding * 2);
 
-            if (size + 1 + padding * 2 + box.Wiggle < contentSize) {
+            if (size + 1 + barPadding * 2 + box.Wiggle < contentSize) {
                 IsNeeded = true;
                 XY = RealXY = new(
-                    pos + padding,
-                    box.WH.Y - widthMax - 1 - padding
+                    pos + barPadding,
+                    box.WH.Y - widthMax - 1 - barPadding
                 );
                 WH = new(
                     size,
@@ -372,7 +372,7 @@ namespace OlympUI {
         #region Y axis scroll layout
 
         private void AxisY_LayoutReset(LayoutEvent e) {
-            Style.GetReal("WidthMax", out int widthMax);
+            Style.GetReal(out int widthMax);
             XY = RealXY = default;
             WH = new(widthMax, 0);
         }
@@ -381,8 +381,8 @@ namespace OlympUI {
             ScrollBox box = Parent as ScrollBox ?? throw new Exception("Scroll handles belong into scroll boxes!");
             Element content = box.Content;
 
-            Style.GetReal("WidthMax", out int widthMax);
-            box.Style.GetReal("BarPadding", out int padding);
+            Style.GetReal(out int widthMax);
+            box.Style.GetReal(out int barPadding);
 
             int boxSize = box.WH.Y;
             int contentSize = content.WH.Y;
@@ -403,13 +403,13 @@ namespace OlympUI {
                 }
             }
 
-            size = Math.Max(1, tail - pos - padding * 2);
+            size = Math.Max(1, tail - pos - barPadding * 2);
 
-            if (size + 1 + padding * 2 + box.Wiggle < contentSize) {
+            if (size + 1 + barPadding * 2 + box.Wiggle < contentSize) {
                 IsNeeded = true;
                 XY = RealXY = new(
-                    box.WH.X - widthMax - 1 - padding,
-                    pos + padding
+                    box.WH.X - widthMax - 1 - barPadding,
+                    pos + barPadding
                 );
                 WH = new(
                     widthMax,

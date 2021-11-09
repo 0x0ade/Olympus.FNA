@@ -84,11 +84,11 @@ namespace OlympUI {
 
             SpriteBatch.End();
 
-            Style.GetCurrent("Background", out Color background);
-            Style.GetCurrent("Border", out Color border);
-            Style.GetCurrent("BorderSize", out float borderSize);
-            Style.GetCurrent("Shadow", out float shadow);
-            Style.GetCurrent("Radius", out float radius);
+            Style.GetCurrent(out Color background);
+            Style.GetCurrent(out Color border);
+            Style.GetCurrent(out float borderSize);
+            Style.GetCurrent(out float shadow);
+            Style.GetCurrent(out float radius);
 
             int padding = (int) MathF.Ceiling(10 * shadow);
             Point whPadded = new(wh.X + padding * 2, wh.Y + padding * 2);

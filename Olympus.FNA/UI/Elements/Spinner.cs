@@ -24,7 +24,7 @@ namespace OlympUI {
 
         public Spinner() {
             MSAA = true;
-            WH = new(32, 32);
+            WH = new(24, 24);
             Mesh = new BasicMesh(Game.GraphicsDevice) {
                 Texture = Assets.White
             };
@@ -45,7 +45,7 @@ namespace OlympUI {
             MeshShapes shapes = Mesh.Shapes;
             shapes.Clear();
 
-            Color color = Style.GetCurrent<Color>();
+            Style.GetCurrent(out Color color);
             float radius = Math.Min(wh.X, wh.Y) * 0.5f;
             float width = radius * 0.25f;
 

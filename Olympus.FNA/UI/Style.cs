@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -56,6 +57,14 @@ namespace OlympUI {
             }
 
             return type.Name;
+        }
+
+        public static string? GetKeyFromCallerArgumentExpression(string? expr) {
+            if (string.IsNullOrEmpty(expr))
+                return null;
+
+            int split = expr.IndexOf(' ');
+            return char.ToUpperInvariant(expr[split + 1]) + expr.Substring(split + 2);
         }
 
         private void SetupParent(Type type) {
@@ -171,8 +180,13 @@ namespace OlympUI {
         public void Clear()
             => Map.Clear();
 
+#if OLYMPUS_STYLE_NOEXPR
         public bool TryGetCurrent<T>([NotNullWhen(true)] out T? value)
             => TryGetCurrent(GetCommonName(typeof(T)), out value);
+#else
+        public bool TryGetCurrent<T>([NotNullWhen(true)] out T? value, [CallerArgumentExpression("value")] string? expr = null)
+            => TryGetCurrent(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)), out value);
+#endif
         public bool TryGetCurrent<T>(string key, [NotNullWhen(true)] out T? value) {
             bool skinnedSet = TryGetSkinnedAndPrepare(key, out T? skinned);
 
@@ -232,8 +246,13 @@ namespace OlympUI {
             return false;
         }
 
+#if OLYMPUS_STYLE_NOEXPR
         public void GetCurrent<T>(out T value)
             => value = GetCurrent<T>(GetCommonName(typeof(T)));
+#else
+        public void GetCurrent<T>(out T value, [CallerArgumentExpression("value")] string? expr = null)
+            => value = GetCurrent<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)));
+#endif
         public void GetCurrent<T>(string key, out T value)
             => value = GetCurrent<T>(key);
         public T GetCurrent<T>()
@@ -241,8 +260,13 @@ namespace OlympUI {
         public T GetCurrent<T>(string key)
             => TryGetCurrent(key, out T? value) ? value : throw new Exception($"{(Element == null ? "Instance style for" : "Static style for")} \"{Type}\" doesn't define \"{key}\"");
 
+#if OLYMPUS_STYLE_NOEXPR
         public bool TryGetReal<T>([NotNullWhen(true)] out T? value)
             => TryGetReal(GetCommonName(typeof(T)), out value);
+#else
+        public bool TryGetReal<T>([NotNullWhen(true)] out T? value, [CallerArgumentExpression("value")] string? expr = null)
+            => TryGetReal(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)), out value);
+#endif
         public bool TryGetReal<T>(string key, [NotNullWhen(true)] out T? value) {
             if (Map.TryGetValue(key, out object? raw)) {
                 if (raw is Link link)
@@ -273,8 +297,13 @@ namespace OlympUI {
             return false;
         }
 
+#if OLYMPUS_STYLE_NOEXPR
         public void GetReal<T>(out T value)
             => value = GetReal<T>(GetCommonName(typeof(T)));
+#else
+        public void GetReal<T>(out T value, [CallerArgumentExpression("value")] string? expr = null)
+            => value = GetReal<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)));
+#endif
         public void GetReal<T>(string key, out T value)
             => value = GetReal<T>(key);
         public T GetReal<T>()

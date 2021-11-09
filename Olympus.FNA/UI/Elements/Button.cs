@@ -71,7 +71,7 @@ namespace OlympUI {
 
         public Button(string text)
             : this() {
-            Layout.Add(Layouts.Row());
+            Layout.Add(Layouts.Row(false));
 
             Children.Add(new Label(text) {
                 ID = "label",
