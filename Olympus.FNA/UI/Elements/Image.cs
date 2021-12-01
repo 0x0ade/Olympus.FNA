@@ -12,7 +12,7 @@ namespace OlympUI {
     public class Image : Element {
 
         public static readonly new Style DefaultStyle = new() {
-            Color.White,
+            new ColorFader(Color.White),
         };
 
         public Reloadable<Texture2D> Texture;

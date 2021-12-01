@@ -12,7 +12,7 @@ namespace OlympUI {
     public class Label : Element {
 
         public static readonly new Style DefaultStyle = new() {
-            Color.White,
+            new ColorFader(Color.White),
             Assets.Font,
         };
 
