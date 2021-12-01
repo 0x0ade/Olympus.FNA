@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using OlympUI;
 using Olympus.NativeImpls;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -17,6 +18,9 @@ namespace Olympus {
         protected Element? _Root;
         public Element Root => _Root ??= Generate();
 
+        public List<Action> Refreshes = new();
+        private Dictionary<Element, Task> Refreshing = new();
+
         public virtual string Name { get; set; }
 
         public Scene() {
@@ -26,9 +30,23 @@ namespace Olympus {
             Name = name;
         }
 
+        protected Action<Element> RegisterRefresh<T>(Func<T, Task> reload) where T : Element
+            => el => {
+                Refreshes.Add(() => {
+                    if (!Refreshing.TryGetValue(el, out Task? task) || task.IsCompleted)
+                        Refreshing[el] = Task.Run(() => reload((T) el));
+                });
+            };
+
         public abstract Element Generate();
 
+        public virtual void Refresh() {
+            foreach (Action refresh in Refreshes)
+                refresh();
+        }
+
         public virtual void Enter(params object[] args) {
+            Refresh();
         }
 
         public virtual void Leave() {

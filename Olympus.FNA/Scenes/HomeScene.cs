@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Graphics;
 using OlympUI;
 using Olympus.NativeImpls;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -119,47 +120,47 @@ namespace Olympus {
                                                 Layouts.Fill(1, 0),
                                                 Layouts.Column(),
                                             },
-                                            Children = {
+                                            Init = RegisterRefresh<Group>(async el => {
+                                                await UI.Run(() => {
+                                                    el.Clear();
+                                                    el.Add(new Panel() {
+                                                        Layout = {
+                                                            Layouts.Fill(1, 0),
+                                                        },
+                                                        Children = {
+                                                            new Group() {
+                                                                Layout = {
+                                                                    Layouts.Left(0.5f, -0.5f),
+                                                                    Layouts.Row(8),
+                                                                },
+                                                                Children = {
+                                                                    new Label("Loading") {
+                                                                        Layout = { Layouts.Top(0.5f, -0.5f) },
+                                                                    },
+                                                                    new Spinner(),
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                });
 
-                                                /*
-                                                new Panel() {
-                                                    Layout = {
-                                                        Layouts.Fill(1, 0),
-                                                        Layouts.Column(),
-                                                    },
-                                                    Children = {
-                                                        new HeaderSmall("Everest"),
-                                                        new HeaderSmaller("Version: 1.4.0.0-fna + 1.3102.0-azure-39c72"),
-                                                        new Label("idk what this should say"),
-                                                    }
-                                                },
+                                                await Task.Delay(3000);
 
-                                                new Panel() {
-                                                    Layout = {
-                                                        Layouts.Fill(1, 0),
-                                                        Layouts.Column(),
-                                                    },
-                                                    Children = {
-                                                        new HeaderSmall("Awesome Mod"),
-                                                        new HeaderSmaller("Version: 1.0.0 (newest: 6.9.0)"),
-                                                        new Label("Does Some Cool Things™️"),
-                                                    }
-                                                },
-
-                                                new Panel() {
-                                                    Layout = {
-                                                        Layouts.Fill(1, 0),
-                                                        Layouts.Column(),
-                                                    },
-                                                    Children = {
-                                                        new HeaderSmall("Another Mod"),
-                                                        new HeaderSmaller("Version: 4.2.0"),
-                                                        new Label("idk what this should say"),
-                                                    }
-                                                },
-                                                */
-
-                                            }
+                                                await UI.Run(() => {
+                                                    el.Clear();
+                                                    el.Add(new Panel() {
+                                                        Layout = {
+                                                            Layouts.Fill(1, 0),
+                                                            Layouts.Column(),
+                                                        },
+                                                        Children = {
+                                                            new HeaderSmall("Everest"),
+                                                            new HeaderSmaller("Version: 1.4.0.0-fna + 1.3102.0-azure-39c72"),
+                                                            new Label("idk what this should say"),
+                                                        }
+                                                    });
+                                                });
+                                            })
                                         }
                                     },
                                 },
@@ -233,55 +234,6 @@ namespace Olympus {
 
                 },
             };
-
-        public override void Enter(params object[] args) {
-            ReloadManageList();
-        }
-
-        private Task? _ReloadManageListTask;
-        public Task ReloadManageList()
-            => (_ReloadManageListTask?.IsCompleted ?? true) ? (_ReloadManageListTask = Task.Run(_ReloadManageList)) : _ReloadManageListTask;
-        private async Task? _ReloadManageList() {
-            await UI.Run(() => {
-                ManageList.Clear();
-                ManageList.Add(new Panel() {
-                    Layout = {
-                        Layouts.Fill(1, 0),
-                    },
-                    Children = {
-                        new Group() {
-                            Layout = {
-                                Layouts.Left(0.5f, -0.5f),
-                                Layouts.Row(8),
-                            },
-                            Children = {
-                                new Label("Loading") {
-                                    Layout = { Layouts.Top(0.5f, -0.5f) },
-                                },
-                                new Spinner(),
-                            }
-                        }
-                    }
-                });
-            });
-
-            await Task.Delay(3000);
-
-            await UI.Run(() => {
-                ManageList.Clear();
-                ManageList.Add(new Panel() {
-                    Layout = {
-                        Layouts.Fill(1, 0),
-                        Layouts.Column(),
-                    },
-                    Children = {
-                        new HeaderSmall("Everest"),
-                        new HeaderSmaller("Version: 1.4.0.0-fna + 1.3102.0-azure-39c72"),
-                        new Label("idk what this should say"),
-                    }
-                });
-            });
-        }
 
     }
 
