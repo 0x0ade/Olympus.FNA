@@ -18,6 +18,8 @@
     <OutputType>exe</OutputType>
     <OutputType Condition="$(TargetIsWindows)">winexe</OutputType>
     <OutputPath>bin\$(Platform)\$(Configuration)\$(TargetFramework)</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
