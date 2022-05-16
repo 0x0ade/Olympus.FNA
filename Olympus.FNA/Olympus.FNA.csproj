@@ -56,6 +56,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="$(CompilerToolsetVersion)">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="ContentSrc\**\*" />
     <Content Include="..\Content\**\*" Condition="$(CopyContent)">
       <LinkBase>Content</LinkBase>

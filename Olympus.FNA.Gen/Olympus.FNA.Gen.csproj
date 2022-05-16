@@ -6,7 +6,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <LangVersion>10</LangVersion>
-    <CodeAnalysisVersion Condition="'$(CodeAnalysisVersion)' == ''">4.3.0-1.final</CodeAnalysisVersion>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
 		<GetTargetPathDependsOn>$(GetTargetPathDependsOn);GetDependencyTargetPaths</GetTargetPathDependsOn>
 		<EnableNETAnalyzers>True</EnableNETAnalyzers>
@@ -18,8 +17,8 @@
 
   <ItemGroup>
 		<PackageReference Include="IgnoresAccessChecksToGenerator" Version="0.5.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis" Version="$(CodeAnalysisVersion)" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(CodeAnalysisVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis" Version="$(CompilerToolsetVersion)" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(CompilerToolsetVersion)" />
 		<PackageReference Include="Mono.Cecil" Version="0.11.4" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="MonoMod.Utils" Version="22.5.1.1" PrivateAssets="all" GeneratePathProperty="true" />
     <PackageReference Include="MonoMod.RuntimeDetour" Version="22.5.1.1" PrivateAssets="all" GeneratePathProperty="true" />
