@@ -17,6 +17,7 @@
     <Platforms>x64</Platforms>
     <OutputType>exe</OutputType>
     <OutputType Condition="$(TargetIsWindows)">winexe</OutputType>
+    <OutputPath>bin\$(Platform)\$(Configuration)\$(TargetFramework)</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
