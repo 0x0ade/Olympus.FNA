@@ -9,23 +9,33 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class Label : Element {
+    public partial class Label : Element {
 
-        public static readonly new Style DefaultStyle = new() {
-            new ColorFader(Color.White),
-            Assets.Font,
-        };
+        protected Style.Entry StyleColor = new(new ColorFader(0xe8, 0xe8, 0xe8, 0xff));
+        protected Style.Entry StyleFont = new(Assets.Font);
 
         private string _Text;
+        private string _TextDrawn = "";
         public string Text {
             get => _Text;
             [MemberNotNull(nameof(_Text))]
             set {
-                if (value == null)
+                if (value is null)
                     value = "";
                 if (_Text == value)
                     return;
                 _Text = value;
+                InvalidateFull();
+            }
+        }
+
+        private bool _Wrap;
+        public bool Wrap {
+            get => _Wrap;
+            set {
+                if (_Wrap == value)
+                    return;
+                _Wrap = value;
                 InvalidateFull();
             }
         }
@@ -35,15 +45,58 @@ namespace OlympUI {
         }
 
         public override void DrawContent() {
-            SpriteBatch.DrawString(Style.GetCurrent<DynamicSpriteFont>(), _Text, ScreenXY, Style.GetCurrent<Color>());
+            SpriteBatch.DrawString(StyleFont.GetCurrent<DynamicSpriteFont>(), _TextDrawn, ScreenXY, StyleColor.GetCurrent<Color>());
         }
 
         private void LayoutNormal(LayoutEvent e) {
             // FIXME: FontStashSharp can't even do basic font maximum size precomputations...
 
-            DynamicSpriteFont font = Style.GetCurrent<DynamicSpriteFont>();
+            DynamicSpriteFont font = StyleFont.GetCurrent<DynamicSpriteFont>();
+            
             Bounds bounds = new();
-            font.TextBounds(_Text, new(0f, 0f), ref bounds, new(1f, 1f));
+            string text = _Text;
+            _TextDrawn = text;
+            font.TextBounds(text, new(0f, 0f), ref bounds, new(1f, 1f));
+            if (Wrap && Parent?.InnerWH.X is int max && bounds.X2 >= max) {
+                StringBuilder full = new((int) (text.Length * 1.2f));
+                StringBuilder line = new(text.Length);
+                ReadOnlySpan<char> part;
+                // First part shouldn't be shoved onto a new line.
+                int iPrev = -1;
+                int iSplit;
+                int i = text.IndexOf(' ', 0);
+                if (i != -1) {
+                    part = text.AsSpan(iPrev + 1, i - (iPrev + 1));
+                    full.Append(part);
+                    line.Append(part);
+                    iPrev = i;
+                    while ((i = text.IndexOf(' ', i + 1)) != -1) {
+                        part = text.AsSpan(iPrev + 1, i - (iPrev + 1));
+                        iSplit = full.Length;
+                        full.Append(' ').Append(part);
+                        line.Append(' ').Append(part);
+                        font.TextBounds(line, new(0f, 0f), ref bounds, new(1f, 1f));
+                        if (bounds.X2 >= max) {
+                            full[iSplit] = '\n';
+                            line.Clear().Append(part);
+                        }
+                        iPrev = i;
+                    }
+                    // Last part. While I could squeeze it into the main loop, eh.
+                    part = text.AsSpan(iPrev + 1);
+                    iSplit = full.Length;
+                    full.Append(' ').Append(part);
+                    line.Append(' ').Append(part);
+                    font.TextBounds(line, new(0f, 0f), ref bounds, new(1f, 1f));
+                    if (bounds.X2 >= max) {
+                        full[iSplit] = '\n';
+                        line.Clear().Append(part);
+                    }
+                }
+                _TextDrawn = text = full.ToString();
+                font.TextBounds(text, new(0f, 0f), ref bounds, new(1f, 1f));
+            }
+
             WH = new((int) MathF.Round(bounds.X2), (int) MathF.Round(bounds.Y2));
 
             DynamicData fontExtra = new(font);

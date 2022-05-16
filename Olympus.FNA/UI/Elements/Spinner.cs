@@ -9,11 +9,9 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class Spinner : Element {
+    public partial class Spinner : Element {
 
-        public static readonly new Style DefaultStyle = new() {
-            Color.White,
-        };
+        protected Style.Entry StyleColor = new(new ColorFader(Color.White));
 
         public float Progress = -1f;
 
@@ -25,7 +23,7 @@ namespace OlympUI {
         public Spinner() {
             MSAA = true;
             WH = new(24, 24);
-            Mesh = new BasicMesh(Game.GraphicsDevice) {
+            Mesh = new BasicMesh(Game) {
                 Texture = Assets.White
             };
         }
@@ -42,17 +40,17 @@ namespace OlympUI {
 
             Point wh = WH;
 
-            MeshShapes shapes = Mesh.Shapes;
+            MeshShapes<MiniVertex> shapes = Mesh.Shapes;
             shapes.Clear();
 
-            Style.GetCurrent(out Color color);
+            StyleColor.GetCurrent(out Color color);
             float radius = Math.Min(wh.X, wh.Y) * 0.5f;
             float width = radius * 0.25f;
 
             Vector2 c = wh.ToVector2() * 0.5f;
             radius -= width;
 
-            const int edges = 32;
+            const int edges = 64;
 
             float progA = 0f;
             float progB = Progress;
@@ -78,7 +76,7 @@ namespace OlympUI {
             int progBE = (int) MathF.Ceiling(progB);
 
             if (progBE - progAE >= 1) {
-                MeshShapes.Poly poly = new() {
+                MeshShapes<MiniVertex>.Poly poly = new() {
                     Color = color,
                     Width = width,
                     UVXYMin = new(1, 1),

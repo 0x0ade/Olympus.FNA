@@ -24,9 +24,11 @@ namespace Olympus.NativeImpls {
         public abstract bool? DarkModePreferred { get; }
         public abstract bool DarkMode { get; set; }
 
+        public abstract Color Accent { get; }
+
         public abstract Point SplashSize { get; }
-        public abstract Color SplashFG { get; }
-        public abstract Color SplashBG { get; }
+        public abstract Color SplashColorFG { get; }
+        public abstract Color SplashColorBG { get; }
 
         public abstract bool BackgroundBlur { get; set; }
 
@@ -41,6 +43,9 @@ namespace Olympus.NativeImpls {
             App = app;
         }
 
+        public abstract void Run();
+
+        public abstract void PrepareEarly();
         public abstract void PrepareLate();
 
         public abstract Point FixWindowPositionDisplayDrag(Point pos);

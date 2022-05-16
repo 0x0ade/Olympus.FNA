@@ -7,15 +7,20 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace OlympUI {
     public static class UI {
 
+        public static Thread MainThread = Thread.CurrentThread;
+        public static bool IsOnMainThread => MainThread == Thread.CurrentThread;
+
         public static readonly Root Root = new();
 
         public static int MultiSampleCount = 4;
-        public static Vector2 TransformOffset = default;
+
+        public static Vector2 TransformOffset;
 
         public static uint GlobalReflowID = 1;
         public static uint GlobalRepaintID = 1;
@@ -69,9 +74,10 @@ namespace OlympUI {
 
         private static bool ReflowingPrev;
 
-        public static void Initialize(Game game, UINativeImpl native) {
+        public static void Initialize(Game game, UINativeImpl native, IReloadableTemporaryContext reloadableTmpCtx) {
             Game = game;
             Native = native;
+            Reloadable.TemporaryContext = reloadableTmpCtx;
 
             UIInput.Initialize();
 
@@ -82,7 +88,7 @@ namespace OlympUI {
             SpriteBatch?.Dispose();
             SpriteBatch = new SpriteBatch(Game.GraphicsDevice);
             MegaCanvas?.Dispose();
-            MegaCanvas = new(Game.GraphicsDevice) {
+            MegaCanvas = new(Game) {
                 MultiSampleCount = MultiSampleCount
             };
         }
@@ -140,7 +146,7 @@ namespace OlympUI {
 
                 for (MouseButtons btn = MouseButtons.First; btn <= MouseButtons.Last; btn = (MouseButtons) ((int) btn << 1)) {
                     if (UIInput.Pressed(btn)) {
-                        if (Dragging == null || Dragging == Hovering) {
+                        if (Dragging is null || Dragging == Hovering) {
                             Dragging = Hovering;
                             // Focusing?.InvokeUp(TODO: UNFOCUS);
                             Hovering?.InvokeUp(new MouseEvent.Press() {
@@ -189,39 +195,53 @@ namespace OlympUI {
             {
                 ReflowingPrev = false;
 
+                Style.UpdateTypeStyles(dt);
+
                 do {
                     List<Element> allOffScreen = Root.AllOffScreen;
                     List<Element> allOnScreen = Root.AllOnScreen;
                     foreach (Element el in allOffScreen) {
-                        if (el.UpdateID == GlobalUpdateID)
+                        if (!el.UpdatePending)
                             continue;
-                        el.UpdateID = GlobalUpdateID;
+                        bool revive = el.RevivePending;
+                        el.UpdatePending = false;
 
                         if (!el.Awakened) {
                             el.Awakened = true;
                             el.Awake();
-                            el.UpdateHiddenTime = 0f;
+
+                            if (revive)
+                                el.Revive();
+
                             el.Update(dt);
+                            el.UpdateHiddenTime = 0f;
 
                         } else {
+                            if (revive)
+                                el.Revive();
+
                             el.UpdateHiddenTime += dt;
                             el.UpdateHidden(dt);
                         }
                     }
 
                     foreach (Element el in allOnScreen) {
-                        if (el.UpdateID == GlobalUpdateID)
+                        if (!el.UpdatePending)
                             continue;
-                        el.UpdateID = GlobalUpdateID;
+                        bool revive = el.RevivePending;
+                        el.UpdatePending = false;
 
                         if (!el.Awakened) {
                             el.Awakened = true;
                             el.Awake();
                         }
 
+                        if (revive)
+                            el.Revive();
+
                         float udt = dt + el.UpdateHiddenTime;
-                        el.UpdateHiddenTime = 0f;
                         el.Update(udt);
+                        el.UpdateHiddenTime = 0f;
                     }
 
                     bool reflowing = Root.Reflowing;
@@ -279,10 +299,11 @@ namespace OlympUI {
         }
 
         public static void Paint() {
-            Game.GraphicsDevice.Textures[0] = null;
+            GraphicsDevice gd = Game.GraphicsDevice;
+            gd.Textures[0] = null;
             MegaCanvas.Update();
-            GlobalDrawID++;
-            Game.GraphicsDevice.Textures[0] = null;
+            GlobalDrawID = GlobalUpdateID;
+            gd.Textures[0] = null;
             SpriteBatch.BeginUI();
             Root.Paint();
             SpriteBatch.End();
@@ -345,10 +366,10 @@ namespace OlympUI {
             );
 
         public static void DrawDebugRect(this SpriteBatch batch, Color color, Rectangle rect) {
-            batch.Draw(Assets.White, new Rectangle(rect.Left, rect.Top, 1, rect.Height), color);
-            batch.Draw(Assets.White, new Rectangle(rect.Right - 1, rect.Top, 1, rect.Height), color);
-            batch.Draw(Assets.White, new Rectangle(rect.Left + 1, rect.Top, rect.Width - 2, 1), color);
-            batch.Draw(Assets.White, new Rectangle(rect.Left + 1, rect.Bottom - 1, rect.Width - 2, 1), color);
+            batch.Draw(Assets.White.Value, new Rectangle(rect.Left, rect.Top, 1, rect.Height), color);
+            batch.Draw(Assets.White.Value, new Rectangle(rect.Right - 1, rect.Top, 1, rect.Height), color);
+            batch.Draw(Assets.White.Value, new Rectangle(rect.Left + 1, rect.Top, rect.Width - 2, 1), color);
+            batch.Draw(Assets.White.Value, new Rectangle(rect.Left + 1, rect.Bottom - 1, rect.Width - 2, 1), color);
         }
 
     }

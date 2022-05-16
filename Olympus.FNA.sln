@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31129.286
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32210.308
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Olympus.FNA", "Olympus.FNA\Olympus.FNA.csproj", "{009A3468-1289-496B-A4F4-78858035C99A}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -11,12 +11,15 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{126E4E37-FB7E-4982-9858-1E3344E7B63D}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		Directory.Build.props = Directory.Build.props
 		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FNA.Core", "FNA\FNA.Core.csproj", "{E1E855F8-8DCB-46B2-882E-3ECF5562F69A}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FontStashSharp.FNA.Core", "FontStashSharp\src\XNA\FontStashSharp.FNA.Core.csproj", "{06E90D36-7CE8-4B7F-ACAF-22658152D2F0}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Olympus.FNA.Gen", "Olympus.FNA.Gen\Olympus.FNA.Gen.csproj", "{CFBE10C0-23B6-41F2-913E-AE477AD43A06}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -46,6 +49,14 @@ Global
 		{06E90D36-7CE8-4B7F-ACAF-22658152D2F0}.Release|Any CPU.Build.0 = Release|Any CPU
 		{06E90D36-7CE8-4B7F-ACAF-22658152D2F0}.Release|x64.ActiveCfg = Release|Any CPU
 		{06E90D36-7CE8-4B7F-ACAF-22658152D2F0}.Release|x64.Build.0 = Release|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Debug|x64.Build.0 = Debug|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Release|x64.ActiveCfg = Release|Any CPU
+		{CFBE10C0-23B6-41F2-913E-AE477AD43A06}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

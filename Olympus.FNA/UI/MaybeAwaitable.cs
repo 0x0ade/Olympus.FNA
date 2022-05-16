@@ -43,25 +43,33 @@ namespace OlympUI {
         public void GetResult() => _Awaiter.GetResult();
         public void SetResult() => _Awaiter.SetResult();
 
-        public struct MaybeAwaiter : ICriticalNotifyCompletion {
+        // Must be a class due to how C# async await accesses this multiple times.
+        public class MaybeAwaiter : ICriticalNotifyCompletion {
 
             internal bool _IsImmediate;
             internal TaskAwaiter _Task;
             internal ManualResetEventSlim? _MRE;
+            internal bool _MREDisposed;
             internal Func<bool>? _CanGetResult;
 
             public bool IsCompleted => _IsImmediate || (_MRE?.IsSet ?? _Task.IsCompleted);
 
             private bool WaitForMRE() {
                 ManualResetEventSlim? mre = _MRE;
-                if (mre != null) {
-                    try {
-                        mre.Wait();
-                        mre.Dispose();
-                    } catch (Exception) {
+                if (mre is not null) {
+                    if (!_MREDisposed) {
                         try {
+                            mre.Wait();
+                            _MREDisposed = true;
                             mre.Dispose();
+                        } catch (ObjectDisposedException) {
+                            _MREDisposed = true;
                         } catch (Exception) {
+                            try {
+                                _MREDisposed = true;
+                                mre.Dispose();
+                            } catch (Exception) {
+                            }
                         }
                     }
                     _IsImmediate = true;
@@ -86,7 +94,7 @@ namespace OlympUI {
             }
 
             public void SetResult() {
-                if (_MRE == null)
+                if (_MRE is null)
                     throw new InvalidOperationException("Cannot set a result on a MaybeAwaiter that doesn't expect one!");
                 _IsImmediate = true;
                 _MRE.Set();
@@ -180,7 +188,7 @@ namespace OlympUI {
 
             private bool WaitForMRE() {
                 ManualResetEventSlim? mre = _MRE;
-                if (mre != null) {
+                if (mre is not null) {
                     try {
                         mre.Wait();
                         mre.Dispose();
@@ -212,7 +220,7 @@ namespace OlympUI {
             }
 
             public void SetResult(T result) {
-                if (_MRE == null)
+                if (_MRE is null)
                     throw new InvalidOperationException("Cannot set a result on a MaybeAwaiter that doesn't expect one!");
                 _Result = result;
                 _IsImmediate = true;

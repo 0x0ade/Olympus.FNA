@@ -20,7 +20,7 @@ namespace OlympUI.MegaCanvas {
         public readonly HashSet<RenderTarget2D> Used = new();
         public long UsedMemory = 0;
         public long TotalMemory = 0;
-        public int Padding = 128;
+        public int Padding = 32;
         private int SquishFrame = 0;
         public int SquishFrames = 60 * 15;
         public int MaxAgeFrames = 60 * 5;
@@ -29,7 +29,7 @@ namespace OlympUI.MegaCanvas {
 
         public CanvasPool(CanvasManager manager, bool msaa) {
             Manager = manager;
-            Graphics = manager.Graphics;
+            Graphics = manager.GraphicsDevice;
             MSAA = msaa;
         }
 
@@ -74,7 +74,7 @@ namespace OlympUI.MegaCanvas {
 
         private void Dispose(ref Entry entry) {
             entry.RT?.Dispose();
-            TotalMemory -= entry.RT?.GetMemoryUsage() ?? 0;
+            TotalMemory -= entry.RT?.GetMemorySizePoT() ?? 0;
             entry = default;
             EntriesAlive--;
         }
@@ -95,9 +95,9 @@ namespace OlympUI.MegaCanvas {
                 }
             }
 
-            if (rt == null) {
-                int widthReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(width / Padding + 1) * Padding);
-                int heightReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(height / Padding + 1) * Padding);
+            if (rt is null) {
+                int widthReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(width / Padding + 1) * Padding).NextPoT();
+                int heightReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(height / Padding + 1) * Padding).NextPoT();
                 rt = new(Graphics, widthReal, heightReal, false, SurfaceFormat.Color, DepthFormat.None, MSAA ? Manager.MultiSampleCount : 0, RenderTargetUsage.PlatformContents);
                 fresh = true;
 
@@ -107,19 +107,21 @@ namespace OlympUI.MegaCanvas {
 
             lock (Entries) {
                 Used.Add(rt);
-                UsedMemory += rt.GetMemoryUsage();
+                UsedMemory += rt.GetMemorySizePoT();
                 if (fresh)
-                    TotalMemory += rt.GetMemoryUsage();
+                    TotalMemory += rt.GetMemorySizePoT();
             }
 
             return new(this, rt, new(0, 0, rt.Width, rt.Height));
         }
 
         public void Free(RenderTarget2D? rt) {
-            if (rt == null)
+            if (rt is null)
                 return;
             lock (Entries) {
-                Used.Remove(rt);
+                if (!Used.Remove(rt))
+                    throw new Exception("Trying to free a RenderTarget2D in the wrong pool / double-free?");
+
                 UsedMemory -= rt.Width * rt.Height * 4;
 
                 if (rt.IsDisposed)
@@ -127,12 +129,12 @@ namespace OlympUI.MegaCanvas {
 
                 if (CullTriggered) {
                     rt.Dispose();
-                    TotalMemory -= rt.GetMemoryUsage();
+                    TotalMemory -= rt.GetMemorySizePoT();
 
                 } else if (EntriesAlive >= Entries.Length) {
                     CullTriggered = true;
                     rt.Dispose();
-                    TotalMemory -= rt.GetMemoryUsage();
+                    TotalMemory -= rt.GetMemorySizePoT();
 
                 } else {
                     for (int i = 0; i < Entries.Length; i++) {
@@ -145,10 +147,11 @@ namespace OlympUI.MegaCanvas {
                     // This shouldn't ever be reached but eh.
 #if DEBUG
                     throw new Exception("This shouldn't ever be reached.");
-#endif
+#else
                     CullTriggered = true;
                     rt.Dispose();
                     TotalMemory -= rt.GetMemoryUsage();
+#endif
                 }
             }
         }
@@ -165,7 +168,7 @@ namespace OlympUI.MegaCanvas {
             [MemberNotNullWhen(false, nameof(RT))]
             public bool IsDisposed => RT?.IsDisposed ?? true;
             [MemberNotNullWhen(false, nameof(RT))]
-            public bool IsNull => RT == null;
+            public bool IsNull => RT is null;
 
             public Entry(RenderTarget2D rt) {
                 RT = rt;

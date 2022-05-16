@@ -4,6 +4,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -13,18 +15,27 @@ using System.Threading.Tasks;
 namespace OlympUI {
     public static unsafe class Assets {
 
-        #region FNA3D Helpers
+        #region FNA Helpers
 
-        private delegate IntPtr d_FNA3D_ReadImageStream(Stream stream, out int width, out int height, out int len, int forceW = -1, int forceH = -1, bool zoom = false);
-        private static d_FNA3D_ReadImageStream FNA3D_ReadImageStream =
+        private static readonly PropertyInfo p_TitleLocation_Path =
+            typeof(Game).Assembly
+            .GetType("Microsoft.Xna.Framework.TitleLocation")
+            ?.GetProperty("Path")
+            ?? throw new Exception("TitleLocation.Path not found!");
+
+        private static string? _Path;
+        public static string Path => _Path ??= System.IO.Path.Combine((string) p_TitleLocation_Path.GetValue(null)!, "Content");
+
+        public delegate IntPtr d_FNA3D_ReadImageStream(Stream stream, out int width, out int height, out int len, int forceW = -1, int forceH = -1, bool zoom = false);
+        public static readonly d_FNA3D_ReadImageStream FNA3D_ReadImageStream =
             typeof(Game).Assembly
             .GetType("Microsoft.Xna.Framework.Graphics.FNA3D")
             ?.GetMethod("ReadImageStream")
             ?.CreateDelegate<d_FNA3D_ReadImageStream>()
             ?? throw new Exception("FNA3D_ReadImageStream not found!");
 
-        private delegate void d_FNA3D_Image_Free(IntPtr mem);
-        private static d_FNA3D_Image_Free FNA3D_Image_Free =
+        public delegate void d_FNA3D_Image_Free(IntPtr mem);
+        public static readonly d_FNA3D_Image_Free FNA3D_Image_Free =
             typeof(Game).Assembly
             .GetType("Microsoft.Xna.Framework.Graphics.FNA3D")
             ?.GetMethod("FNA3D_Image_Free")
@@ -33,11 +44,15 @@ namespace OlympUI {
 
         #endregion
 
+#if DEBUG_CONTENT
+        private static readonly string PathDebug = System.IO.Path.GetFullPath($"{typeof(Assets).Assembly.Location}/../../../../../../Content");
+#endif
+
         public static ulong ReloadID = 0;
 
         private static readonly Dictionary<string, object> _Gotten = new();
 
-        public static readonly Reloadable<DynamicSpriteFont> Font = GetFont(
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> Font = GetFont(
             20,
             "fonts/Poppins-Regular",
             "fonts/NotoSansCJKjp-Regular",
@@ -46,7 +61,7 @@ namespace OlympUI {
             "fonts/NotoSansCJKtc-Regular"
         );
 
-        public static readonly Reloadable<DynamicSpriteFont> FontSmall = GetFont(
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontSmall = GetFont(
             16,
             "fonts/Poppins-Regular",
             "fonts/NotoSansCJKjp-Regular",
@@ -55,10 +70,10 @@ namespace OlympUI {
             "fonts/NotoSansCJKtc-Regular"
         );
 
-        public static readonly Reloadable<DynamicSpriteFont> FontMono = GetFont(16, "fonts/Perfect DOS VGA 437");
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontMono = GetFont(16, "fonts/Perfect DOS VGA 437");
 
-        public static readonly Reloadable<DynamicSpriteFont> FontMonoOutlined =
-            Get($"Font 'fonts/Perfect DOS VGA 437' Size '16' Outlined", () => {
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontMonoOutlined =
+            Get($"Font 'fonts/Perfect DOS VGA 437' Size '16' Outlined", default(NullMeta), () => {
                 FontSystem font = new(new() {
                     TextureWidth = 2048,
                     TextureHeight = 2048,
@@ -73,80 +88,99 @@ namespace OlympUI {
                 return font.GetFont(16);
             });
 
-        public static readonly Reloadable<Texture2D> White = Get("White", () => {
+        private static readonly Color[] _WhiteData = { Color.White };
+        public static readonly Reloadable<Texture2D, Texture2DMeta> White = Get("White", new Texture2DMeta(1, 1, () => _WhiteData), () => {
             Texture2D tex = new(UI.Game.GraphicsDevice, 1, 1, false, SurfaceFormat.Color);
-            byte[] data = new byte[tex.Width * tex.Height * sizeof(uint)];
-            Unsafe.InitBlock(ref data[0], 0xFF, (uint) data.Length);
-            tex.SetData(data);
+            tex.SetData(_WhiteData);
             return tex;
         });
 
-        public static readonly Reloadable<Texture2D> GradientQuad = Get("GradientQuad", () => {
-            Texture2D tex = new(UI.Game.GraphicsDevice, 1, 256, false, SurfaceFormat.Color);
-            byte[] data = new byte[tex.Width * tex.Height * sizeof(uint)];
-            Unsafe.InitBlock(ref data[0], 0xFF, (uint) data.Length);
-            fixed (byte* ptr = data) {
-                for (int i = 0; i < tex.Height; i++) {
+        private static readonly Color[] _GradientQuadData = new Func<Color[]>(() => {
+            Color[] data = new Color[256];
+            fixed (Color* ptr = data) {
+                for (int i = 0; i < data.Length; i++) {
                     float f = i / 255f;
                     f = f * f * f * i;
-                    ptr[i * 4 + 0] = (byte) f;
-                    ptr[i * 4 + 1] = (byte) f;
-                    ptr[i * 4 + 2] = (byte) f;
-                    ptr[i * 4 + 3] = (byte) f;
+                    byte b = (byte) f;
+                    ptr[i] = new Color(b, b, b, b);
                 }
             }
-            tex.SetData(data);
+            return data;
+        })();
+        public static readonly Reloadable<Texture2D, Texture2DMeta> GradientQuadY = Get("GradientQuadY", new Texture2DMeta(1, _GradientQuadData.Length, () => _GradientQuadData), () => {
+            Texture2D tex = new(UI.Game.GraphicsDevice, 1, _GradientQuadData.Length, false, SurfaceFormat.Color);
+            tex.SetData(_GradientQuadData);
             return tex;
         });
 
-        public static readonly Reloadable<BasicEffect> BasicTextureEffect = Get("BasicTextureEffect", () => new BasicEffect(UI.Game.GraphicsDevice) {
+        private static readonly Color[] _GradientQuadInvData = new Func<Color[]>(() => {
+            Color[] data = new Color[256];
+            fixed (Color* ptr = data) {
+                for (int i = 0; i < data.Length; i++) {
+                    float f = 1f - i / 255f;
+                    f = 255 - (1f - f * f * f) * i;
+                    byte b = (byte) f;
+                    ptr[i] = new Color(b, b, b, b);
+                }
+            }
+            return data;
+        })();
+        public static readonly Reloadable<Texture2D, Texture2DMeta> GradientQuadYInv = Get("GradientQuadYInv", new Texture2DMeta(1, _GradientQuadInvData.Length, () => _GradientQuadInvData), () => {
+            Texture2D tex = new(UI.Game.GraphicsDevice, 1, _GradientQuadInvData.Length, false, SurfaceFormat.Color);
+            tex.SetData(_GradientQuadInvData);
+            return tex;
+        });
+
+        public static readonly Reloadable<BasicEffect, NullMeta> BasicTextureEffect = Get("BasicTextureEffect", default(NullMeta), () => new BasicEffect(UI.Game.GraphicsDevice) {
             FogEnabled = false,
             LightingEnabled = false,
             TextureEnabled = true,
             VertexColorEnabled = false,
         });
 
-        public static readonly Reloadable<BasicEffect> BasicColorEffect = Get("BasicColorEffect", () => new BasicEffect(UI.Game.GraphicsDevice) {
+        public static readonly Reloadable<BasicEffect, NullMeta> BasicColorEffect = Get("BasicColorEffect", default(NullMeta), () => new BasicEffect(UI.Game.GraphicsDevice) {
             FogEnabled = false,
             LightingEnabled = false,
             TextureEnabled = false,
             VertexColorEnabled = true,
         });
 
-        public static readonly Reloadable<BasicEffect> BasicEffect = Get("BasicEffect", () => new BasicEffect(UI.Game.GraphicsDevice) {
+        public static readonly Reloadable<BasicEffect, NullMeta> BasicEffect = Get("BasicEffect", default(NullMeta), () => new BasicEffect(UI.Game.GraphicsDevice) {
             FogEnabled = false,
             LightingEnabled = false,
             TextureEnabled = true,
             VertexColorEnabled = true,
         });
 
-        public static readonly Reloadable<MiniEffect> MiniEffect = Get("MiniEffect", () => new MiniEffect(UI.Game.GraphicsDevice));
-        public static readonly Reloadable<MiniEffect> MaskEffect = Get<MiniEffect>("MaskEffect", () => new MaskEffect(UI.Game.GraphicsDevice));
-
-        public static readonly Reloadable<RasterizerState> WireFrame = Get("WireFrame", () => new RasterizerState() {
+        public static readonly Reloadable<RasterizerState, NullMeta> WireFrame = Get("WireFrame", default(NullMeta), () => new RasterizerState() {
             FillMode = FillMode.WireFrame,
             CullMode = CullMode.None
         });
 
-        public static readonly Reloadable<Texture2D> Test = GetTexture("icon");
+        public static readonly Reloadable<Texture2D, Texture2DMeta> Test = GetTexture("icon");
 
-        public static readonly Reloadable<Texture2D> DebugUnused = GetTexture("debug/unused");
-        public static readonly Reloadable<Texture2D> DebugDisposed = GetTexture("debug/disposed");
+        public static readonly Reloadable<Texture2D, Texture2DMeta> DebugUnused = GetTexture("debug/unused");
+        public static readonly Reloadable<Texture2D, Texture2DMeta> DebugDisposed = GetTexture("debug/disposed");
 
 
-        /*
-        public static readonly Reloadable<Texture2D> Overlay = GetTexture("overlay");
-
-        public static readonly Reloadable<Texture2D> Splash = GetTexture("splash");
-        */
-
-        public static Reloadable<T> Get<T>(string id, Func<T?> loader) {
+        public static Reloadable<TValue, TMeta> Get<TValue, TMeta>(string id, TMeta meta, Func<TValue?> loader) {
             if (_Gotten.TryGetValue(id, out object? value))
-                return (Reloadable<T>) value;
+                return (Reloadable<TValue, TMeta>) value;
 
-            Reloadable<T> reloadable = new(id, loader);
+            Reloadable<TValue, TMeta> reloadable = new(id, meta, loader);
             _Gotten[id] = reloadable;
             return reloadable;
+        }
+
+
+        public static bool TryGet<TValue, TMeta>(string id, [NotNullWhen(true)] out Reloadable<TValue, TMeta>? reloadable) {
+            if (_Gotten.TryGetValue(id, out object? value)) {
+                reloadable = (Reloadable<TValue, TMeta>) value;
+                return true;
+            }
+
+            reloadable = null;
+            return false;
         }
 
 
@@ -158,19 +192,19 @@ namespace OlympUI {
         }
         public static Stream? OpenStream(string path) {
             try {
-                return
+                string pathFull;
+
 #if DEBUG_CONTENT
-                    (Path.GetFullPath($"{typeof(Assets).Assembly.Location}/../../../../../../Content/{path}") is string pathFull && File.Exists(pathFull)) ?
-                    File.OpenRead(pathFull) :
+                pathFull = System.IO.Path.Combine(PathDebug, path);
+                if (File.Exists(pathFull))
+                    return File.OpenRead(pathFull);
 #endif
-                    TitleContainer.OpenStream($"Content/{path}");
 
-            } catch (FileNotFoundException) {
+                pathFull = System.IO.Path.Combine(Path, path);
+                if (File.Exists(pathFull))
+                    return File.OpenRead(pathFull);
+
                 Console.WriteLine($"Couldn't find content file: {path}");
-                return null;
-
-            } catch (DirectoryNotFoundException) {
-                Console.WriteLine($"Couldn't find content folder: {path}");
                 return null;
 
             } catch (Exception e) {
@@ -188,7 +222,7 @@ namespace OlympUI {
         }
         public static byte[]? OpenData(string path) {
             using Stream? s = OpenStream(path);
-            if (s == null)
+            if (s is null)
                 return null;
 
             using MemoryStream ms = new();
@@ -197,8 +231,10 @@ namespace OlympUI {
             return ms.ToArray();
         }
 
-        public static Reloadable<DynamicSpriteFont> GetFont(int size, params string[] paths)
-            => Get($"Font '{string.Join(", ", paths)}' Size '{size}'", () => OpenFont(paths).GetFont(size));
+        public static Reloadable<DynamicSpriteFont, NullMeta> GetFont(int size, params string[] paths) {
+            FontSystem font = OpenFont(paths);
+            return Get($"Font '{string.Join(", ", paths)}' Size '{size}'", default(NullMeta), () => font.GetFont(size));
+        }
         public static FontSystem OpenFont(params string[] paths) {
             FontSystem font = new(new() {
                 TextureWidth = 2048,
@@ -215,63 +251,230 @@ namespace OlympUI {
         public static void AddFonts(this FontSystem font, params string[] paths) {
             foreach (string path in paths) {
                 byte[]? data = OpenData(path, "ttf", "otf");
-                if (data != null)
+                if (data is not null)
                     font.AddFont(data);
             }
         }
 
-        public static Reloadable<Texture2D> GetTexturePremul(string path)
-            => Get($"Texture (Premultiplied) '{path}'", () => OpenTexturePremul(path));
-        public static Texture2D? OpenTexturePremul(string path) {
+        public static Reloadable<Texture2D, Texture2DMeta> GetTexturePremul(string path) {
+            string id = $"Texture (Premultiplied) (Mipmapped) '{path}'";
+            if (TryGet(id, out Reloadable<Texture2D, Texture2DMeta>? reloadable))
+                return reloadable;
+
             using Stream? s = OpenStream(path, "png");
-            if (s == null)
-                return null;
-
-            // Mipmaps are pain.
-
-            GraphicsDevice gd = UI.Game.GraphicsDevice;
-            GraphicsStateSnapshot gss = new(gd);
+            if (s is null)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
 
             IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
-            using Texture2D texRaw = new(gd, w, h, false, SurfaceFormat.Color);
-            texRaw.SetDataPointerEXT(0, null, ptr, len);
-            FNA3D_Image_Free(ptr);
+            if (ptr == IntPtr.Zero)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
 
-            gd.SamplerStates[0] = SamplerState.LinearClamp;
-            RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
-            gd.SetRenderTarget(rt);
-            using BasicMesh mesh = new(gd) {
-                Shapes = {
-                    new MeshShapes.Quad() {
-                        XY1 = new(w * 0f, h * 0f),
-                        XY2 = new(w * 1f, h * 0f),
-                        XY3 = new(w * 0f, h * 1f),
-                        XY4 = new(w * 1f, h * 1f),
-                    },
-                },
-                MSAA = false,
-                Texture = new(null, () => texRaw),
-                BlendState = BlendState.Opaque,
-            };
-            mesh.Draw();
+            return Get(id, new Texture2DMeta(w, h, () => {
+                using Stream? s = OpenStream(path, "png");
+                if (s is null)
+                    return null;
 
-            gss.Apply();
-            return rt;
+                IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+                if (ptr == IntPtr.Zero)
+                    return null;
+
+                Color[] data = new Color[w * h];
+                fixed (Color* dataPtr = data)
+                    Unsafe.CopyBlock(dataPtr, (void*) ptr, (uint) len);
+
+                FNA3D_Image_Free(ptr);
+                return data;
+            }), () => {
+                if (ptr == IntPtr.Zero)
+                    return OpenTexturePremul(path);
+
+                Texture2D tex = OpenTextureData(ptr, w, h, len);
+                FNA3D_Image_Free(ptr);
+                ptr = IntPtr.Zero;
+                return tex;
+            });
         }
 
-        public static Reloadable<Texture2D> GetTexture(string path)
-            => Get($"Texture (Non-Premultiplied) '{path}'", () => OpenTexture(path));
-        public static Texture2D? OpenTexture(string path) {
+        public static Reloadable<Texture2D, Texture2DMeta> GetTexturePremulUnmipped(string path) {
+            string id = $"Texture (Premultiplied) (Un-mipmapped) '{path}'";
+            if (TryGet(id, out Reloadable<Texture2D, Texture2DMeta>? reloadable))
+                return reloadable;
+
             using Stream? s = OpenStream(path, "png");
-            if (s == null)
-                return null;
-
-            // Mipmaps are pain.
-
-            GraphicsDevice gd = UI.Game.GraphicsDevice;
-            GraphicsStateSnapshot gss = new(gd);
+            if (s is null)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
 
             IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            if (ptr == IntPtr.Zero)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
+
+            return Get(id, new Texture2DMeta(w, h, () => {
+                using Stream? s = OpenStream(path, "png");
+                if (s is null)
+                    return null;
+
+                IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+                if (ptr == IntPtr.Zero)
+                    return null;
+
+                Color[] data = new Color[w * h];
+                fixed (Color* dataPtr = data)
+                    Unsafe.CopyBlock(dataPtr, (void*) ptr, (uint) len);
+
+                FNA3D_Image_Free(ptr);
+                return data;
+            }), () => {
+                if (ptr == IntPtr.Zero)
+                    return OpenTexturePremulUnmipped(path);
+
+                Texture2D tex = OpenTextureDataUnmipped(ptr, w, h, len);
+                FNA3D_Image_Free(ptr);
+                ptr = IntPtr.Zero;
+                return tex;
+            });
+        }
+
+        public static Texture2D? OpenTexturePremul(string path) {
+            using Stream? s = OpenStream(path, "png");
+            if (s is null)
+                return null;
+            return OpenTexturePremul(s);
+        }
+        public static Texture2D OpenTexturePremul(Stream s) {
+            IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            Texture2D tex = OpenTextureData(ptr, w, h, len);
+            FNA3D_Image_Free(ptr);
+            return tex;
+        }
+
+        public static Texture2D? OpenTexturePremulUnmipped(string path) {
+            using Stream? s = OpenStream(path, "png");
+            if (s is null)
+                return null;
+            return OpenTexturePremulUnmipped(s);
+        }
+        public static Texture2D OpenTexturePremulUnmipped(Stream s) {
+            IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            Texture2D tex = OpenTextureDataUnmipped(ptr, w, h, len);
+            FNA3D_Image_Free(ptr);
+            return tex;
+        }
+
+        public static Reloadable<Texture2D, Texture2DMeta> GetTexture(string path) {
+            string id = $"Texture (Non-Premultiplied) (Mipmapped) '{path}'";
+            if (TryGet(id, out Reloadable<Texture2D, Texture2DMeta>? reloadable))
+                return reloadable;
+
+            using Stream? s = OpenStream(path, "png");
+            if (s is null)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
+
+            IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            if (ptr == IntPtr.Zero)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
+
+            PremultiplyTextureData(ptr, w, h, len);
+
+            return Get(id, new Texture2DMeta(w, h, () => {
+                using Stream? s = OpenStream(path, "png");
+                if (s is null)
+                    return null;
+
+                IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+                if (ptr == IntPtr.Zero)
+                    return null;
+
+                PremultiplyTextureData(ptr, w, h, len);
+
+                Color[] data = new Color[w * h];
+                fixed (Color* dataPtr = data)
+                    Unsafe.CopyBlock(dataPtr, (void*) ptr, (uint) len);
+
+                FNA3D_Image_Free(ptr);
+                return data;
+            }), () => {
+                if (ptr == IntPtr.Zero)
+                    return OpenTexture(path);
+
+                Texture2D tex = OpenTextureData(ptr, w, h, len);
+                FNA3D_Image_Free(ptr);
+                ptr = IntPtr.Zero;
+                return tex;
+            });
+        }
+
+        public static Reloadable<Texture2D, Texture2DMeta> GetTextureUnmipped(string path) {
+            string id = $"Texture (Non-Premultiplied) (Un-mipmapped) '{path}'";
+            if (TryGet(id, out Reloadable<Texture2D, Texture2DMeta>? reloadable))
+                return reloadable;
+
+            using Stream? s = OpenStream(path, "png");
+            if (s is null)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
+
+            IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            if (ptr == IntPtr.Zero)
+                return Get(id, default(Texture2DMeta), () => default(Texture2D));
+
+            PremultiplyTextureData(ptr, w, h, len);
+
+            return Get(id, new Texture2DMeta(w, h, () => {
+                using Stream? s = OpenStream(path, "png");
+                if (s is null)
+                    return null;
+
+                IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+                if (ptr == IntPtr.Zero)
+                    return null;
+
+                PremultiplyTextureData(ptr, w, h, len);
+
+                Color[] data = new Color[w * h];
+                fixed (Color* dataPtr = data)
+                    Unsafe.CopyBlock(dataPtr, (void*) ptr, (uint) len);
+
+                FNA3D_Image_Free(ptr);
+                return data;
+            }), () => {
+                if (ptr == IntPtr.Zero)
+                    return OpenTextureUnmipped(path);
+
+                Texture2D tex = OpenTextureDataUnmipped(ptr, w, h, len);
+                FNA3D_Image_Free(ptr);
+                ptr = IntPtr.Zero;
+                return tex;
+            });
+        }
+
+        public static Texture2D? OpenTexture(string path) {
+            using Stream? s = OpenStream(path, "png");
+            if (s is null)
+                return null;
+            return OpenTexture(s);
+        }
+        public static Texture2D OpenTexture(Stream s) {
+            IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            PremultiplyTextureData(ptr, w, h, len);
+            Texture2D tex = OpenTextureData(ptr, w, h, len);
+            FNA3D_Image_Free(ptr);
+            return tex;
+        }
+
+        public static Texture2D? OpenTextureUnmipped(string path) {
+            using Stream? s = OpenStream(path, "png");
+            if (s is null)
+                return null;
+            return OpenTextureUnmipped(s);
+        }
+        public static Texture2D OpenTextureUnmipped(Stream s) {
+            IntPtr ptr = FNA3D_ReadImageStream(s, out int w, out int h, out int len);
+            PremultiplyTextureData(ptr, w, h, len);
+            Texture2D tex = OpenTextureDataUnmipped(ptr, w, h, len);
+            FNA3D_Image_Free(ptr);
+            return tex;
+        }
+
+        public static void PremultiplyTextureData(IntPtr ptr, int w, int h, int len) {
             byte* raw = (byte*) ptr;
             for (int i = len - 1 - 3; i > -1; i -= 4) {
                 byte a = raw[i + 3];
@@ -282,13 +485,26 @@ namespace OlympUI {
                 raw[i + 2] = (byte) (raw[i + 2] * a / 255D);
                 // raw[i + 3] = a;
             }
-            using Texture2D texRaw = new(gd, w, h, false, SurfaceFormat.Color);
+        }
+
+        public static Texture2D OpenTextureDataUnmipped(IntPtr ptr, int w, int h, int len) {
+            Texture2D texRaw = new(UI.Game.GraphicsDevice, w, h, false, SurfaceFormat.Color);
             texRaw.SetDataPointerEXT(0, null, ptr, len);
-            FNA3D_Image_Free(ptr);
+            return texRaw;
+        }
+
+        public static Texture2D OpenTextureData(IntPtr ptr, int w, int h, int len) {
+            // Mipmaps are pain.
+
+            Game g = UI.Game;
+            GraphicsDevice gd = g.GraphicsDevice;
+            GraphicsStateSnapshot gss = new(gd);
+
+            using Texture2D texRaw = OpenTextureDataUnmipped(ptr, w, h, len);
 
             RenderTarget2D rt = new(gd, w, h, true, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.DiscardContents);
             gd.SetRenderTarget(rt);
-            using BasicMesh mesh = new(gd) {
+            using BasicMesh mesh = new(g) {
                 Shapes = {
                     new MeshShapes.Quad() {
                         XY1 = new(w * 0f, h * 0f),
@@ -298,7 +514,7 @@ namespace OlympUI {
                     },
                 },
                 MSAA = false,
-                Texture = new(null, () => texRaw),
+                Texture = Reloadable.Temporary(new Texture2DMeta(w, h, null), () => texRaw, false),
                 BlendState = BlendState.Opaque,
             };
             mesh.Draw();
@@ -309,59 +525,35 @@ namespace OlympUI {
 
     }
 
-    public sealed class Reloadable<T> : IDisposable {
+    public sealed class TrackedIntPtr : IDisposable {
 
-        public ulong ReloadID;
-        public string ID;
+        public IntPtr Value;
+        public Action<IntPtr> Unloader;
         public bool IsValid;
-        public T? ValueRaw;
-        public Func<T?> Loader;
-        public Action<T?>? Unloader;
 
-        public T? ValueMaybe {
-            get {
-                Reload();
-                return ValueRaw;
-            }
-        }
-        public T Value => ValueMaybe ?? throw new Exception($"Failed loading: {(string.IsNullOrEmpty(ID) ? "<temporary pseudo-reloadable resource>" : ID)}");
-
-        public Reloadable(string? id, Func<T?> loader, Action<T?>? unloader = null) {
-            ID = id ?? "";
-            Loader = loader;
+        public TrackedIntPtr(IntPtr value, Action<IntPtr> unloader) {
+            Value = value;
             Unloader = unloader;
+            IsValid = true;
+        }
+
+        ~TrackedIntPtr() {
+            Dispose(false);
         }
 
         public void Dispose() {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing) {
             if (!IsValid)
                 return;
-
-            if (Unloader != null) {
-                Unloader(ValueRaw);
-            } else if (!string.IsNullOrEmpty(ID) && ValueRaw is IDisposable disposable) {
-                disposable.Dispose();
-            }
             IsValid = false;
+            Unloader(Value);
         }
 
-        public void Reload(bool force = false) {
-            if (ReloadID != Assets.ReloadID) {
-                ReloadID = Assets.ReloadID;
-                IsValid = false;
-            }
-
-            if (IsValid) {
-                if (!force)
-                    return;
-                Dispose();
-            }
-
-            IsValid = true;
-            ValueRaw = Loader();
-        }
-
-        public static implicit operator T(Reloadable<T> rl) => rl.Value;
-        // public static implicit operator T?(Reloadable<T?> rl) => rl.ValueMaybe;
+        public static implicit operator IntPtr(TrackedIntPtr tptr) => tptr.Value;
 
     }
 }

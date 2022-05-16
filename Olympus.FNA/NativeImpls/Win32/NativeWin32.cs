@@ -9,6 +9,7 @@ using SDL2;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -27,20 +28,29 @@ namespace Olympus.NativeImpls {
 
         // Windows 10 1809 introduced acrylic blur.
         static readonly bool SystemHasAcrylic = Environment.OSVersion.Version >= new Version(10, 0, 17763, 0);
+        // Windows 10 1903 introduced PreferredAppMode.
+        static readonly bool SystemHasPreferredAppMode = SystemHasAcrylic && Environment.OSVersion.Version >= new Version(10, 0, 18362, 0);
+        // Windows 11 ???? introduced host backdrop acrylic blur. Needs to be revisited in the future - currently using 22557 as a number as that's the insider build this kinda became mandatory with, but 22557 is buggy in itself.
+        static readonly bool SystemHasHostBackdropAcrylic = SystemHasAcrylic && Environment.OSVersion.Version >= new Version(10, 0, 22557, 0);
         // Windows 11 (22000) is (going to be) the first reliable non-insider build with (almost) fixed acrylic.
         // Apparently self-acrylic is still better than having an acrylic background window though.
-        static readonly bool SetAcrylicOnSelf = true; // Environment.GetEnvironmentVariable("OLYMPUS_WIN32_SELFACRYLIC") == "1" || Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
-        static readonly bool SystemHasAcrylicFixes = Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
+        static readonly bool SetAcrylicOnSelf = SystemHasAcrylic && true; // (Environment.GetEnvironmentVariable("OLYMPUS_WIN32_SELFACRYLIC") == "1" || Environment.OSVersion.Version >= new Version(10, 0, 22000, 0));
+        static readonly bool SystemHasAcrylicFixes = SystemHasAcrylic && Environment.OSVersion.Version >= new Version(10, 0, 22000, 0);
         // Windows 11 clips the window for us, Windows 10 doesn't. It's as simple as that... right? No!
         // There once was ClipSelf for testing but it just misbehaved greatly.
         static readonly bool ClipBackgroundAcrylicChild = false; // Could be explored further.
-        static readonly bool ExtendedBorderedWindow = SetAcrylicOnSelf && !SystemHasAcrylicFixes;
+        static readonly bool ExtendedBorderedWindow = !SystemHasAcrylicFixes;
         static readonly bool ExtendedBorderedWindowResizeOutside = false; // TODO
         static readonly bool LegacyBorderedWindow = ExtendedBorderedWindow;
-        static readonly bool SetAcrylicOnSelfMaximized = false; // TODO
+        static readonly bool SetAcrylicOnSelfMaximized = SystemHasHostBackdropAcrylic; // TODO
 
-        static bool IsOpenGL => FNAHooks.FNA3DDriver?.ToLowerInvariant() == "opengl";
-        static bool IsVulkan => FNAHooks.FNA3DDriver?.ToLowerInvariant() == "vulkan";
+        // Some Windows build after 1809 made moving acrylic windows laggy.
+        // Windows 11 introduces Mica for certain Win32 applications, which also suffer from the same lag.
+        // Microsoft, please fix this. In the meantime, we can work around it, but why should we if Microsoft doesn't?
+        static readonly bool FlickerAcrylicOnSelfMove = true;
+
+        static bool IsOpenGL => FNAHooks.FNA3DDriver?.Equals("opengl", StringComparison.InvariantCultureIgnoreCase) ?? false;
+        static bool IsVulkan => FNAHooks.FNA3DDriver?.Equals("vulkan", StringComparison.InvariantCultureIgnoreCase) ?? false;
 
         private IntPtr HWnd;
         private IntPtr HDc;
@@ -58,17 +68,29 @@ namespace Olympus.NativeImpls {
         internal int OffsetTop = 0;
         // TODO: DWMWA_CAPTION_BUTTON_BOUNDS returns something close-ish but not fully correct.
         internal int WindowControlsWidth => _IsMaximized ? WorkaroundDWMMaximizedTitleBarSize ? 141 : 142 : 138;
-        internal int WindowControlsHeight => _IsMaximized ? WorkaroundDWMMaximizedTitleBarSize ? OffsetTop + 1: OffsetTop + 8 : OffsetTop;
+        internal int WindowControlsHeight => _IsMaximized ? WorkaroundDWMMaximizedTitleBarSize ? OffsetTop + 1 : OffsetTop + 8 : OffsetTop;
 
         private bool? _IsTransparentPreferred;
         private bool IsTransparentPreferred => _IsTransparentPreferred ??= (SystemHasAcrylic && Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", "EnableTransparency", null) as int? != 0);
         private bool IsTransparent;
+        private Microsoft.Xna.Framework.Color LastBackgroundColor;
         private float LastBackgroundBlur;
+
+        private bool IsNclButtonDown;
+        private HitTestValues IsNclButtonDownValue;
+        private bool IsNclButtonDownAndMoving;
+        private bool IsNclButtonDownAndMovingFooled;
 
         private bool WindowIdleForceRedraw;
 
+        private bool Initialized = false;
         private bool Ready = false;
-        private Bitmap Splash;
+        private Bitmap SplashMain;
+        private Bitmap SplashWheel;
+        private Bitmap? SplashCanvas;
+        private IntPtr SplashCanvasHBitmap;
+        private IntPtr SplashCanvasHDC;
+        private bool SplashDone;
         private Win10BackgroundForm? BackgroundAcrylicChild;
         private Win10BackgroundForm? BackgroundResizeChild;
         private Thread? BackgroundResizeChildThread;
@@ -83,17 +105,23 @@ namespace Olympus.NativeImpls {
         private bool BGThreadRedraw;
         private bool BGThreadRedrawSkip;
 
+        private WrappedGraphicsDeviceManager? WrappedGDM;
+
+        private Thread? InitThread;
+        private int InitPaint;
+        private Stopwatch InitStopwatch = new();
+
         private Display[]? _Displays;
         private Display[] Displays {
             get {
-                if (_Displays != null)
+                if (_Displays is not null)
                     return _Displays;
 
                 List<Display> displays = new();
 
                 // FIXME: Figure out what adapter is being used by FNA!
                 // FIXME: Figure out what adapter is being used by Windows!
-                
+
                 // The first adapter in the list is what Windows wants us to use (as per Windows settings overrides).
                 // If Windows forces us to use a non-main adapter, it also fakes all outputs to belong to that adapter (luckily no flicker).
                 bool isMain = true;
@@ -178,10 +206,11 @@ namespace Olympus.NativeImpls {
                 if (Ready)
                     SetBackgroundBlur(null, true);
 
-                // Doesn't seem to do anything??
-                // SetWindowTheme(HWnd, value ? "DarkMode_Explorer" : "Explorer", null);
+                // No immediate visible change.
+                SetWindowTheme(HWnd, value ? "DarkMode_Explorer" : "Explorer", null);
 
-                // Works but breaks opaque background...
+                // Works but breaks opaque background.
+#if true
                 int dark = value ? 1 : 0;
                 WindowCompositionAttributeData data = new() {
                     Attribute = WindowCompositionAttribute.WCA_USEDARKMODECOLORS,
@@ -189,19 +218,39 @@ namespace Olympus.NativeImpls {
                     SizeOfData = sizeof(int),
                 };
                 SetWindowCompositionAttribute(HWnd, ref data);
+#else
+                // Equivalent to above, but using a publicly documented method for 22000+.
+                int dark = value ? 1 : 0;
+                DwmSetWindowAttribute(HWnd, DwmWindowAttribute.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+#endif
+
+                if (SystemHasAcrylic) {
+                    // No immediate visible change.
+                    AllowDarkModeForWindow?.Invoke(HWnd, value);
+                    // Changes the context menu when right-clicking on the titlebar.
+                    if (SystemHasPreferredAppMode) {
+                        SetPreferredAppMode?.Invoke(value ? PreferredAppMode.ForceDark : PreferredAppMode.ForceLight);
+                    } else {
+                        AllowDarkModeForApp?.Invoke(value);
+                    }
+                    RefreshImmersiveColorPolicyState?.Invoke();
+                }
             }
         }
 
-        public override Microsoft.Xna.Framework.Point SplashSize => new(
-            Splash.Width / 2,
-            Splash.Height / 2
-        );
+        private Microsoft.Xna.Framework.Color? _Accent;
+        public override Microsoft.Xna.Framework.Color Accent => _Accent ??= new Microsoft.Xna.Framework.Color() {
+            PackedValue = (uint) (Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "AccentColor", null) as int? ?? unchecked((int) 0xffeead00))
+        };
 
-        public Microsoft.Xna.Framework.Color SplashMain = new(0x3b, 0x2d, 0x4a, 0xff);
-        public Microsoft.Xna.Framework.Color SplashNeutral = new(0xff, 0xff, 0xff, 0xff);
+        private Microsoft.Xna.Framework.Point _SplashSize;
+        public override Microsoft.Xna.Framework.Point SplashSize => _SplashSize;
 
-        public override Microsoft.Xna.Framework.Color SplashBG => DarkMode ? SplashMain : SplashNeutral;
-        public override Microsoft.Xna.Framework.Color SplashFG => DarkMode ? SplashNeutral : SplashMain;
+        public Microsoft.Xna.Framework.Color SplashColorMain = new(0x3b, 0x2d, 0x4a, 0xff);
+        public Microsoft.Xna.Framework.Color SplashColorNeutral = new(0xff, 0xff, 0xff, 0xff);
+
+        public override Microsoft.Xna.Framework.Color SplashColorBG => DarkMode ? SplashColorMain : SplashColorNeutral;
+        public override Microsoft.Xna.Framework.Color SplashColorFG => DarkMode ? SplashColorNeutral : SplashColorMain;
 
 
         private bool _BackgroundBlur;
@@ -210,7 +259,7 @@ namespace Olympus.NativeImpls {
             set => _BackgroundBlur = SetBackgroundBlur(value ? 0.6f : -1f);
         }
 
-        public override bool ReduceBackBufferResizes => !IsOpenGL && !IsVulkan && !(CurrentDisplay?.Adapter.IsMain ?? true);
+        public override bool ReduceBackBufferResizes => false; // !IsOpenGL && !IsVulkan && !(CurrentDisplay?.Adapter.IsMain ?? true);
 
         public override OlympUI.Padding Padding =>
             ExtendedBorderedWindow ? new() {
@@ -242,15 +291,30 @@ namespace Olympus.NativeImpls {
             }
         }
 
-        public override Microsoft.Xna.Framework.Point MouseOffset => (IsMaximized && WorkaroundDWMMaximizedTitleBarSize) ? new(0, -8) : new(0, 0);
+        public override Microsoft.Xna.Framework.Point MouseOffset => IsMaximized ? new(0, -8) : new(0, 0);
 
 
         public NativeWin32(App app)
             : base(app) {
 
+            Console.WriteLine($"Total time until new NativeWin32(): {app.GlobalWatch.Elapsed}");
+            InitStopwatch.Start();
+
             WndProcCurrentPtr = Marshal.GetFunctionPointerForDelegate(WndProcCurrent = WndProc);
             DefWindowProcW = NativeLibrary.GetExport(NativeLibrary.Load("user32.dll"), nameof(DefWindowProcW));
 
+            if (SystemHasAcrylic) {
+                IntPtr uxtheme = NativeLibrary.Load("uxtheme.dll");
+                RefreshImmersiveColorPolicyState = Marshal.GetDelegateForFunctionPointer<d_RefreshImmersiveColorPolicyState>(GetProcAddress(uxtheme, (IntPtr) n_RefreshImmersiveColorPolicyState));
+                AllowDarkModeForWindow = Marshal.GetDelegateForFunctionPointer<d_AllowDarkModeForWindow>(GetProcAddress(uxtheme, (IntPtr) n_AllowDarkModeForWindow));
+                if (SystemHasPreferredAppMode) {
+                    SetPreferredAppMode = Marshal.GetDelegateForFunctionPointer<d_SetPreferredAppMode>(GetProcAddress(uxtheme, (IntPtr) n_SetPreferredAppMode));
+                } else {
+                    AllowDarkModeForApp = Marshal.GetDelegateForFunctionPointer<d_AllowDarkModeForApp>(GetProcAddress(uxtheme, (IntPtr) n_AllowDarkModeForApp));
+                }
+            }
+
+            // MSDN demands a minimum width of 300 for acceptable behavior with snapping the window to the grid.
             SDL.SDL_SetWindowMinimumSize(app.Window.Handle, 800, 600);
 
             SDL.SDL_SysWMinfo info = new();
@@ -264,25 +328,12 @@ namespace Olympus.NativeImpls {
             _DarkMode = DarkModePreferred ?? false;
 
             // GDI doesn't seem to have any tinted drawing, so let's just tint the image before drawing...
-            Splash = new(OlympUI.Assets.OpenStream("splash_win32.png") ?? throw new Exception("Win32 splash not found"));
-            if (System.Drawing.Image.GetPixelFormatSize(Splash.PixelFormat) != 32) {
-                using Bitmap splashOld = Splash;
-                Splash = splashOld.Clone(new System.Drawing.Rectangle(0, 0, splashOld.Width, splashOld.Height), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            }
-            System.Drawing.Imaging.BitmapData srcData = Splash.LockBits(
-                new System.Drawing.Rectangle(0, 0, Splash.Width, Splash.Height),
-                System.Drawing.Imaging.ImageLockMode.ReadWrite,
-                Splash.PixelFormat
+            SplashMain = GetTintedImage("splash_main_win32.png", SplashColorFG);
+            SplashWheel = GetTintedImage("splash_wheel_win32.png", SplashColorBG);
+            _SplashSize = new(
+                SplashMain.Width / 2,
+                SplashMain.Height / 2
             );
-            byte* splashData = (byte*) srcData.Scan0;
-            Microsoft.Xna.Framework.Color splashFG = SplashFG;
-            for (int i = (Splash.Width * Splash.Height * 4) - 1 - 3; i > -1; i -= 4) {
-                splashData[i + 0] = (byte) ((splashData[i + 0] * splashFG.B) / 255);
-                splashData[i + 1] = (byte) ((splashData[i + 1] * splashFG.G) / 255);
-                splashData[i + 2] = (byte) ((splashData[i + 2] * splashFG.R) / 255);
-                splashData[i + 3] = (byte) ((splashData[i + 3] * splashFG.A) / 255);
-            }
-            Splash.UnlockBits(srcData);
 
             // We should now be ready to set our own WndProc. Setting it earlier could possibly access Splash too soon?
             WndProcPrevPtr = SetWindowLongPtr(hwnd, /* GWLP_WNDPROC */ -4, WndProcCurrentPtr);
@@ -302,16 +353,97 @@ namespace Olympus.NativeImpls {
             );
             InvalidateRect(hwnd, NULL, true);
             RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ERASENOW);
+        }
+
+        private static Bitmap GetTintedImage(string name, Microsoft.Xna.Framework.Color tint) {
+            Bitmap bmp = new(OlympUI.Assets.OpenStream(name) ?? throw new Exception("Win32 splash not found"));
+
+            if (System.Drawing.Image.GetPixelFormatSize(bmp.PixelFormat) != 32) {
+                using Bitmap old = bmp;
+                bmp = old.Clone(new System.Drawing.Rectangle(0, 0, old.Width, old.Height), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            }
+
+            System.Drawing.Imaging.BitmapData srcData = bmp.LockBits(
+                new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height),
+                System.Drawing.Imaging.ImageLockMode.ReadWrite,
+                bmp.PixelFormat
+            );
+
+            byte* splashData = (byte*) srcData.Scan0;
+            for (int i = (bmp.Width * bmp.Height * 4) - 1 - 3; i > -1; i -= 4) {
+                splashData[i + 0] = (byte) ((splashData[i + 0] * tint.B) / 255);
+                splashData[i + 1] = (byte) ((splashData[i + 1] * tint.G) / 255);
+                splashData[i + 2] = (byte) ((splashData[i + 2] * tint.R) / 255);
+                splashData[i + 3] = (byte) ((splashData[i + 3] * tint.A) / 255);
+            }
+
+            bmp.UnlockBits(srcData);
+            return bmp;
+        }
+
+        public override void Run() {
+            IntPtr hwnd = HWnd;
+
+            // The window won't repaint itself, especially not when dragging it around.
+            BGThread = new(BGThreadLoop) {
+                Name = "Olympus Win32 Helper Background Thread",
+                IsBackground = true,
+            };
+            BGThread.Start();
 
             // Let's show the window early.
             // Style value grabbed at runtime, this is what the visible window's style is.
             SetWindowLongPtr(hwnd, /* GWL_STYLE */ -16, (IntPtr) (0x16cf0000 & (long) ~WindowStyles.WS_VISIBLE));
             // Required, otherwise it won't always show up in the task bar or at the top.
             ShowWindow(hwnd, /* SW_SHOWNORMAL */ 1);
+
+            // Initialized is set by the first PrepareEarly run ran in the InitThread spawned in WndProc.
+            // Confusing? Yes. But at least it prevents any blinking and delays before showing the splash.
+
+            while (!Initialized || InitPaint >= 0) {
+                Thread.Yield();
+                while (PeekMessage(out NativeMessage msg, hwnd, 0, 0, /* PM_REMOVE */ 0x0001)) {
+                    TranslateMessage(ref msg);
+                    DispatchMessage(ref msg);
+
+                    // This should ideally be handled in WndProc.
+                    // Make sure that we show the splash before getting a bit hung on initializing FNA.
+                    if (msg.msg == WindowsMessage.WM_QUIT) {
+                        // Leave the init thread to die in a dirty state if necessary. This process is going to die anyway.
+                        return;
+                    }
+
+                    if (Initialized && InitPaint >= 0) {
+                        // Don't get stuck peeking messages if we're done already.
+                        break;
+                    }
+                }
+            }
+
+            Console.WriteLine("Game.Run() #2 - running main loop on main thread");
+            Game.Run();
+        }
+
+        public override void PrepareEarly() {
+            if (!Initialized) {
+                Initialized = true;
+                throw new Exception(ToString());
+            }
+
+            Console.WriteLine($"Total time until PrepareEarly: {App.GlobalWatch.Elapsed}");
+            InitStopwatch.Stop();
         }
 
         public override void PrepareLate() {
             Ready = true;
+
+            Console.WriteLine($"Total time until PrepareLate: {App.GlobalWatch.Elapsed}");
+
+            if (SplashCanvas is not null) {
+                DeleteDC(SplashCanvasHDC);
+                DeleteObject(SplashCanvasHBitmap);
+                SplashCanvas.Dispose();
+            }
 
             // Enable background blur if possible without risking a semi-transparent splash.
             BackgroundBlur = true;
@@ -322,13 +454,7 @@ namespace Olympus.NativeImpls {
 
             // Do other late init stuff.
 
-            BGThread = new(BGThreadLoop) {
-                Name = "Olympus Win32 Helper Background Thread",
-                IsBackground = true,
-            };
-            BGThread.Start();
-
-            WindowBackgroundMesh = new(App.GraphicsDevice) {
+            WindowBackgroundMesh = new(App) {
                 Shapes = {
                     // Will be updated in BeginDrawBB.
                     new MeshShapes.Quad() {
@@ -363,6 +489,9 @@ namespace Olympus.NativeImpls {
         }
 
         public override void BeginDrawRT(float dt) {
+            if (InitPaint >= -3)
+                Console.WriteLine($"Total time until BeginDrawRT: {App.GlobalWatch.Elapsed}");
+
             Viewport vp = new(0, 0, App.Width, App.Height) {
                 MinDepth = 0f,
                 MaxDepth = 1f,
@@ -395,7 +524,7 @@ namespace Olympus.NativeImpls {
             } else {
                 WindowBackgroundOpacity -= dt * 2f;
             }
-            if (WindowBackgroundOpacity > 0f && WindowBackgroundMesh != null) {
+            if (WindowBackgroundOpacity > 0f && WindowBackgroundMesh is not null) {
                 // The "ideal" maximized dark bg is 0x2e2e2e BUT it's too bright for the overlay.
                 // Light mode is too dark to be called light mode.
                 float a = Math.Min(WindowBackgroundOpacity, 1f);
@@ -404,14 +533,14 @@ namespace Olympus.NativeImpls {
                     DarkMode ?
                     (new Microsoft.Xna.Framework.Color(0x1e, 0x1e, 0x1e, 0xff) * a) :
                     (new Microsoft.Xna.Framework.Color(0xe0, 0xe0, 0xe0, 0xff) * a);
-                fixed (VertexPositionColorTexture* vertices = &WindowBackgroundMesh.Vertices[0]) {
-                    vertices[1].Position = new(App.Width - WindowControlsWidth, 0, 0);
-                    vertices[2].Position = new(0, App.Height, 0);
-                    vertices[3].Position = new(App.Width - WindowControlsWidth, App.Height, 0);
-                    vertices[4].Position = new(App.Width - WindowControlsWidth, WindowControlsHeight, 0);
-                    vertices[5].Position = new(App.Width, WindowControlsHeight, 0);
-                    vertices[6].Position = new(App.Width - WindowControlsWidth, App.Height, 0);
-                    vertices[7].Position = new(App.Width, App.Height, 0);
+                fixed (MiniVertex* vertices = &WindowBackgroundMesh.Vertices[0]) {
+                    vertices[1].XY = new(App.Width - WindowControlsWidth, 0);
+                    vertices[2].XY = new(0, App.Height);
+                    vertices[3].XY = new(App.Width - WindowControlsWidth, App.Height);
+                    vertices[4].XY = new(App.Width - WindowControlsWidth, WindowControlsHeight);
+                    vertices[5].XY = new(App.Width, WindowControlsHeight);
+                    vertices[6].XY = new(App.Width - WindowControlsWidth, App.Height);
+                    vertices[7].XY = new(App.Width, App.Height);
                 }
                 WindowBackgroundMesh.QueueNext();
                 WindowBackgroundMesh.Draw();
@@ -420,6 +549,11 @@ namespace Olympus.NativeImpls {
 
         public override void EndDrawBB(float dt) {
             LastTickEnd = App.GlobalWatch.Elapsed;
+
+            if (InitPaint >= -3) {
+                InitPaint--;
+                Console.WriteLine($"Total time until EndDrawBB: {App.GlobalWatch.Elapsed}");
+            }
         }
 
         public override void BeginDrawDirect(float dt) {
@@ -437,19 +571,35 @@ namespace Olympus.NativeImpls {
             IntPtr hwnd = HWnd;
 
             const int sleepDefault = 80;
-            int sleep = sleepDefault;
+            int sleep = default;
 
             uint guiThread = GetWindowThreadProcessId(hwnd, out _);
             GUITHREADINFO guiInfo = new() {
                 cbSize = Marshal.SizeOf<GUITHREADINFO>()
             };
 
-            while (BGThread != null) {
+            Stopwatch timer = Stopwatch.StartNew();
+
+            while (BGThread is not null) {
+                long time = timer.Elapsed.Ticks;
+                long sleepEnd = time + (sleep == default ? sleepDefault : sleep) * TimeSpan.TicksPerMillisecond;
                 Thread.Yield();
-                Thread.Sleep(sleep);
-                sleep = sleepDefault;
+                while ((time = timer.Elapsed.Ticks) < sleepEnd) {
+                    sleep = (int) Math.Min(4, (sleepEnd - time) / TimeSpan.TicksPerMillisecond - 2);
+                    if (sleep <= 0)
+                        break;
+                    Thread.Sleep(sleep);
+                }
+                while ((time = timer.Elapsed.Ticks) < sleepEnd) {
+                    Thread.SpinWait(1);
+                }
+                sleep = default;
 
                 bool redraw = false;
+
+                if (!redraw) {
+                    redraw = !Ready;
+                }
 
                 if (!redraw) {
                     redraw = WindowIdleForceRedraw;
@@ -461,46 +611,80 @@ namespace Olympus.NativeImpls {
 
                 if (redraw) {
                     BGThreadRedraw = true;
-                    sleep = 10;
-                    if (!ManuallyBlinking && !BGThreadRedrawSkip) {
-                        ManuallyBlinking = true;
-                        RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ERASENOW);
+                    if (!BGThreadRedrawSkip) {
+                        if (!ManuallyBlinking) {
+                            ManuallyBlinking = true;
+                            RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_INTERNALPAINT | RDW_UPDATENOW | RDW_ERASENOW);
+                            if (sleep == default)
+                                sleep = 10;
+                        } else {
+                            if (sleep == default)
+                                sleep = -1;
+                        }
                     }
                     BGThreadRedrawSkip = false;
                 } else {
                     BGThreadRedraw = false;
+                }
+
+                // Prevent getting stuck on the splash screen by fooling its miniature blocking loop that the user wants to leave.
+                if (IsNclButtonDownAndMoving && !IsNclButtonDownAndMovingFooled && Initialized && !Ready) {
+                    IsNclButtonDownAndMovingFooled = true;
+                    PostMessage(hwnd, (int) WindowsMessage.WM_KEYDOWN, (IntPtr) /* VK_RETURN */ 0x0D, NULL);
+                    PostMessage(hwnd, (int) WindowsMessage.WM_KEYUP, (IntPtr) /* VK_RETURN */ 0x0D, NULL);
+                    PostMessage(hwnd, (int) WindowsMessage.WM_NCLBUTTONDOWN, (IntPtr) /* VK_RETURN */ 0x0D, NULL);
                 }
             }
         }
 
 
         public bool SetBackgroundBlur(float? alpha = null, bool forceUpdate = false) {
-            if (alpha == null)
+            if (alpha is null)
                 alpha = LastBackgroundBlur;
             else
                 LastBackgroundBlur = alpha.Value;
-
-            // Use the system theme color, otherwise the titlebar controls won't match.
-            Microsoft.Xna.Framework.Color color =
-                // FIXME: Maximized background blur leaves an unblurred area at the right edge with self-acrylic.
-                (SetAcrylicOnSelf && !SetAcrylicOnSelfMaximized && _IsMaximized) ? default :
-                // Force-disable blur.
-                alpha < 0f ? default :
-                // System-wide transparency is disabled by the user.
-                !IsTransparentPreferred ? default :
-                // Dark mode transparency is very noticeable.
-                DarkMode ? new(0f, 0f, 0f, alpha.Value) :
-                // Light mode transparency is barely noticeable. Multiply by 0.5f also matches maximized better.
-                // Sadly making it too transparent also makes it too dark.
-                new(1f, 1f, 1f, 0.9f * alpha.Value);
 
             // FIXME: DWM composite checks whatever!
 
             // Windows 10 1809 introduced acrylic blur but it has become unreliable with further updates.
             if (SystemHasAcrylic) {
-                bool wasTransparent = IsTransparent;
-                IsTransparent = color != default;
-                forceUpdate |= wasTransparent != IsTransparent;
+                Microsoft.Xna.Framework.Color colorPrev = LastBackgroundColor;
+                Microsoft.Xna.Framework.Color color;
+
+
+                if (SetAcrylicOnSelf && !SetAcrylicOnSelfMaximized && _IsMaximized) {
+                    // FIXME: Maximized background blur leaves an unblurred area at the right edge with self-acrylic.
+                    alpha = 0f;
+                }
+
+                if (!IsTransparentPreferred) {
+                    // System-wide transparency is disabled by the user.
+                    if (SystemHasHostBackdropAcrylic) {
+                        // Host backdrop transparency automatically vanishes on focus loss and when transparency is disabled system-wide.
+                        alpha = 1f;
+                    } else {
+                        // Acrylic blur breaks if transparency is enforced when it's disabled system-wide.
+                        alpha = 0f;
+                    }
+                }
+
+                if (alpha < 0f || (byte) (alpha * 255f) == 0) {
+                    // Use the system theme color, otherwise the titlebar controls won't match.
+                    color =
+                        DarkMode ? new(0.2f, 0.2f, 0.2f, alpha.Value) :
+                        new(0.65f, 0.65f, 0.65f, alpha.Value);
+
+                } else {
+                    // Use the system theme color, otherwise the titlebar controls won't match.
+                    color =
+                        // Dark mode transparency is very noticeable.
+                        DarkMode ? new(0.2f, 0.2f, 0.2f, alpha.Value) :
+                        // Light mode transparency is barely noticeable. Multiply by 0.5f also matches maximized better.
+                        // Sadly making it too transparent also makes it too dark.
+                        new(0.9f, 0.9f, 0.9f, alpha.Value);
+                }
+
+                forceUpdate |= colorPrev != color;
 
                 if (SetAcrylicOnSelf) {
                     if (forceUpdate) {
@@ -529,32 +713,33 @@ namespace Olympus.NativeImpls {
                                 };
                             }
                             DwmExtendFrameIntoClientArea(HWnd, ref margins);
-                            DWM_BLURBEHIND blurBehind =
-                                IsTransparent ?
-                                new() {
-                                    dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
-                                    fEnable = true,
-                                    hRgnBlur = InvisibleRegion,
-                                    fTransitionOnMaximized = false
-                                } :
-                                new() {
-                                    dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
+                            if (!SystemHasHostBackdropAcrylic) {
+                                // This is only necessary with old acrylic, and breaks maximized bg on host backdrop.
+                                DWM_BLURBEHIND blurBehind =
+                                    IsTransparent ?
+                                    new() {
+                                        dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
+                                        fEnable = true,
+                                        hRgnBlur = InvisibleRegion,
+                                    } :
+                                    new() {
+                                        dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
                                     // Dark mode breaks background blur, thus disable it fully.
                                     // Setting this to false turns the BG black / white, but true turns it light / dark gray.
                                     // fEnable = DarkMode,
                                     // Sadly trying to flip this on demand turns the light mode background black at all times.
                                     fEnable = true,
-                                    hRgnBlur = NULL,
-                                    fTransitionOnMaximized = false
-                                };
-                            DwmEnableBlurBehindWindow(HWnd, ref blurBehind);
+                                        hRgnBlur = NULL,
+                                    };
+                                DwmEnableBlurBehindWindow(HWnd, ref blurBehind);
+                            }
                         }
                     }
 
                     SetAcrylic(HWnd, color);
 
                     if (ExtendedBorderedWindow && ExtendedBorderedWindowResizeOutside) {
-                        if (BackgroundResizeChildThread == null) {
+                        if (BackgroundResizeChildThread is null) {
                             uint threadMain = GetCurrentThreadId();
                             BackgroundResizeChildThread = new(() => {
                                 Win10BackgroundForm child = new(this, "Olympus Olympus Win32 Helper Background Resize Window", false);
@@ -569,8 +754,8 @@ namespace Olympus.NativeImpls {
                             };
                             BackgroundResizeChildThread.SetApartmentState(ApartmentState.STA);
                             BackgroundResizeChildThread.Start();
-                            while (BackgroundResizeChild == null)
-                                ;
+                            while (BackgroundResizeChild is null) {
+                            }
                             BackgroundResizeChild.FriendlyHandle = FindWindowEx(NULL, NULL, null, "Olympus Olympus Win32 Helper Background Resize Window");
                         }
                     } else {
@@ -595,12 +780,12 @@ namespace Olympus.NativeImpls {
                     BackgroundResizeChildThread = null;
 
                     Win10BackgroundForm? child = BackgroundAcrylicChild;
-                    if (child == null) {
+                    if (child is null) {
                         child = new Win10BackgroundForm(this, "Olympus Olympus Win32 Helper Background Acrylic Window", true);
                         child.Fix(false, 0, 0, 0, 0);
                     }
                     SetAcrylic(child.Handle, color);
-                    if (BackgroundAcrylicChild == null) {
+                    if (BackgroundAcrylicChild is null) {
                         BackgroundAcrylicChild = child;
                         child.Show();
                     }
@@ -623,7 +808,6 @@ namespace Olympus.NativeImpls {
                             dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
                             fEnable = true,
                             hRgnBlur = InvisibleRegion,
-                            fTransitionOnMaximized = false
                         };
                         DwmEnableBlurBehindWindow(HWnd, ref blurBehind);
                     }
@@ -653,7 +837,6 @@ namespace Olympus.NativeImpls {
                         dwFlags = /* DWM_BB_ENABLE | DWM_BB_BLUREGION */ 0x1 | 0x2,
                         fEnable = false,
                         hRgnBlur = NULL,
-                        fTransitionOnMaximized = false
                     };
                     DwmEnableBlurBehindWindow(HWnd, ref blurBehind);
 
@@ -666,6 +849,38 @@ namespace Olympus.NativeImpls {
         }
 
         private void SetAcrylic(IntPtr hwnd, Microsoft.Xna.Framework.Color color) {
+            AccentPolicy accent;
+            WindowCompositionAttributeData data;
+
+            if (SystemHasHostBackdropAcrylic) {
+                /* Use host backdrop acrylic where possible.
+                 * It follows Windows design guidelines a bit better, transitions between light and dark properly,
+                 * and fixes a NC button color bug introduced in insider builds before 22557, when Win32 NC got a fresh coat of paint.
+                 * Sadly it doesn't let us change the color or any of its behavior.
+                 */
+
+                BackdropStyle style = IsMaximized ? BackdropStyle.BACKDROP_MICA : BackdropStyle.BACKDROP_ACRYLIC;
+
+                data = new() {
+                    Attribute = WindowCompositionAttribute.WCA_BACKDROP_STYLE,
+                    Data = (IntPtr) (&style),
+                    SizeOfData = sizeof(int),
+                };
+                SetWindowCompositionAttribute(hwnd, ref data);
+
+                accent = new() {
+                    AccentState = AccentState.ACCENT_ENABLE_HOSTBACKDROP
+                };
+
+                data = new() {
+                    Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
+                    Data = (IntPtr) (&accent),
+                    SizeOfData = sizeof(AccentPolicy),
+                };
+                SetWindowCompositionAttribute(hwnd, ref data);
+                return;
+            }
+
             /* Acrylic accent flags:
              * 0b00000000000000000000000000000001: ???????? Used by Windows Explorer for the task bar
              * 0b00000000000000000000000000000010: [WIN10 ] Force accent color? (At least according to info online)
@@ -679,10 +894,12 @@ namespace Olympus.NativeImpls {
              * 0b00000000000000000000000010000000: [WIN10+] Right border
              * 0b00000000000000000000000100000000: [WIN10+] Bottom border
              */
-            AccentPolicy accent =
-                color == default ?
+            accent =
+                color.A == 0 ?
                 new() {
-                    AccentState = AccentState.ACCENT_DISABLED
+                    // DISABLED is transparent.
+                    AccentState = AccentState.ACCENT_ENABLE_GRADIENT,
+                    GradientColor = color.PackedValue | 0xff000000, // Kinda lucky about alignment here.
                 } :
                 new() {
                     AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
@@ -701,10 +918,10 @@ namespace Olympus.NativeImpls {
                     GradientColor = color.PackedValue, // Kinda lucky about alignment here.
             };
             
-            WindowCompositionAttributeData data = new() {
+            data = new() {
                 Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
                 Data = (IntPtr) (&accent),
-                SizeOfData = Marshal.SizeOf(accent),
+                SizeOfData = sizeof(AccentPolicy),
             };
             SetWindowCompositionAttribute(hwnd, ref data);
         }
@@ -722,7 +939,6 @@ namespace Olympus.NativeImpls {
 
             // Console.WriteLine($"{hwnd}, {msg}: {wParam}, {lParam}");
 
-            TimeSpan time = App.GlobalWatch.Elapsed;
             IntPtr rv;
             HitTestValues hit;
             POINT point, pointReal;
@@ -732,13 +948,34 @@ namespace Olympus.NativeImpls {
             IntPtr hwndResize;
 
             switch (msg) {
+                case WindowsMessage.WM_QUIT when !Ready:
+                    Game.Exit();
+                    break;
+
+                // This feels quite dirty, but it's necessary to prevent hanging when moving the splash.
+                // NCLBUTTONDOWN-induced WM_SYSCOMMAND SC_MOVE / SC_SIZEs will run their own blocking loop.
+                case WindowsMessage.WM_NCLBUTTONDOWN:
+                    IsNclButtonDown = true;
+                    IsNclButtonDownValue = (HitTestValues) wParam;
+                    rv = CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
+                    IsNclButtonDown = false;
+                    IsNclButtonDownAndMovingFooled = false;
+                    return rv;
+
+                case WindowsMessage.WM_SYSCOMMAND when IsNclButtonDown:
+                    WindowIdleForceRedraw = true;
+                    IsNclButtonDownAndMoving = true;
+                    rv = CallWindowProc(WndProcPrevPtr, hwnd, msg, wParam, lParam);
+                    IsNclButtonDownAndMoving = false;
+                    return NULL;
+
                 case WindowsMessage.WM_MOVE:
                     WindowIdleForceRedraw = false;
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
                     if (Ready) {
                         // Just doing lots of SetBackgroundBlur seems to help with moving lag?!
-                        if (SetAcrylicOnSelf) {
+                        if (SetAcrylicOnSelf && FlickerAcrylicOnSelfMove) {
                             SetBackgroundBlur(null, true);
                         }
                         // Force-redraw ourselves as on some systems, MOVE isn't followed up by PAINT...
@@ -765,7 +1002,7 @@ namespace Olympus.NativeImpls {
                             SetBackgroundBlur(null, true);
                         }
                     }
-                    if (ClipBackgroundAcrylicChild && BackgroundAcrylicChild != null) {
+                    if (ClipBackgroundAcrylicChild && BackgroundAcrylicChild is not null) {
                         // Note that this won't be round, but given how this should only affect Win10, who cares?
                         // FIXME: Delete the old region? According to MSDN, Windows does that for us.
                         SetWindowRgn(BackgroundAcrylicChild.Handle, CreateRectRgn(LastClientRect.Left, LastClientRect.Top, LastClientRect.Right, LastClientRect.Bottom), false);
@@ -790,12 +1027,13 @@ namespace Olympus.NativeImpls {
                     break;
 
                 case WindowsMessage.WM_SETTINGCHANGE:
-                case WindowsMessage.WM_THEMECHANGED:
+                // case WindowsMessage.WM_THEMECHANGED:
                 case WindowsMessage.WM_DWMCOMPOSITIONCHANGED:
                     _IsMaximized = GetIsMaximized(HWnd);
                     GetWindowRect(HWnd, out LastWindowRect);
                     GetClientRect(HWnd, out LastClientRect);
                     _DarkModePreferred = null;
+                    _Accent = null;
                     _IsTransparentPreferred = null;
                     _DarkMode = !(DarkModePreferred ?? _DarkMode);
                     DarkMode = DarkModePreferred ?? !_DarkMode;
@@ -869,30 +1107,128 @@ namespace Olympus.NativeImpls {
 
                 case WindowsMessage.WM_PAINT:
                     if (!Ready) {
-                        IntPtr hdc = BeginPaint(hwnd, out PAINTSTRUCT ps);
-                        if (hdc != NULL) {
-                            try {
-                                PaintSplash(hdc);
-                            } finally {
-                                EndPaint(hwnd, ref ps);
+                        if (!Initialized) {
+                            IntPtr hdc = BeginPaint(hwnd, out PAINTSTRUCT ps);
+                            if (hdc != NULL) {
+                                try {
+                                    PaintSplash(hdc);
+                                } finally {
+                                    EndPaint(hwnd, ref ps);
+                                }
                             }
                         }
-                        return NULL;
+
+                        rv = CallWindowProc(DefWindowProcW, hwnd, msg, wParam, lParam);
+                        ManuallyBlinking = false;
+
+                        // This really shouldn't happen during WM_PAINT, but who's going to stop us?
+                        // Init FNA after drawing the splash.
+                        if (InitPaint >= 0) {
+                            InitPaint++;
+
+                            switch (InitPaint) {
+                                case 3:
+                                    // ... but sure that the graphics device is created delayed on the main thread.
+                                    GraphicsDeviceManager gdm = (GraphicsDeviceManager) App.Services.GetService(typeof(IGraphicsDeviceManager));
+                                    WrappedGDM = new(gdm);
+                                    WrappedGDM.CanCreateDevice = false;
+                                    break;
+
+                                case 4:
+                                    App.Services.RemoveService(typeof(IGraphicsDeviceManager));
+                                    App.Services.RemoveService(typeof(IGraphicsDeviceService));
+                                    break;
+
+                                case 5:
+                                    App.Services.AddService(typeof(IGraphicsDeviceManager), WrappedGDM);
+                                    App.Services.AddService(typeof(IGraphicsDeviceService), WrappedGDM);
+                                    break;
+
+                                case 6:
+                                    // Start initializing everything on a separate thread so that the splash can continue splashing.
+                                    InitThread = new(() => {
+                                        try {
+                                            Console.WriteLine("Game.Run() #1 - initializing on separate thread");
+                                            Game.Run();
+                                        } catch (Exception ex) when (ex.Message == ToString()) {
+                                            Console.WriteLine("Game.Run() #1 done");
+                                        } catch (Exception ex) {
+                                            Console.Error.WriteLine(ex);
+                                            PostMessage(HWnd, (int) WindowsMessage.WM_QUIT, NULL, NULL);
+                                            throw;
+                                        }
+                                    }) {
+                                        Name = "Olympus Win32 FNA Initialization Thread",
+                                        IsBackground = true,
+                                    };
+                                    InitThread.Start();
+                                    break;
+
+                                case 7:
+                                    // Don't move on if we're not initialized yet.
+                                    if (!Initialized)
+                                        InitPaint--;
+                                    break;
+
+                                case 8:
+                                    // WrappedGDM MUST be non-null here as it was created in an earlier paint.
+                                    // Create the device now and repaint a few more times as device creation can change window properties.
+                                    WrappedGDM!.CanCreateDevice = true;
+
+                                    // XNA - and thus in turn FNA - love to re-center the window on device changes.
+                                    Microsoft.Xna.Framework.Point pos = WindowPosition;
+                                    FNAHooks.ApplyWindowChangesWithoutRestore = true;
+                                    FNAHooks.ApplyWindowChangesWithoutResize = true;
+                                    FNAHooks.ApplyWindowChangesWithoutCenter = true;
+                                    WrappedGDM!.CreateDevice();
+                                    FNAHooks.ApplyWindowChangesWithoutRestore = false;
+                                    FNAHooks.ApplyWindowChangesWithoutResize = false;
+                                    FNAHooks.ApplyWindowChangesWithoutCenter = false;
+
+                                    // In some circumstances, fixing the window position is required, but only on device changes.
+                                    if (WindowPosition != pos)
+                                        WindowPosition = FixWindowPositionDisplayDrag(pos);
+
+                                    break;
+
+                                case 14:
+                                    // We're done - repaint one more time but without the progress bar, otherwise it'll look stuck.
+                                    SplashDone = true;
+                                    break;
+
+                                case 15:
+                                    // We're done - set InitPaint to -1 prevent this from running any further, and to break out of the message pump loop.
+                                    InitPaint = -1;
+                                    break;
+
+                            }
+                        }
+
+                        return rv;
                     }
+#if true
+                    // We could break and pass through to SDL2's handler, which then calls into FNA,
+                    // or we could avoid the unnecessary double trip through P/Invoke marshalling and back.
+                    App.ForceRedraw();
+                    rv = CallWindowProc(DefWindowProcW, hwnd, msg, wParam, lParam);
+                    ManuallyBlinking = false;
+                    return rv;
+#else
                     // NCPaint(hwnd, wParam, System.Drawing.Color.Transparent);
                     break;
+#endif
 
                 case WindowsMessage.WM_ERASEBKGND:
                     if (!Ready) {
-                        PaintSplash(wParam);
+                        // FIXME: Figure out if only WM_PAINT or WM_ERASEBKGND is necessary.
+                        // PaintSplash(wParam);
                         return NULL;
                     }
                     break;
 
                 case WindowsMessage.WM_MOUSEMOVE:
                     // High poll rate mouses cause SDL2's event pump to lag!
-                    // Luckily there's a fix for this, hopefully it'll get merged:
-                    // https://github.com/0x0ade/SDL/tree/windows-high-frequency-mouse
+                    // Luckily there's a fix for this in modern SDL2.
                     // Let's continue using our own mouse focus tracking tho.
                     if (!_IsMouseFocus) {
                         _IsMouseFocus = true;
@@ -931,8 +1267,8 @@ namespace Olympus.NativeImpls {
                     bool hitDWM = DwmDefWindowProc(hwnd, msg, wParam, lParam, out rv);
 
                     pointReal = new() {
-                        X = (short) (((ulong) lParam >> 0) & 0xFFFF),
-                        Y = (short) (((ulong) lParam >> 16) & 0xFFFF),
+                        X = (ushort) (((ulong) lParam >> 0) & 0xFFFF),
+                        Y = (ushort) (((ulong) lParam >> 16) & 0xFFFF),
                     };
                     point = pointReal;
                     rect = LastClientRect;
@@ -1022,12 +1358,21 @@ namespace Olympus.NativeImpls {
                     point = pointReal;
                     rect = LastClientRect;
                     if (ScreenToClient(hwnd, ref point)) {
-                        switch (hit) {
-                            case HitTestValues.HTCAPTION:
-                                int cmd = TrackPopupMenu(GetSystemMenu(hwnd, false), /* TPM_RETURNCMD */ 0x0100, pointReal.X, pointReal.Y, 0, hwnd, IntPtr.Zero);
-                                if (cmd > 0)
-                                    SendMessage(hwnd, /* WM_SYSCOMMAND */ 0x0112, (IntPtr) cmd, IntPtr.Zero);
-                                break;
+                        if (hit == HitTestValues.HTCAPTION || !Ready) {
+                            int cmd = TrackPopupMenu(GetSystemMenu(hwnd, false), /* TPM_RETURNCMD */ 0x0100, pointReal.X, pointReal.Y, 0, hwnd, IntPtr.Zero);
+                            if (cmd > 0)
+                                SendMessage(hwnd, (int) WindowsMessage.WM_SYSCOMMAND, (IntPtr) cmd, IntPtr.Zero);
+                            break;
+                        }
+                    }
+                    break;
+
+                case WindowsMessage.WM_SYSCOMMAND:
+                    if (!Ready) {
+                        switch ((ulong) wParam & 0xFFF0) {
+                            case /* SC_CLOSE */ 0xF060:
+                                PostMessage(HWnd, (int) WindowsMessage.WM_QUIT, NULL, NULL);
+                                return (IntPtr) 1;
                         }
                     }
                     break;
@@ -1086,7 +1431,7 @@ namespace Olympus.NativeImpls {
                     GUITHREADINFO guiInfo = new() {
                         cbSize = Marshal.SizeOf<GUITHREADINFO>()
                     };
-                    if (resizer != null && hwndResize != NULL && posInfo->HWndInsertAfter != hwndResize && GetGUIThreadInfo(resizer.ThreadID, ref guiInfo) && (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == 0) {
+                    if (resizer is not null && hwndResize != NULL && posInfo->HWndInsertAfter != hwndResize && GetGUIThreadInfo(resizer.ThreadID, ref guiInfo) && (guiInfo.flags & GuiThreadInfoFlags.GUI_INMOVESIZE) == 0) {
                         SetWindowPos(
                             hwndResize, posInfo->HWndInsertAfter,
                             0, 0,
@@ -1126,16 +1471,37 @@ namespace Olympus.NativeImpls {
             if (hdc == NULL)
                 return;
 
+            Microsoft.Xna.Framework.Point wheelOffset = new(128, 156);
+
             int width = LastClientRect.Right - LastClientRect.Left;
             int height = LastClientRect.Bottom - LastClientRect.Top;
-            using Bitmap tmp = new(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
-            using (Graphics g = Graphics.FromImage(tmp)) {
+            float prog = (float) (InitStopwatch.Elapsed.TotalMilliseconds / 1000D);
+
+            if (SplashCanvas is not null && (SplashCanvas.Width < width || SplashCanvas.Height < height)) {
+                DeleteObject(SplashCanvasHBitmap);
+                SplashCanvas.Dispose();
+                SplashCanvas = null;
+            }
+
+            if (SplashCanvasHDC == IntPtr.Zero) {
+                SplashCanvasHDC = CreateCompatibleDC(hdc);
+            }
+
+            if (SplashCanvas is null) {
+                SplashCanvas = new(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                SplashCanvasHBitmap = SplashCanvas.GetHbitmap();
+                SelectObject(SplashCanvasHDC, SplashCanvasHBitmap);
+            }
+
+            using (Graphics g = Graphics.FromHdc(SplashCanvasHDC)) {
                 // Fun fact: white is best to hide the fact that there is still a very short white flash.
-                // g.Clear(System.Drawing.Color.White);
-                Microsoft.Xna.Framework.Color bgXNA = SplashBG;
+                Microsoft.Xna.Framework.Color bgXNA = SplashColorBG;
+                Microsoft.Xna.Framework.Color fgXNA = SplashColorFG;
                 System.Drawing.Color bg = System.Drawing.Color.FromArgb(bgXNA.A, bgXNA.R, bgXNA.G, bgXNA.B);
+                System.Drawing.Color fg = System.Drawing.Color.FromArgb(fgXNA.A, fgXNA.R, fgXNA.G, fgXNA.B);
                 g.Clear(bg);
+                g.ResetTransform();
 
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
                 g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
@@ -1143,18 +1509,58 @@ namespace Olympus.NativeImpls {
                 g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
 
                 g.DrawImage(
-                    Splash,
-                    width / 2 - Splash.Width / 4,
-                    height / 2 - Splash.Height / 4,
-                    Splash.Width / 2,
-                    Splash.Height / 2
+                    SplashMain,
+                    width / 2 - _SplashSize.X / 2,
+                    height / 2 - _SplashSize.Y / 2,
+                    SplashMain.Width / 2,
+                    SplashMain.Height / 2
                 );
+
+                g.ResetTransform();
+                g.TranslateTransform(
+                    width / 2 - _SplashSize.X / 2 + wheelOffset.X / 2 + 0.75f,
+                    height / 2 - _SplashSize.Y / 2 + wheelOffset.Y / 2 + 0.25f
+                );
+                g.RotateTransform(2f * prog / MathF.PI * 180f);
+                g.DrawImage(
+                    SplashWheel,
+                    -wheelOffset.X / 2 - 0.75f,
+                    -wheelOffset.Y / 2 - 0.25f,
+                    SplashMain.Width / 2,
+                    SplashMain.Height / 2
+                );
+                g.ResetTransform();
+
+                if (!SplashDone) {
+                    using SolidBrush b = new(fg);
+                    prog *= 1.3f;
+                    prog %= 2;
+                    if (prog < 1f) {
+                        prog = prog * prog * prog;
+                        g.FillRectangle(
+                            b,
+                            width / 2 - _SplashSize.X / 2,
+                            height / 2 + _SplashSize.Y / 2 - 8,
+                            (int) (_SplashSize.X * prog),
+                            2
+                        );
+                    } else {
+                        prog -= 1f;
+                        prog = 1f - prog;
+                        prog = prog * prog * prog;
+                        prog = 1f - prog;
+                        g.FillRectangle(
+                            b,
+                            width / 2 - _SplashSize.X / 2 + (int) (_SplashSize.X * prog),
+                            height / 2 + _SplashSize.Y / 2 - 8,
+                            (int) (_SplashSize.X * (1f - prog)),
+                            2
+                        );
+                    }
+                }
             }
 
-            IntPtr tmphdc = CreateCompatibleDC(hdc);
-            SelectObject(tmphdc, tmp.GetHbitmap());
-            BitBlt(hdc, 0, 0, width, height, tmphdc, 0, 0, TernaryRasterOperations.SRCCOPY);
-            DeleteDC(tmphdc);
+            BitBlt(hdc, 0, 0, width, height, SplashCanvasHDC, 0, 0, TernaryRasterOperations.SRCCOPY);
         }
 
 
@@ -1184,6 +1590,9 @@ namespace Olympus.NativeImpls {
         [DllImport("user32.dll")]
         static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr hWndChildAfter, string? className, string? windowTitle);
 
+        [DllImport("kernel32")]
+        static extern IntPtr GetProcAddress(IntPtr hModule, IntPtr procName);
+
 #endregion
 
 
@@ -1211,9 +1620,10 @@ namespace Olympus.NativeImpls {
 
         enum BackdropStyle {
             BACKDROP_DEFAULT,
+            BACKDROP_NONE,
             BACKDROP_MICA,
-            // Anything past Mica is transparent
-            BACKDROP_TRANSPARENT,
+            BACKDROP_ACRYLIC,
+            BACKDROP_TABBED,
         }
 
         enum PartColorTarget {
@@ -1295,11 +1705,22 @@ namespace Olympus.NativeImpls {
             DWMWA_CLOAK,
             DWMWA_CLOAKED,
             DWMWA_FREEZE_REPRESENTATION,
+            DWMWA_PASSIVE_UPDATE_MODE,
+            DWMWA_USE_HOSTBACKDROPBRUSH,
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20,
+            DWMWA_WINDOW_CORNER_PREFERENCE = 33,
+            DWMWA_BORDER_COLOR,
+            DWMWA_CAPTION_COLOR,
+            DWMWA_TEXT_COLOR,
+            DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
             DWMWA_LAST
         }
 
         [DllImport("user32.dll")]
         static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
+
+        [DllImport("user32.dll")]
+        static extern int GetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
 
         [DllImport("dwmapi.dll")]
         static extern int DwmGetWindowAttribute(IntPtr hwnd, DwmWindowAttribute dwAttribute, out bool pvAttribute, int cbAttribute);
@@ -1332,7 +1753,7 @@ namespace Olympus.NativeImpls {
             public int Right;
             public int Top;
             public int Bottom;
-        };
+        }
 
         [DllImport("dwmapi.dll")]
         static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref MARGINS margins);
@@ -1443,6 +1864,25 @@ namespace Olympus.NativeImpls {
             public IntPtr hwndTrack;
             public int dwHoverTime;
         }
+
+        [StructLayout(LayoutKind.Sequential)]
+        struct NativeMessage {
+            public IntPtr handle;
+            public WindowsMessage msg;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public uint time;
+            public POINT p;
+        }
+
+        [DllImport("user32.dll")]
+        static extern bool PeekMessage(out NativeMessage lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+        [DllImport("user32.dll")]
+        static extern bool TranslateMessage(ref NativeMessage lpMsg);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr DispatchMessage(ref NativeMessage lpMsg);
 
         [DllImport("user32.dll")]
         static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, WindowsMessage uMsg, IntPtr wParam, IntPtr lParam);
@@ -1643,7 +2083,7 @@ namespace Olympus.NativeImpls {
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct BLENDFUNCTION {
+        struct BLENDFUNCTION {
             public byte BlendOp;
             public byte BlendFlags;
             public byte SourceConstantAlpha;
@@ -1708,8 +2148,40 @@ namespace Olympus.NativeImpls {
 
 #region Dark Mode
 
+        enum PreferredAppMode {
+            Default,
+            AllowDark,
+            ForceDark,
+            ForceLight,
+            Invalid
+        }
+
+        // The following functions are defined in uxtheme.
+
+        const int n_RefreshImmersiveColorPolicyState = 104;
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        delegate void d_RefreshImmersiveColorPolicyState();
+        d_RefreshImmersiveColorPolicyState? RefreshImmersiveColorPolicyState;
+
+        const int n_AllowDarkModeForWindow = 133;
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        delegate bool d_AllowDarkModeForWindow(IntPtr hWnd, bool value);
+        d_AllowDarkModeForWindow? AllowDarkModeForWindow;
+
+        // Older than 1903 / 18362
+        const int n_AllowDarkModeForApp = 135;
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        delegate bool d_AllowDarkModeForApp(bool value);
+        d_AllowDarkModeForApp? AllowDarkModeForApp;
+
+        // 1903+ / 18362+
+        const int n_SetPreferredAppMode = 135;
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        delegate PreferredAppMode d_SetPreferredAppMode(PreferredAppMode value);
+        d_SetPreferredAppMode? SetPreferredAppMode;
+
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
-        public static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string? pszSubIdList);
+        static extern int SetWindowTheme(IntPtr hWnd, string pszSubAppName, string? pszSubIdList);
 
 #endregion
 

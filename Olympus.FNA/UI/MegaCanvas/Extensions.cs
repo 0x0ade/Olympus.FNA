@@ -16,9 +16,9 @@ namespace OlympUI.MegaCanvas {
             index = -1;
             for (int i = list.Length - 1; i >= 0; --i) {
                 T? entry = list[i];
-                if (entry != null && !entry.IsDisposed &&
+                if (entry is not null && !entry.IsDisposed &&
                     width <= entry.Width && height <= entry.Height && (
-                        index == -1 || best == null ||
+                        index == -1 || best is null ||
                         (entry.Width < best.Width && entry.Height < best.Height) ||
                         (width < height ? entry.Width <= best.Width : entry.Height <= best.Height)
                 )) {
@@ -36,9 +36,9 @@ namespace OlympUI.MegaCanvas {
             index = -1;
             for (int i = list.Count - 1; i >= 0; --i) {
                 T? entry = list[i];
-                if (entry != null && !entry.IsDisposed &&
+                if (entry is not null && !entry.IsDisposed &&
                     width <= entry.Width && height <= entry.Height && (
-                        index == -1 || best == null ||
+                        index == -1 || best is null ||
                         (entry.Width < best.Width && entry.Height < best.Height) ||
                         (width < height ? entry.Width <= best.Width : entry.Height <= best.Height)
                 )) {
@@ -54,14 +54,20 @@ namespace OlympUI.MegaCanvas {
         public static List<T?> RemoveNulls<T>(this List<T?> list) {
             for (int i = list.Count - 1; i >= 0; --i) {
                 T? entry = list[i];
-                if (entry == null)
+                if (entry is null)
                     list.RemoveAt(i);
             }
             return list;
         }
 
-        public static long GetMemoryUsage(this Texture2D tex)
-            => tex.Width * tex.Height * 4;
+        public static long GetMemorySize(this Texture2D tex)
+            => new Texture2DMeta(tex, null).MemorySize;
+
+        public static long GetMemorySizePoT(this Texture2D tex)
+            => new Texture2DMeta(tex, null).MemorySizePoT;
+
+        public static long GetMemoryWaste(this Texture2D tex)
+            => new Texture2DMeta(tex, null).MemoryWaste;
 
     }
 }

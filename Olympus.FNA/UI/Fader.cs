@@ -1,6 +1,4 @@
-﻿#define FASTGET
-
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -65,15 +63,17 @@ namespace OlympUI {
 
     }
 
-    public interface IFader {
+    public interface IFader : IGenericValueSource {
+
+        bool IsFresh { get; }
+
+        Type GetSerializedType();
 
         float GetSerializedDuration();
 
         object? GetSerializedValue();
 
         void Deserialize(float duration, object? value);
-
-        T GetValue<T>();
 
         T GetValueTo<T>();
 
@@ -87,13 +87,15 @@ namespace OlympUI {
 
         void SetStyle(Style style, string key);
 
+        void Revive();
+
         bool Update(float dt);
 
         bool Update(float dt, Style style);
 
         bool Update(float dt, Style style, string key);
 
-        IFader New();
+        IFader Clone();
 
     }
 
@@ -104,16 +106,10 @@ namespace OlympUI {
         public static IFader Create(Type valueType, float duration, object? value) {
             if (!TypeCache.TryGetValue(valueType, out Type? faderType)) {
                 Type faderBaseType = typeof(Fader<>).MakeGenericType(valueType);
-                foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies()) {
-                    foreach (Type type in asm.GetTypes()) {
-                        if (!faderBaseType.IsAssignableFrom(type))
-                            continue;
-                        TypeCache[valueType] = faderType = type;
-                        break;
-                    }
-                }
-                if (faderType == null)
+                faderType = UIReflection.GetAllTypes(faderBaseType).FirstOrDefault();
+                if (faderType is null)
                     throw new Exception($"Couldn't find fader type compatible with {valueType}");
+                TypeCache[valueType] = faderType;
             }
 
             IFader fader = Activator.CreateInstance(faderType) as IFader ?? throw new Exception($"Couldn't create instance of type {faderType}");
@@ -132,36 +128,65 @@ namespace OlympUI {
 
         private T _ValueTo;
         private bool _ValueToSet;
+        private Func<T>? _ValueToSource;
         public T ValueTo {
-            get => _ValueTo;
-            set => _ = (_ValueTo = value, _ValueToSet = true);
+            get => _ValueToSource?.Invoke() ?? _ValueTo;
+            set => _ = (_ValueTo = value, _ValueToSet = true, _ValueToSource = null);
         }
 
         public float Time = -1f;
-        public float Duration = 0.15f;
+        public float Duration = 0.2f;
 
         private T ValueFromPrev;
         private T ValueToPrev;
         private float TPrev;
+
+        public bool IsFresh => Time < 0f;
 
         protected Fader(bool valueSet, T value) {
             Value = ValueFrom = _ValueTo = value;
             _ValueToSet = valueSet;
         }
 
+        protected Fader(Func<T> value) {
+            _ValueToSource = value;
+            _ValueToSet = true;
+            Value = ValueFrom = ValueTo;
+        }
+
         public abstract T Calculate(T a, T b, float t);
         protected abstract bool Equal(T a, T b);
-        public abstract Fader<T> New();
+        protected abstract Fader<T> New();
+
+        public Fader<T> Clone() {
+            Fader<T> f = New();
+            if (!_ValueToSet)
+                return f;
+
+            f._ValueToSet = true;
+
+            if (_ValueToSource is not null) {
+                f._ValueToSource = _ValueToSource;
+            } else {
+                f._ValueTo = _ValueTo;
+            }
+
+            f.Value = f.ValueFrom = f.ValueTo;
+            return f;
+        }
+
+        Type IFader.GetSerializedType()
+            => typeof(T);
 
         float IFader.GetSerializedDuration()
             => Duration;
 
         object? IFader.GetSerializedValue()
-            => _ValueToSet ? ValueTo : null;
+            => _ValueToSet ? _ValueToSource ?? (object) _ValueTo : null;
 
         void IFader.Deserialize(float duration, object? value) {
             Duration = duration;
-            if (value == null) {
+            if (value is null) {
                 if (_ValueToSet) {
                     _ValueTo = default;
                 } else {
@@ -175,28 +200,42 @@ namespace OlympUI {
                     Value = ValueFrom = _ValueTo = valueReal;
                     _ValueToSet = true;
                 }
+            } else if (value is Func<T> valueSource) {
+                if (_ValueToSet) {
+                    _ValueToSource = valueSource;
+                } else {
+                    _ValueToSource = valueSource;
+                    _ValueToSet = true;
+                    Value = ValueFrom = ValueTo;
+                }
             } else {
                 throw new Exception($"Unexpected value of type {value.GetType()} instead of {typeof(T)}");
             }
         }
 
-        TGet IFader.GetValue<TGet>()
-#if FASTGET
-            => Unsafe.As<T, TGet>(ref Value);
-#else
-            => (TGet) (object) Value;
-#endif
+        TGet IGenericValueSource.GetValue<TGet>() {
+            if (typeof(T) == typeof(TGet))
+                return Unsafe.As<T, TGet>(ref Value);
+            return (TGet) Convert.ChangeType(Value, typeof(TGet));
+        }
 
-        TGet IFader.GetValueTo<TGet>()
-#if FASTGET
-            => Unsafe.As<T, TGet>(ref _ValueTo);
-#else
-            => (TGet) (object) ValueTo;
-#endif
+        TGet IFader.GetValueTo<TGet>() {
+            T value = ValueTo;
+            if (typeof(T) == typeof(TGet))
+                return Unsafe.As<T, TGet>(ref value);
+            return (TGet) Convert.ChangeType(value, typeof(TGet));
+        }
 
         bool IFader.SetValueTo(object value) {
             if (value is T raw) {
-                ValueTo = raw;
+                _ValueToSet = true;
+                _ValueTo = raw;
+                _ValueToSource = null;
+                return true;
+            }
+            if (value is Func<T> rawSource) {
+                _ValueToSet = true;
+                _ValueToSource = rawSource;
                 return true;
             }
             return false;
@@ -226,32 +265,49 @@ namespace OlympUI {
             style.Add(key, Value);
         }
 
+        public void Revive() {
+            // FIXME: -1f should be enough for fader revives!
+            Time = -2f;
+            UpdateLinks();
+        }
+
         public bool Update(float dt) {
+            T valueTo = ValueTo;
+
             if (Time < 0f) {
-                Value = ValueFrom = ValueTo;
-                Time = Duration;
+                // FIXME: After a revive, this can still hold the old value!
+                Value = ValueFrom = valueTo;
+                Time += 1f;
+                if (Time >= 0f) {
+                    Time = Duration;
+                }
                 UpdateLinks();
                 return true;
             }
 
-            bool force = !Equal(ValueToPrev, ValueTo);
+            bool force = !Equal(ValueToPrev, valueTo);
             if (force) {
-                if (Equal(ValueFromPrev, ValueTo) && Equal(ValueToPrev, ValueFrom)) {
+                if (Equal(ValueFromPrev, valueTo) && Equal(ValueToPrev, ValueFrom)) {
                     (ValueFromPrev, ValueToPrev) = (ValueToPrev, ValueFromPrev);
                     ValueFrom = Value;
                     Time = Duration - TPrev * Duration;
                 } else {
                     ValueFromPrev = ValueFrom = Value;
-                    ValueToPrev = ValueTo;
-                    Time = 0f;
+                    ValueToPrev = valueTo;
+                    Time = dt;
                 }
 
             } else {
-                Time += dt;
-                if (Time > Duration) {
-                    Time = Duration;
-                    force = true;
+                if (Time >= Duration) {
+                    return false;
                 }
+
+                Time += dt;
+            }
+
+            if (Time >= Duration) {
+                Time = Duration;
+                force = true;
             }
 
             if (!force && Time >= Duration)
@@ -259,7 +315,7 @@ namespace OlympUI {
 
             float t = 1f - Time / Duration;
             TPrev = t = 1f - t * t;
-            T next = Calculate(ValueFrom, ValueTo, t);
+            T next = Calculate(ValueFrom, valueTo, t);
             bool changed = !Equal(Value, next);
             Value = next;
             UpdateLinks();
@@ -276,8 +332,8 @@ namespace OlympUI {
             return Update(dt);
         }
 
-        IFader IFader.New()
-            => New();
+        IFader IFader.Clone()
+            => Clone();
 
     }
 
@@ -291,14 +347,17 @@ namespace OlympUI {
             : base(true, value) {
         }
 
+        public FloatFader(Func<float> value)
+            : base(value) {
+        }
+
         public override float Calculate(float a, float b, float t)
             => a + (b - a) * t;
 
         protected override bool Equal(float a, float b)
             => a == b;
 
-        public override Fader<float> New()
-            => new FloatFader(ValueTo);
+        protected override Fader<float> New() => new FloatFader();
 
     }
 
@@ -312,6 +371,14 @@ namespace OlympUI {
             : base(true, value) {
         }
 
+        public ColorFader(byte r, byte g, byte b, byte a)
+            : base(true, new(r, g, b, a)) {
+        }
+
+        public ColorFader(Func<Color> value)
+            : base(value) {
+        }
+
         public override Color Calculate(Color a, Color b, float t)
             => new(
                 (byte) (a.R + (b.R - a.R) * t),
@@ -323,8 +390,7 @@ namespace OlympUI {
         protected override bool Equal(Color a, Color b)
             => a == b;
 
-        public override Fader<Color> New()
-            => new ColorFader(ValueTo);
+        protected override Fader<Color> New() => new ColorFader();
 
     }
 }

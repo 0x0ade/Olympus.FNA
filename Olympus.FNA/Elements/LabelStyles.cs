@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Olympus {
-    public class HeaderBig : Label {
+    public partial class HeaderBig : Label {
 
         public static readonly new Style DefaultStyle = new() {
             Assets.FontHeaderBig,
@@ -20,7 +20,7 @@ namespace Olympus {
 
     }
 
-    public class HeaderMedium : Label {
+    public partial class HeaderMedium : Label {
 
         public static readonly new Style DefaultStyle = new() {
             Assets.FontHeaderMedium,
@@ -31,7 +31,7 @@ namespace Olympus {
 
     }
 
-    public class HeaderSmall : Label {
+    public partial class HeaderSmall : Label {
 
         public static readonly new Style DefaultStyle = new() {
             Assets.FontHeaderSmall,
@@ -42,7 +42,7 @@ namespace Olympus {
 
     }
 
-    public class HeaderSmaller : Label {
+    public partial class HeaderSmaller : Label {
 
         public static readonly new Style DefaultStyle = new() {
             Assets.FontHeaderSmaller,
@@ -53,7 +53,18 @@ namespace Olympus {
 
     }
 
-    public class DebugLabel : Label {
+    public partial class LabelSmall : Label {
+
+        public static readonly new Style DefaultStyle = new() {
+            OlympUI.Assets.FontSmall,
+        };
+        public LabelSmall(string text)
+            : base(text) {
+        }
+
+    }
+
+    public partial class DebugLabel : Label {
 
         public static readonly new Style DefaultStyle = new() {
             OlympUI.Assets.FontMono,

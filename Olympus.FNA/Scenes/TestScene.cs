@@ -12,7 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Olympus {
-    public class TestScene : Scene {
+    public partial class TestScene : Scene {
 
         public override Element Generate()
             => new Group() {
@@ -150,22 +150,20 @@ namespace Olympus {
                         },
                         Children = {
                             new Spinner() {
-                                Style = { new Color(0x00, 0xad, 0xee, 0xff) }
+                                Style = { () => NativeImpl.Native.Accent }
                             },
                             new Label("bottom text") {
                                 Layout = { Layouts.Top(0.5f, -0.5f) },
-                                Style = { new Color(0x00, 0xad, 0xee, 0xff) }
+                                Style = { () => NativeImpl.Native.Accent }
                             }
                         }
                     },
                 }
             };
 
-        public class PathTest : Element {
+        public partial class PathTest : Element {
 
-            public static readonly new Style DefaultStyle = new() {
-                new ColorFader(new Color(1f, 0f, 0.5f, 1f) * 0.25f)
-            };
+            protected Style.Entry StyleColor = new(new ColorFader(() => NativeImpl.Native.Accent * 0.5f));
 
             private BasicMesh Mesh;
             private Color PrevColor;
@@ -173,7 +171,7 @@ namespace Olympus {
 
             public PathTest() {
                 MSAA = true;
-                Mesh = new BasicMesh(Game.GraphicsDevice) {
+                Mesh = new BasicMesh(Game) {
                     Texture = OlympUI.Assets.White
                 };
             }
@@ -186,11 +184,11 @@ namespace Olympus {
 
                 if (PrevColor != color ||
                     PrevWH != wh) {
-                    MeshShapes shapes = Mesh.Shapes;
+                    MeshShapes<MiniVertex> shapes = Mesh.Shapes;
                     shapes.Clear();
 
                     if (color != default) {
-                        shapes.Add(new MeshShapes.Poly() {
+                        shapes.Add(new MeshShapes<MiniVertex>.Poly() {
                             color,
                             25f,
                             new Vector2(W * 0f, H * 0f),
@@ -199,6 +197,13 @@ namespace Olympus {
                             new Vector2(W * 0.45f, H * 0.75f),
                             new Vector2(W * 0.65f, H * 0.25f),
                             new Vector2(W * 0f, H * 0f),
+                        });
+
+                        shapes.Add(new MeshShapes.Rect() {
+                            Color = color,
+                            XY1 = new(10f, 30f),
+                            Size = new(50f, 50f),
+                            Radius = 50f,
                         });
                     }
 

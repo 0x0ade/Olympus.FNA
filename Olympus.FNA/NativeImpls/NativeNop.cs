@@ -23,9 +23,11 @@ namespace Olympus.NativeImpls {
         public override bool? DarkModePreferred => null;
         public override bool DarkMode { get; set; } = false;
 
+        public override Color Accent => new(0x00, 0xad, 0xee, 0xff);
+
         public override Point SplashSize => default;
-        public override Color SplashFG => default;
-        public override Color SplashBG => default;
+        public override Color SplashColorFG => default;
+        public override Color SplashColorBG => default;
 
         public override bool BackgroundBlur {
             get => false;
@@ -57,6 +59,13 @@ namespace Olympus.NativeImpls {
 
         public NativeNop(App app)
             : base(app) {
+        }
+
+        public override void Run() {
+            Game.Run();
+        }
+
+        public override void PrepareEarly() {
         }
 
         public override void PrepareLate() {

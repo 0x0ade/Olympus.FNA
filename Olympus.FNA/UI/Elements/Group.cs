@@ -7,23 +7,21 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class Group : Element {
+    public partial class Group : Element {
 
         public const int WHFalse = -1;
         public const int WHTrue = -2;
         public const int WHInit = -3;
 
-        public static readonly new Style DefaultStyle = new() {
-            { "Padding", 0 },
-            { "Spacing", 0 },
-        };
+        protected Style.Entry StylePadding = new(0);
+        protected Style.Entry StyleSpacing = new(0);
 
-        public override Padding Padding => new(Style.GetCurrent<int>("Padding"));
+        public override Padding Padding => StylePadding.GetCurrent<Padding>();
         public override Point InnerWH {
             get {
-                int padding = Style.GetCurrent<int>("Padding");
+                Padding padding = StylePadding.GetCurrent<Padding>();
                 Point wh = WH;
-                return new(wh.X - padding * 2, wh.Y - padding * 2);
+                return new(wh.X - padding.W, wh.Y - padding.H);
             }
         }
 

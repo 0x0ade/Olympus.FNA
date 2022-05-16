@@ -88,10 +88,19 @@ namespace OlympUI {
             Scan(owner.GetType());
         }
 
+        public void Clear() {
+            HandlerMap.Clear();
+        }
+
+        public void Reset() {
+            Clear();
+            Scan(Owner.GetType());
+        }
+
         internal void Scan(Type startingType) {
             // FIXME: Cache!
             object[] registerArgs = new object[1];
-            for (Type? parentType = startingType; parentType != null && parentType != typeof(object); parentType = parentType.BaseType) {
+            for (Type? parentType = startingType; parentType is not null && parentType != typeof(object); parentType = parentType.BaseType) {
                 foreach (MethodInfo method in parentType.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)) {
                     if (!method.Name.StartsWith("On") ||
                         method.ReturnType != typeof(void) || method.GetParameters() is not ParameterInfo[] args ||
@@ -146,7 +155,7 @@ namespace OlympUI {
         }
 
         public T Invoke<T>(T e) where T : Event {
-            for (Type? type = typeof(T); type != null && type != typeof(object); type = type.BaseType) {
+            for (Type? type = typeof(T); type is not null && type != typeof(object); type = type.BaseType) {
                 e.Status = EventStatus.Normal;
                 foreach (EventHandler handler in GetHandlers(type)) {
                     e.Element = Owner;
@@ -269,10 +278,20 @@ namespace OlympUI {
             Scan(owner.GetType());
         }
 
+        public void Clear() {
+            Handlers.Clear();
+            HandlerMap.Clear();
+        }
+
+        public void Reset() {
+            Clear();
+            Scan(Owner.GetType());
+        }
+
         internal void Scan(Type startingType) {
             // FIXME: Cache!
             object[] registerArgs = new object[1];
-            for (Type? parentType = startingType; parentType != null && parentType != typeof(object); parentType = parentType.BaseType) {
+            for (Type? parentType = startingType; parentType is not null && parentType != typeof(object); parentType = parentType.BaseType) {
                 foreach (MethodInfo method in parentType.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance)) {
                     if (!method.Name.StartsWith("Layout") ||
                         method.ReturnType != typeof(void) || method.GetParameters() is not ParameterInfo[] args ||

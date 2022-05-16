@@ -32,15 +32,35 @@ namespace OlympUI {
         private static int ResolveConstsX(Element el, Element p, int value) {
             switch (value) {
                 case LayoutConsts.Prev:
-                    value = 0;
-                    if (!p.Style.TryGetCurrent("Spacing", out int spacing))
-                        spacing = 0;
-                    foreach (Element sibling in p.Children) {
-                        if (sibling == el)
-                            break;
-                        value += sibling.W + spacing;
+                    {
+                        value = 0;
+                        if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                            spacing = 0;
+                        foreach (Element sibling in p.Children) {
+                            if (sibling == el)
+                                break;
+                            value += sibling.W + spacing;
+                        }
+                        return value;
                     }
-                    return value;
+
+                case LayoutConsts.Next:
+                    {
+                        value = 0;
+                        if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                            spacing = 0;
+                        bool skip = true;
+                        foreach (Element sibling in p.Children) {
+                            if (sibling == el) {
+                                skip = false;
+                                continue;
+                            } else if (skip) {
+                                continue;
+                            }
+                            value += sibling.W + spacing;
+                        }
+                        return value;
+                    }
 
                 case LayoutConsts.Free:
                     return p.InnerWH.X - ResolveConstsX(el, p, LayoutConsts.Prev);
@@ -56,15 +76,35 @@ namespace OlympUI {
         private static int ResolveConstsY(Element el, Element p, int value) {
             switch (value) {
                 case LayoutConsts.Prev:
-                    value = 0;
-                    if (!p.Style.TryGetCurrent("Spacing", out int spacing))
-                        spacing = 0;
-                    foreach (Element sibling in p.Children) {
-                        if (sibling == el)
-                            break;
-                        value += sibling.H + spacing;
+                    {
+                        value = 0;
+                            if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                            spacing = 0;
+                        foreach (Element sibling in p.Children) {
+                            if (sibling == el)
+                                break;
+                            value += sibling.H + spacing;
+                        }
+                        return value;
                     }
-                    return value;
+
+                case LayoutConsts.Next:
+                    {
+                        value = 0;
+                        if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                            spacing = 0;
+                        bool skip = true;
+                        foreach (Element sibling in p.Children) {
+                            if (sibling == el) {
+                                skip = false;
+                                continue;
+                            } else if (skip) {
+                                continue;
+                            }
+                            value += sibling.H + spacing;
+                        }
+                        return value;
+                    }
 
                 case LayoutConsts.Free:
                     return p.InnerWH.Y - ResolveConstsY(el, p, LayoutConsts.Prev);
@@ -101,7 +141,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 int spacingReal;
-                if (spacing != null) {
+                if (spacing is not null) {
                     spacingReal = spacing.Value;
                 } else if (!el.Style.TryGetCurrent("Spacing", out spacingReal)) {
                     spacingReal = 0;
@@ -126,7 +166,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 int spacingReal;
-                if (spacing != null) {
+                if (spacing is not null) {
                     spacingReal = spacing.Value;
                 } else if (!el.Style.TryGetCurrent("Spacing", out spacingReal)) {
                     spacingReal = 0;
@@ -148,9 +188,9 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
-                el.X = offs;
+                el.X = ResolveConstsX(el, p, offs);
                 el.RealX = p.Padding.L + el.X;
             }
         );
@@ -160,7 +200,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 (int offsWhole, float offsFract) = Fract(offs);
                 el.X = (int) Math.Floor(p.InnerWH.X * fract + offsWhole + el.W * offsFract);
@@ -173,9 +213,9 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
-                el.Y = offs;
+                el.Y = ResolveConstsY(el, p, offs);
                 el.RealY = p.Padding.T + el.Y;
             }
         );
@@ -185,7 +225,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 (int offsWhole, float offsFract) = Fract(offs);
                 el.Y = (int) Math.Floor(p.InnerWH.Y * fract + offsWhole + el.H * offsFract);
@@ -198,7 +238,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 el.X = p.InnerWH.X - el.W - offs;
                 el.RealX = p.Padding.L + el.X;
@@ -210,7 +250,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 el.Y = p.InnerWH.Y - el.H - offs;
                 el.RealY = p.Padding.T + el.Y;
@@ -222,7 +262,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 if (offsX != 0 && offsY != 0) {
                     el.XY += new Vector2(offsX, offsY);
@@ -242,7 +282,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 offsX = ResolveConstsX(el, p, offsX);
                 offsY = ResolveConstsY(el, p, offsY);
@@ -267,7 +307,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 offsX = ResolveConstsX(el, p, offsX);
                 offsY = ResolveConstsY(el, p, offsY);
@@ -292,7 +332,7 @@ namespace OlympUI {
             (LayoutEvent e) => {
                 Element el = e.Element;
                 Element? p = el.Parent;
-                if (p == null)
+                if (p is null)
                     return;
                 if (offsX != 0 && offsY != 0) {
                     el.WH += new Point(offsX, offsY);
@@ -310,7 +350,8 @@ namespace OlympUI {
     public static class LayoutConsts {
         public const int ConstOffset = int.MinValue;
         public const int Prev = ConstOffset + 1;
-        public const int Free = ConstOffset + 2;
-        public const int Pos = ConstOffset + 3;
+        public const int Next = ConstOffset + 2;
+        public const int Free = ConstOffset + 3;
+        public const int Pos = ConstOffset + 4;
     }
 }

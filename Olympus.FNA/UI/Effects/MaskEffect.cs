@@ -11,7 +11,10 @@ using System.Threading.Tasks;
 namespace OlympUI {
     public class MaskEffect : MiniEffect {
 
-        private static byte[]? Data;
+        public static readonly new MiniEffectCache Cache = new(
+            $"effects/{nameof(MaskEffect)}.fxo",
+            (gd, _) => new MaskEffect(gd)
+        );
 
         protected EffectParameter MaskXYWHParam;
         protected bool MaskXYWHValid;
@@ -22,7 +25,7 @@ namespace OlympUI {
         }
 
         public MaskEffect(GraphicsDevice graphicsDevice)
-            : base(graphicsDevice, Data ??= Assets.OpenData($"effects/{nameof(MaskEffect)}.fxo")) {
+            : base(graphicsDevice, Cache.GetData()) {
             SetupParams();
         }
 

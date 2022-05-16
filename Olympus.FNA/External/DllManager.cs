@@ -15,7 +15,7 @@ namespace Olympus.External {
     internal static partial class DllManager {
         //This method implements a dllmap resolver for native libraries. It expects 'AssemblyName.dll.config' to be present next to the managed library's dll.
         internal static void PrepareResolver(Assembly wrapperAssembly) {
-            string osString = OSUtils.GetOS().ToString().ToLower();
+            string osString = OSUtils.GetOS();
             string cpuString = RuntimeInformation.OSArchitecture switch {
                 Architecture.Arm => "arm",
                 Architecture.Arm64 => "armv8",
@@ -30,7 +30,7 @@ namespace Olympus.External {
             var stringComparer = StringComparer.InvariantCultureIgnoreCase;
 
             bool StringNullOrEqual(string a, string b)
-                => a == null || stringComparer.Equals(a, b);
+                => a is null || stringComparer.Equals(a, b);
 
             NativeLibrary.SetDllImportResolver(wrapperAssembly, (name, assembly, path) => {
                 string configPath = wrapperAssembly.Location + ".config";
@@ -50,7 +50,7 @@ namespace Olympus.External {
 
                 var map = maps.SingleOrDefault();
 
-                if (map == null) {
+                if (map is null) {
                     throw new ArgumentException($"'{Path.GetFileName(configPath)}' - Found {maps.Count()} possible mapping candidates for dll '{name}'.");
                 }
 
@@ -74,20 +74,20 @@ namespace Olympus.External {
                 _ => false
             };
 
-            public static OS GetOS() {
+            public static string GetOS() {
                 if (IsOS(OS.Linux)) {
-                    return OS.Linux;
+                    return "linux";
                 }
 
                 if (IsOS(OS.OSX)) {
-                    return OS.OSX;
+                    return "osx";
                 }
 
                 if (IsOS(OS.FreeBSD)) {
-                    return OS.FreeBSD;
+                    return "freebsd";
                 }
 
-                return OS.Windows;
+                return "windows";
             }
         }
     }

@@ -4,8 +4,8 @@
     <TargetFrameworks>net6.0;net6.0-windows</TargetFrameworks>
     <RootNamespace>Olympus</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Platforms>x64</Platforms>
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
+    <LangVersion>10</LangVersion>
     <CopyContent Condition="'$(CopyContent)' == '' And '$(Configuration)' == 'Release'">true</CopyContent>
     <CopyContent Condition="'$(CopyContent)' == ''">false</CopyContent>
     <DefineConstants Condition="!$(CopyContent)">DEBUG_CONTENT;$(DefineConstants)</DefineConstants>
@@ -13,9 +13,14 @@
     <TargetIsWindows Condition="'$(TargetIsWindows)' == ''">false</TargetIsWindows>
     <DefineConstants Condition="$(TargetIsWindows)">WINDOWS;$(DefineConstants)</DefineConstants>
     <UseWindowsForms>$(TargetIsWindows)</UseWindowsForms>
+    <Platforms>x64</Platforms>
     <OutputType>exe</OutputType>
     <OutputType Condition="$(TargetIsWindows)">winexe</OutputType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Olympus.FNA.Gen\Olympus.FNA.Gen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 
   <PropertyGroup>
     <PlatformLibs Condition="'$(PlatformLibs)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">windows</PlatformLibs>
@@ -29,8 +34,21 @@
   </ItemGroup>
   
   <ItemGroup>
-    <Import Include="System.Drawing" Condition="$(TargetIsWindows)" />
-    <Import Include="System.Windows.Forms" Condition="$(TargetIsWindows)" />
+    <Import Include="System.Drawing" />
+    <Import Include="System.Windows.Forms" />
+    <Import Include="Microsoft.Win32.Registry" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibTessDotNet" Version="1.1.15" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="6.0.5" />
+    <PackageReference Include="Mono.Options" Version="6.12.0.148" />
+    <PackageReference Include="MonoMod.RuntimeDetour" Version="22.5.1.1" />
+    <PackageReference Include="MonoMod.Utils" Version="22.5.1.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="SharpDX" Version="4.2.0" Condition="$(TargetIsWindows)" />
+    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
+    <PackageReference Include="YamlDotNet" Version="11.2.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,25 +63,40 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="ContentSrc\effects\MaskEffect.fx" />
-    <None Remove="UI\Effects\Dummy.cs~RF730501.TMP" />
+    <None Remove="ContentSrc\effects\NoiseEffect.fx" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="LibTessDotNet" Version="1.1.15" />
-    <PackageReference Include="Mono.Options" Version="6.12.0.148" />
-    <PackageReference Include="MonoMod.RuntimeDetour" Version="21.9.19.1" />
-    <PackageReference Include="MonoMod.Utils" Version="21.9.19.1" />
-    <PackageReference Include="SharpDX" Version="4.2.0" Condition="$(TargetIsWindows)" />
-    <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
-    <PackageReference Include="YamlDotNet" Version="11.2.1" />
+    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
   </ItemGroup>
 
-  <Target Name="EffectBuild" AfterTargets="PreBuildEvent" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+  <ItemGroup>
+    <Content Update="ContentSrc\effects\BlurEffect\BlurEffectTemplate.gen.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>BlurEffectTemplate.tt</DependentUpon>
+    </Content>
+    <Content Update="ContentSrc\effects\BlurEffect\BlurEffectTemplate.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>BlurEffectTemplate.gen.cs</LastGenOutput>
+    </Content>
+    <Compile Update="ContentSrc\effects\BlurEffect\BlurEffectTemplate.gen.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>BlurEffectTemplate.tt</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <Target Name="EffectBuild" AfterTargets="PreBuildEvent" Condition="$([MSBuild]::IsOSPlatform('Windows')) And '$(IsImplicitlyTriggeredBuild)' != 'true'">
+    <PropertyGroup>
+      <EffectSourceDir>$(ProjectDir)ContentSrc\effects\</EffectSourceDir>
+      <EffectTargetDir>$(SolutionDir)Content\effects\</EffectTargetDir>
+    </PropertyGroup>
     <ItemGroup>
-      <EffectSource Include="$(ProjectDir)ContentSrc\effects\*.fx" />
+      <EffectSource Include="$(EffectSourceDir)**\*.fx" />
     </ItemGroup>
-    <Exec Command="&quot;$(SolutionDir)EffectBuild\efb.exe&quot; &quot;%(EffectSource.Identity)&quot; &quot;$(SolutionDir)Content\effects\$([System.IO.Path]::GetFileName('%(EffectSource.Identity)'))o&quot;" />
+    <MakeDir Directories="$(EffectTargetDir)$([System.IO.Path]::GetDirectoryName('$([MSBuild]::MakeRelative('$(EffectSourceDir)', '%(EffectSource.Identity)'))'))" />
+    <Exec Command="&quot;$(SolutionDir)EffectBuild\efb.exe&quot; &quot;%(EffectSource.Identity)&quot; &quot;$(EffectTargetDir)$([MSBuild]::MakeRelative('$(EffectSourceDir)', '%(EffectSource.Identity)'))o&quot;" />
   </Target>
 
 </Project>

@@ -12,29 +12,25 @@ using static OlympUI.Assets;
 namespace Olympus {
     public static class Assets {
 
-        public static readonly Reloadable<Texture2D> Overlay = GetTexture("overlay");
-
-        public static readonly Reloadable<Texture2D> Splash = GetTexture("splash");
-
-        public static readonly Reloadable<DynamicSpriteFont> FontHeaderBig = GetFont(
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontHeaderBig = GetFont(
             40,
             "fonts/Renogare-Regular",
             "fonts/Poppins-Regular"
         );
 
-        public static readonly Reloadable<DynamicSpriteFont> FontHeaderMedium = GetFont(
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontHeaderMedium = GetFont(
             30,
             "fonts/Renogare-Regular",
             "fonts/Poppins-Regular"
         );
 
-        public static readonly Reloadable<DynamicSpriteFont> FontHeaderSmall = GetFont(
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontHeaderSmall = GetFont(
             20,
             "fonts/Renogare-Regular",
             "fonts/Poppins-Regular"
         );
 
-        public static readonly Reloadable<DynamicSpriteFont> FontHeaderSmaller = GetFont(
+        public static readonly Reloadable<DynamicSpriteFont, NullMeta> FontHeaderSmaller = GetFont(
             15,
             "fonts/Renogare-Regular",
             "fonts/Poppins-Regular"

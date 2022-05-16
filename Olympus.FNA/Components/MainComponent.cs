@@ -29,8 +29,9 @@ namespace Olympus {
             SkinDark = SkinDefault;
             SkinLight = Skin.CreateLight();
 
-            UI.Initialize(App, NativeImpl.Native);
+            UI.Initialize(App, Native, App);
             UI.Root.Children.Add(Scener.Get<MetaMainScene>().Generate());
+            UI.Root.Children.Add(Scener.Get<MetaAlertScene>().Generate());
             UI.Root.Children.Add(DebugLabel = new Label("") {
                 Style = {
                     Color.Red,
@@ -43,6 +44,8 @@ namespace Olympus {
 #endif
             });
             Scener.Push<HomeScene>();
+
+            App.FinderManager.Refresh();
         }
 
         protected override void LoadContent() {
@@ -56,6 +59,10 @@ namespace Olympus {
 
         public override void Update(GameTime gameTime) {
             float dt = gameTime.GetDeltaTime();
+
+            if (UIInput.Pressed(Keys.Escape) && !(Scener.Front?.Locked ?? false)) {
+                Scener.PopFront();
+            }
 
             if (UIInput.Pressed(Keys.F1)) {
                 DebugLabel.Visible = !DebugLabel.Visible;
@@ -74,9 +81,13 @@ namespace Olympus {
                 if (!File.Exists(path)) {
                     SkinForce = null;
                 } else {
-                    using StreamReader reader = new(new FileStream(path, FileMode.Open));
+                    using StreamReader reader = new(path);
                     SkinForce = Skin.Deserialize(reader);
                 }
+            }
+
+            if (UIInput.Pressed(Keys.F6)) {
+                Scener.Front?.Refresh();
             }
 
             if (UIInput.Pressed(Keys.F7)) {
@@ -92,7 +103,7 @@ namespace Olympus {
                 }
             }
 
-            if (UIInput.Pressed(Keys.F12)) {
+            if (UIInput.Pressed(Keys.F11)) {
                 UI.GlobalDrawDebug = !UI.GlobalDrawDebug;
                 UI.GlobalRepaintID++;
             }
@@ -112,6 +123,8 @@ namespace Olympus {
                     $"Mouse: {UIInput.Mouse}\n" +
                     $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
                     $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
+                    $"Reloadable Texture2D Used: {TextureTracker.Instance.UsedCount} / {TextureTracker.Instance.TotalCount}\n" +
+                    $"Reloadable Texture2D Memory: {GetHumanFriendlyBytes(TextureTracker.Instance.UsedMemory)} / {GetHumanFriendlyBytes(TextureTracker.Instance.TotalMemory)}\n" +
                     $"Pool MAIN Available: {UI.MegaCanvas.Pool.EntriesAlive}\n" +
                     $"Pool MAIN Used: {UI.MegaCanvas.Pool.Used.Count}\n" +
                     $"Pool MAIN Memory: {GetHumanFriendlyBytes(UI.MegaCanvas.Pool.UsedMemory)} / {GetHumanFriendlyBytes(UI.MegaCanvas.Pool.TotalMemory)} \n" +
@@ -148,7 +161,6 @@ namespace Olympus {
 #endif
 
             UI.Paint();
-            Scener.Draw();
         }
 
         private static string GetHumanFriendlyBytes(long bytes) {

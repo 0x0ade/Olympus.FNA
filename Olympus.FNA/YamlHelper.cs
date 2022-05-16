@@ -12,7 +12,7 @@ using YamlDotNet.Serialization.ObjectFactories;
 
 namespace Olympus {
     // Based off of CelesteNet's YamlHelper.
-    public static class uiYamlHelper {
+    public static class YamlHelper {
 
         public static readonly IDeserializer Deserializer = new DeserializerBuilder()
             .IgnoreUnmatchedProperties()

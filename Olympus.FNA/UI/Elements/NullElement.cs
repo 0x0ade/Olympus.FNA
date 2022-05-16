@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public sealed class NullElement : Element {
+    public sealed partial class NullElement : Element {
 
     }
 }

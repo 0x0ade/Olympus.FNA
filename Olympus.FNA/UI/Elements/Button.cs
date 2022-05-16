@@ -9,14 +9,14 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class Button : Panel {
+    public partial class Button : Panel {
 
         public static readonly new Style DefaultStyle = new() {
             {
                 "Normal",
                 new Style() {
                     { "Background", new Color(0x30, 0x30, 0x30, 0xff) },
-                    { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
+                    { "Foreground", new Color(0xe8, 0xe8, 0xe8, 0xff) },
                     { "Shadow", 1f },
                 }
             },
@@ -49,6 +49,8 @@ namespace OlympUI {
             },
 
             { "Foreground", new ColorFader() },
+
+            { "Radius", 4f },
         };
 
         public bool Enabled = true;

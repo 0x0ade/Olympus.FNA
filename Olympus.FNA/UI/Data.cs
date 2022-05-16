@@ -24,10 +24,10 @@ namespace OlympUI {
             if (CommonNames.TryGetValue(type, out string? value))
                 return value;
 
-            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<>))
+            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<,>))
                 return GetCommonName(type.GetGenericArguments()[0]);
 
-            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<>))
+            if (type.IsConstructedGenericType && type.GetGenericTypeDefinition() == typeof(Reloadable<,>))
                 return GetCommonName(type.GetGenericArguments()[0]);
 
             return type.Name;
@@ -36,7 +36,7 @@ namespace OlympUI {
         public void Add<T>(T value)
             => Add(GetCommonName(typeof(T)), value);
         public void Add<T>(string key, T? value) {
-            if (value == null)
+            if (value is null)
                 Map.Remove(key);
             else
                 Map[key] = new InnerEntry<T>(value);
@@ -71,7 +71,7 @@ namespace OlympUI {
         }
 
         public void Apply(Data value) {
-            if (value == null) {
+            if (value is null) {
                 Clear();
             } else {
                 foreach (Entry entry in value)

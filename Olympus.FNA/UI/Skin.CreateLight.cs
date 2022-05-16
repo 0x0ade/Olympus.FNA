@@ -84,15 +84,19 @@ namespace OlympUI {
             foreach (Dictionary<string, object> props in skin.Map.Values)
                 Convert(props);
 
-            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies()) {
-                foreach (Type type in asm.GetTypes()) {
-                    if (!typeof(Element).IsAssignableFrom(type) ||
-                        type.GetField("DefaultStyleLight", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is not Style style)
-                        continue;
+            List<MethodInfo> fixups = new();
 
+            foreach (Type type in UIReflection.GetAllTypes(typeof(Element))) {
+                if (type.GetField("DefaultStyleLight", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is Style style)
                     skin.Map[type.Name] = GenerateProps(style, skin.Map[type.Name]);
-                }
+
+                if (type.GetMethod("FixupSkinLight", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly) is MethodInfo fixup)
+                    fixups.Add(fixup);
             }
+
+            object[] fixupArgs = new object[] { skin };
+            foreach (MethodInfo fixup in fixups)
+                fixup.Invoke(null, fixupArgs);
 
             return skin;
         }

@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public sealed class Root : Element {
+    public sealed partial class Root : Element {
 
         public override string? ID => "Root";
 
@@ -41,7 +41,7 @@ namespace OlympUI {
                 if (!hit.Contains(xy))
                     goto Next;
 
-                for (Element? el = hit.Parent; el != null; el = el.Parent)
+                for (Element? el = hit.Parent; el is not null; el = el.Parent)
                     if (el.Clip && !el.Contains(xy))
                         goto Next;
                 return hit;
@@ -153,15 +153,35 @@ namespace OlympUI {
                 rect.Right = rect.Left + size.X;
                 rect.Bottom = rect.Top + size.Y;
 
+                Padding extend = child.ClipExtend;
+                RectLTRB rectExtend = new();
+                rectExtend.Left = rect.Left - extend.Left;
+                rectExtend.Top = rect.Top - extend.Top;
+                rectExtend.Right = rect.Right + extend.Right;
+                rectExtend.Bottom = rect.Bottom + extend.Bottom;
+
                 if (
-                    rect.Right < parentClip.Left || parentClip.Right < rect.Left ||
-                    rect.Bottom < parentClip.Top || parentClip.Bottom < rect.Top
+                    rectExtend.Right < parentClip.Left || parentClip.Right < rectExtend.Left ||
+                    rectExtend.Bottom < parentClip.Top || parentClip.Bottom < rectExtend.Top
                 ) {
+                    // Fully off-screen.
+                    child.InternalSetOnScreenExtended(null);
                     child.InternalSetOnScreen(null);
                     allOffScreen.Add(child);
                     CollectAllOffScreen(all, allOffScreen, child, collection);
 
                 } else {
+                    // Either fully visible, or visible via the extended area.
+                    // Currently anything that needs to differentiate can do so via hit checks with the onscreen rectangle only.
+                    RectLTRB visibleExtend = new();
+                    visibleExtend.Left = Math.Max(parentClip.Left, rectExtend.Left);
+                    visibleExtend.Top = Math.Max(parentClip.Top, rectExtend.Top);
+                    visibleExtend.Right = Math.Min(parentClip.Right, rectExtend.Right);
+                    visibleExtend.Bottom = Math.Min(parentClip.Bottom, rectExtend.Bottom);
+                    child.InternalSetOnScreenExtended(new(
+                        visibleExtend.Left, visibleExtend.Top,
+                        visibleExtend.Right - visibleExtend.Left, visibleExtend.Bottom - visibleExtend.Top
+                    ));
                     RectLTRB visible = new();
                     visible.Left = Math.Max(parentClip.Left, rect.Left);
                     visible.Top = Math.Max(parentClip.Top, rect.Top);
@@ -173,7 +193,7 @@ namespace OlympUI {
                     ));
                     allOnScreen.Add(child);
 
-                    RectLTRB clip = child.Clip ? visible : parentClip;
+                    RectLTRB clip = child.Clip ? visibleExtend : parentClip;
                     
                     switch (interactive ? child.Interactive : InteractiveMode.Discard) {
                         case InteractiveMode.Discard:

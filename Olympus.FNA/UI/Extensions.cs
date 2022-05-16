@@ -47,4 +47,10 @@ namespace OlympUI {
         }
 
     }
+
+    public interface IGenericValueSource {
+
+        T GetValue<T>();
+
+    }
 }

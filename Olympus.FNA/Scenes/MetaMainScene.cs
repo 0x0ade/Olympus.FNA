@@ -13,7 +13,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Olympus {
-    public class MetaMainScene : Scene {
+    public partial class MetaMainScene : Scene {
+
+        public const int SidebarButtonWidth = 72;
 
         public bool Real = true;
 
@@ -45,7 +47,7 @@ namespace Olympus {
                                 },
                                 Layout = {
                                     Layouts.Top(),
-                                    Layouts.Right(),
+                                    Layouts.Right(8),
                                     Layouts.Row(),
                                 },
                                 Children = {
@@ -72,7 +74,7 @@ namespace Olympus {
                         }
                     },
 
-                    new Group() {
+                    new BlurryGroup() {
                         ID = "MainBox",
                         Style = {
                             { "Spacing", 0 },
@@ -84,7 +86,7 @@ namespace Olympus {
                         Children = {
                             new Group() {
                                 ID = "SidebarBox",
-                                W = 88,
+                                W = SidebarButtonWidth + 16,
                                 Layout = {
                                     Layouts.Fill(0, 1),
                                     Layouts.Grow(0, NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? -16 : -8),
@@ -106,8 +108,8 @@ namespace Olympus {
                                             new SidebarPlayButton("play", "Vanilla", _ => { }),
                                             new SidebarNavButton("everest", "Home", Scener.Get<HomeScene>()),
                                             new SidebarNavButton("gamebanana", "Find Mods", Scener.Get<TestScene>()),
-                                            // new SidebarNavButton("loenn", "Lönn", Scener.Get<TestScene>()),
-                                            new SidebarNavButton("ahorn", "Ahorn", new MetaMainScene() { Real = false }),
+                                            new SidebarNavButton("loenn", "Lönn", new MetaMainScene() { Real = false }),
+                                            // new SidebarNavButton("ahorn", "Ahorn", new MetaMainScene() { Real = false }),
                                             new SidebarNavButton("wiki", "Wiki", Scener.Get<TestScene>()),
                                         }
                                     },
@@ -122,14 +124,14 @@ namespace Olympus {
                                             Layouts.Bottom(),
                                         },
                                         Children = {
-                                            new SidebarNavButton("download", "Downloads", Scener.Get<TestScene>()),
+                                            new SidebarDownloadsButton(el => { }),
                                             new SidebarNavButton("cogwheel", "Settings", Scener.Get<ConfigurationScene>()),
                                         }
                                     },
                                 }
                             },
 
-                            new Panel() {
+                            new ContentContainer() {
                                 ID = "ContentBox",
                                 Style = {
                                     { "Padding", 0 },
@@ -151,9 +153,9 @@ namespace Olympus {
                                             Layouts.Row(false),
                                         },
                                         Init = Element.Cast((Group pathBar) => {
-                                            Scener.OnChange += (prev, next) => {
+                                            Scener.SceneChanged += (prev, next) => {
                                                 pathBar.Children.Clear();
-                                                foreach (Scene scene in Scener.Stack) {
+                                                foreach (Scene scene in Scener.Scenes) {
                                                     pathBar.Children.Add(new HeaderBig(scene.Name));
                                                 }
                                             };
@@ -162,17 +164,17 @@ namespace Olympus {
                                     new Group() {
                                         ID = "ContentContainer",
                                         Cached = true,
-                                        CachePadding = new() {
+                                        Clip = true,
+                                        ClipExtend = new() {
                                             Bottom = NativeImpl.Native.Padding.Bottom,
                                         },
-                                        Clip = true,
                                         Layout = {
                                             Layouts.Fill(1, 1, 0, LayoutConsts.Prev),
                                             Layouts.Grow(-8 - NativeImpl.Native.Padding.Right * 2, -8 - NativeImpl.Native.Padding.Bottom),
                                             Layouts.Left(NativeImpl.Native.Padding.Right),
                                         },
                                         Children = {
-                                            Real ? Scener.RootContainer : new Label("recursion"),
+                                            Real ? Scener.SceneContainer : new Label("recursion"),
                                         }
                                     }
                                 }
@@ -182,13 +184,25 @@ namespace Olympus {
                 }
             };
 
-        public class SidebarButton : Button {
+        public partial class ContentContainer : Panel {
+
+            public static readonly new Style DefaultStyle = new() {
+                { "Background", new ColorFader(0x08, 0x08, 0x08, 0xB0) },
+                { "Border", new ColorFader(0x08, 0x08, 0x08, 0x40) },
+                { "BorderSize", 1f },
+                { "Shadow", 0f },
+            };
+
+        }
+
+        public partial class SidebarButton : Button {
 
             public static readonly new Style DefaultStyle = new() {
                 {
                     "Normal",
                     new Style() {
-                        { "Background", new Color(0x00, 0x00, 0x00, 0x50) },
+                        { "Background", new Color(0x00, 0x00, 0x00, 0x00) },
+                        { "Foreground", new Color(0xf0, 0x50, 0x50, 0x50) },
                         { "Shadow", 0f },
                     }
                 },
@@ -197,6 +211,7 @@ namespace Olympus {
                     "Disabled",
                     new Style() {
                         { "Background", new Color(0x70, 0x70, 0x70, 0x70) },
+                        { "Foreground", new Color(0x30, 0x30, 0x30, 0xff) },
                         { "Shadow", 0f },
                     }
                 },
@@ -204,7 +219,8 @@ namespace Olympus {
                 {
                     "Hovered",
                     new Style() {
-                        { "Background", new Color(0x60, 0x60, 0x60, 0x70) },
+                        { "Background", new Color(0x00, 0x00, 0x00, 0x50) },
+                        { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
                         { "Shadow", 0f },
                     }
                 },
@@ -213,6 +229,7 @@ namespace Olympus {
                     "Pressed",
                     new Style() {
                         { "Background", new Color(0x30, 0x30, 0x30, 0x70) },
+                        { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
                         { "Shadow", 0f },
                     }
                 },
@@ -220,14 +237,17 @@ namespace Olympus {
                 { "Padding", 0 },
             };
 
+            public Icon Icon;
+            public Label Label;
+
             public SidebarButton(string icon, string text)
                 : this(OlympUI.Assets.GetTexture($"icons/{icon}"), text) {
             }
 
-            public SidebarButton(Reloadable<Texture2D> icon, string text)
+            public SidebarButton(IReloadable<Texture2D, Texture2DMeta> icon, string text)
                 : base() {
                 X = 8;
-                WH = new(72, 64);
+                WH = new(SidebarButtonWidth, 64);
 
                 Icon iconi = new(icon) {
                     ID = "icon",
@@ -239,20 +259,18 @@ namespace Olympus {
                         Layouts.Top(8),
                     }
                 };
-                Texture2D icont = icon;
+                Texture2DMeta icont = icon.Meta;
                 if (icont.Width > icont.Height) {
                     iconi.AutoW = 32;
                 } else {
                     iconi.AutoH = 32;
                 }
-                Children.Add(iconi);
+                Icon = Add(iconi);
 
-                Children.Add(new Label(text) {
+                Label = Add(new LabelSmall(text) {
                     ID = "label",
-                    Y = 48,
                     Style = {
                         { "Color", Style.GetLink("Foreground") },
-                        OlympUI.Assets.FontSmall,
                     },
                     Layout = {
                         Layouts.Left(0.5f, -0.5f),
@@ -263,14 +281,15 @@ namespace Olympus {
 
         }
 
-        public class SidebarNavButton : SidebarButton {
+        public partial class SidebarNavButton : SidebarButton {
 
             public static readonly new Style DefaultStyle = new() {
                 {
                     "Current",
                     new Style() {
-                        { "Background", new Color(0x00, 0x0a, 0x0d, 0x50) },
-                        { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
+                        { "Background", () => NativeImpl.Native.Accent * 0.2f },
+                        // { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
+                        { "Foreground", () => NativeImpl.Native.Accent },
                         { "Shadow", 0f },
                     }
                 },
@@ -278,7 +297,7 @@ namespace Olympus {
 
             public readonly Scene Scene;
 
-            public bool Current => Scener.Stack.Contains(Scene);
+            public bool Current => Scener.Scenes.Contains(Scene);
 
             public override string StyleState =>
                 Current ? "Current" :
@@ -288,7 +307,7 @@ namespace Olympus {
                 : this(OlympUI.Assets.GetTexture($"icons/{icon}"), text, scene) {
             }
 
-            public SidebarNavButton(Reloadable<Texture2D> icon, string text, Scene scene)
+            public SidebarNavButton(IReloadable<Texture2D, Texture2DMeta> icon, string text, Scene scene)
                 : base(icon, text) {
                 Scene = scene;
                 Add(new SidebarNavButtonIndicator(this) {
@@ -304,7 +323,7 @@ namespace Olympus {
 
         }
 
-        public class SidebarNavButtonIndicator : Element {
+        public partial class SidebarNavButtonIndicator : Element {
 
             public static readonly new Style DefaultStyle = new() {
                 {
@@ -318,7 +337,7 @@ namespace Olympus {
                 {
                     "Active",
                     new Style() {
-                        { new Color(0x00, 0xad, 0xee, 0xff) },
+                        { () => NativeImpl.Native.Accent },
                         { "Scale", 1f },
                     }
                 },
@@ -337,8 +356,8 @@ namespace Olympus {
             public SidebarNavButtonIndicator(SidebarNavButton button) {
                 MSAA = true;
                 Button = button;
-                Mesh = new BasicMesh(Game.GraphicsDevice) {
-                    Texture = OlympUI.Assets.GradientQuad
+                Mesh = new BasicMesh(Game) {
+                    Texture = OlympUI.Assets.GradientQuadY
                 };
             }
 
@@ -358,7 +377,7 @@ namespace Olympus {
                 if (PrevColor != color ||
                     PrevScale != scale ||
                     PrevWH != wh) {
-                    MeshShapes shapes = Mesh.Shapes;
+                    MeshShapes<MiniVertex> shapes = Mesh.Shapes;
                     shapes.Clear();
 
                     if (color != default) {
@@ -372,8 +391,8 @@ namespace Olympus {
 
                     // Fix UVs manually as we're using a gradient texture.
                     for (int i = 0; i < shapes.VerticesMax; i++) {
-                        ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
-                        vertex.TextureCoordinate = new(1f, 1f);
+                        ref MiniVertex vertex = ref shapes.Vertices[i];
+                        vertex.UV = new(1f, 1f);
                     }
 
                     shapes.AutoApply();
@@ -391,7 +410,7 @@ namespace Olympus {
 
         }
 
-        public class SidebarPlayButton : SidebarButton {
+        public partial class SidebarPlayButton : SidebarButton {
 
             public static readonly new Style DefaultStyle = new() {
                 {
@@ -413,7 +432,7 @@ namespace Olympus {
                 {
                     "Hovered",
                     new Style() {
-                        { "Background", new Color(0x50, 0x70, 0x55, 0x70) },
+                        { "Background", new Color(0x40, 0x70, 0x45, 0x70) },
                         { "Shadow", 0f },
                     }
                 },
@@ -421,7 +440,7 @@ namespace Olympus {
                 {
                     "Pressed",
                     new Style() {
-                        { "Background", new Color(0x30, 0x50, 0x35, 0x70) },
+                        { "Background", new Color(0x20, 0x50, 0x25, 0x70) },
                         { "Shadow", 0f },
                     }
                 },
@@ -431,14 +450,36 @@ namespace Olympus {
                 : this(OlympUI.Assets.GetTexture($"icons/{icon}"), text, cb) {
             }
 
-            public SidebarPlayButton(Reloadable<Texture2D> icon, string text, Action<SidebarPlayButton> cb)
+            public SidebarPlayButton(IReloadable<Texture2D, Texture2DMeta> icon, string text, Action<SidebarPlayButton> cb)
                 : base(icon, text) {
                 Callback += b => cb((SidebarPlayButton) b);
             }
 
         }
 
-        public class WindowButton : Button {
+        public partial class SidebarDownloadsButton : SidebarButton {
+
+            public SidebarDownloadsButton(Action<SidebarDownloadsButton> cb)
+                : base(OlympUI.Assets.GetTexture("icons/download"), "") {
+                Callback += b => cb((SidebarDownloadsButton) b);
+                H = 20;
+
+                Icon.Layout.Reset();
+                Icon.AutoH = 16;
+                Icon.XY = new(
+                    W / 2 - Icon.W / 2,
+                    2
+                );
+
+                Label.Layout.Reset();
+                Label.Layout.Add(Layouts.Left(0.5f, -0.5f));
+                Label.Layout.Add(Layouts.Top(2));
+                Label.Layout.Add(Layouts.Move(Icon.W / 2, 0));
+            }
+
+        }
+
+        public partial class WindowButton : Button {
 
             public static readonly new Style DefaultStyle = new() {
                 {
@@ -478,14 +519,14 @@ namespace Olympus {
                 { "Padding", 0 },
             };
 
-            public Func<Reloadable<Texture2D>> IconGen;
+            public Func<IReloadable<Texture2D, Texture2DMeta>> IconGen;
             private Icon Icon;
 
             public WindowButton(string icon)
                 : this(OlympUI.Assets.GetTexture($"icons/{icon}")) {
             }
 
-            public WindowButton(Reloadable<Texture2D> icon)
+            public WindowButton(IReloadable<Texture2D, Texture2DMeta> icon)
                 : this(() => icon) {
             }
 
@@ -493,13 +534,13 @@ namespace Olympus {
                 : this(() => OlympUI.Assets.GetTexture($"icons/{icon()}")) {
             }
 
-            public WindowButton(Func<Reloadable<Texture2D>> iconGen)
+            public WindowButton(Func<IReloadable<Texture2D, Texture2DMeta>> iconGen)
                 : base() {
                 X = 8;
                 WH = new(48, 32);
 
                 IconGen = iconGen;
-                Reloadable<Texture2D> icon = iconGen();
+                IReloadable<Texture2D, Texture2DMeta> icon = iconGen();
 
                 Icon iconi = Icon = new(icon) {
                     ID = "icon",
@@ -511,7 +552,7 @@ namespace Olympus {
                         Layouts.Top(0.5f, -0.5f),
                     }
                 };
-                Texture2D icont = icon;
+                Texture2DMeta icont = icon.Meta;
                 if (icont.Width > icont.Height) {
                     iconi.AutoW = 16;
                 } else {
@@ -521,7 +562,7 @@ namespace Olympus {
             }
 
             public override void Update(float dt) {
-                Reloadable<Texture2D> next = IconGen();
+                IReloadable<Texture2D, Texture2DMeta> next = IconGen();
                 if (next != Icon.Texture) {
                     Icon.Texture = next;
                     Icon.InvalidatePaint();
@@ -532,7 +573,7 @@ namespace Olympus {
 
         }
 
-        public class WindowCloseButton : WindowButton {
+        public partial class WindowCloseButton : WindowButton {
 
             public static readonly new Style DefaultStyle = new() {
                 {
@@ -554,7 +595,7 @@ namespace Olympus {
                 : base(icon) {
             }
 
-            public WindowCloseButton(Reloadable<Texture2D> icon)
+            public WindowCloseButton(IReloadable<Texture2D, Texture2DMeta> icon)
                 : base(icon) {
             }
 
@@ -562,13 +603,11 @@ namespace Olympus {
                 : base(icon) {
             }
 
-            public WindowCloseButton(Func<Reloadable<Texture2D>> iconGen)
+            public WindowCloseButton(Func<IReloadable<Texture2D, Texture2DMeta>> iconGen)
                 : base(iconGen) {
-
             }
 
         }
 
     }
-
 }

@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public sealed class Placeholder : Element {
+    public sealed partial class Placeholder : Element {
 
     }
 }

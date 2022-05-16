@@ -12,9 +12,8 @@ using System.Threading.Tasks;
 namespace OlympUI.MegaCanvas {
     public sealed class CanvasManager : IDisposable {
 
-        public readonly GraphicsDevice Graphics;
-        public readonly Thread MainThread;
-        public bool IsOnMainThread => MainThread == Thread.CurrentThread;
+        public readonly Game Game;
+        public GraphicsDevice GraphicsDevice => Game.GraphicsDevice;
 
         public int MinSize = 8;
         public int MaxSize = 4096;
@@ -32,12 +31,11 @@ namespace OlympUI.MegaCanvas {
 
         private readonly Queue<Action> Queued = new();
 
-        public CanvasManager(GraphicsDevice graphics) {
-            Graphics = graphics;
-            MainThread = Thread.CurrentThread;
-            BlitMesh = new(graphics) {
+        public CanvasManager(Game game) {
+            Game = game;
+            BlitMesh = new(game) {
                 MSAA = false,
-                Texture = new(null, () => BlitTexture),
+                Texture = Reloadable.Temporary(default(Texture2DMeta), () => BlitTexture, false),
                 BlendState = BlendState.Opaque,
             };
             Pool = new(this, false);
@@ -76,11 +74,13 @@ namespace OlympUI.MegaCanvas {
 
         public void Queue(Action a) {
             lock (Queued) {
-                Queued.Append(a);
+                Queued.Enqueue(a);
             }
         }
 
+#pragma warning disable IDE0051 // Only used via #if DEBUG && true / false
         private int _BlitID;
+#pragma warning restore IDE0051
 
         public void Blit(Texture2D from, Rectangle fromBounds, RenderTarget2D to, Rectangle toBounds)
             => Blit(from, fromBounds, to, toBounds, new(1f, 1f, 1f, 1f));
@@ -97,15 +97,16 @@ namespace OlympUI.MegaCanvas {
             }
 #endif
 
-            GraphicsDevice gd = Graphics;
+            GraphicsDevice gd = GraphicsDevice;
             GraphicsStateSnapshot gss = new(gd);
 
             gd.SetRenderTarget(to);
             BasicMesh mesh = BlitMesh;
             BlitTexture = from;
+            mesh.Texture.Meta = new(from, null);
             mesh.Texture.Dispose();
             mesh.Color = color;
-            MeshShapes shapes = mesh.Shapes;
+            MeshShapes<MiniVertex> shapes = mesh.Shapes;
             shapes.Clear();
             shapes.Add(new MeshShapes.Quad() {
                 XY1 = new(toBounds.Left, toBounds.Top),
@@ -138,7 +139,7 @@ namespace OlympUI.MegaCanvas {
 
         public RenderTarget2DRegion? GetPacked(RenderTarget2D old, Rectangle oldBounds) {
             RenderTarget2DRegion? packed = GetPackedRegion(oldBounds);
-            if (packed == null)
+            if (packed is null)
                 return null;
 
             Blit(old, oldBounds, packed.RT, packed.Region);
@@ -150,7 +151,7 @@ namespace OlympUI.MegaCanvas {
 
         public RenderTarget2DRegion? GetPackedAndFree(RenderTarget2DRegion old, Rectangle oldBounds) {
             RenderTarget2DRegion? packed = GetPacked(old.RT, oldBounds);
-            if (packed == null)
+            if (packed is null)
                 return null;
 
             old.Dispose();
@@ -175,9 +176,9 @@ namespace OlympUI.MegaCanvas {
         }
 
         public void Dump(string dir) {
-            GraphicsDevice gd = Graphics;
+            GraphicsDevice gd = GraphicsDevice;
             GraphicsStateSnapshot gss = new(gd);
-            Texture2D white = Assets.White;
+            Texture2D white = Assets.White.Value;
 
             for (int i = Pages.Count - 1; i >= 0; --i) {
                 AtlasPage page = Pages[i];

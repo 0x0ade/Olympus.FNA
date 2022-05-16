@@ -1,10 +1,16 @@
 ﻿using Microsoft.Xna.Framework;
 using Mono.Options;
+using MonoMod.Utils;
+using MonoMod.Utils.Cil;
 using OlympUI;
+using Olympus.NativeImpls;
+using SDL2;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -16,28 +22,41 @@ namespace Olympus {
             CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
             Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
+            try {
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
+            } catch (NotSupportedException) {
+                Console.WriteLine("TLS 1.3 NOT SUPPORTED! CONTINUE AT YOUR OWN RISK!");
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
+            }
 
             // FIXME: For some reason DWM hates FNA3D's D3D11 renderer and misrepresents the backbuffer too often on multi-GPU setups?!
             // FIXME: Default to D3D11, but detect multi-GPU setups and use the non-Intel GPU with OpenGL (otherwise buggy drivers).
-#if WINDOWS
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER"))) {
+            if (PlatformHelper.Is(Platform.Windows) && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER"))) {
                 // Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "Vulkan");
-                Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "OpenGL");
+                // Environment.SetEnvironmentVariable("FNA3D_FORCE_DRIVER", "OpenGL");
                 // Environment.SetEnvironmentVariable("FNA3D_OPENGL_FORCE_COMPATIBILITY_PROFILE", "1");
             }
-#endif
+
+            // Crappy DirectInput drivers can cause Olympus to hang for a minute when starting up.
+            // This has yet to land in upstream SDL2.
+            if (Environment.GetEnvironmentVariable("OLYMPUS_DIRECTINPUT_ENABLED") != "1") {
+                SDL.SDL_SetHint("SDL_DIRECTINPUT_ENABLED", "0");
+            }
 
             bool help = false;
             bool helpExit = false;
-#if WINDOWS && !DEBUG
             bool console = false;
-#endif
             OptionSet options = new() {
-#if WINDOWS && !DEBUG
-                { "console", "Open a debug console.", v => console = v != null },
-#endif
-                { "h|help", "Show this message and exit.", h => help = h != null },
+                { "h|help", "Show this message and exit.", h => help = h is not null },
             };
+
+#if DEBUG
+            console = true;
+#else
+            if (PlatformHelper.Is(Platform.Windows)) {
+                options.Add("console", "Open a debug console.", v => console = v is not null);
+            }
+#endif
 
             List<string> extra;
             try {
@@ -56,17 +75,10 @@ namespace Olympus {
                     return;
             }
 
-#if WINDOWS
-#if DEBUG
-            AllocConsole();
-            Console.SetError(Console.Out);
-#else
-            if (console) {
+            if (PlatformHelper.Is(Platform.Windows) && console) {
                 AllocConsole();
                 Console.SetError(Console.Out);
             }
-#endif
-#endif
 
             External.DllManager.PrepareResolver(typeof(Program).Assembly);
             // External.DllManager.PrepareResolver(typeof(Microsoft.Xna.Framework.Game).Assembly);
@@ -74,13 +86,11 @@ namespace Olympus {
             FNAHooks.Apply();
 
             using App game = new();
-            game.Run();
+            NativeImpl.Native.Run();
         }
 
-#if WINDOWS
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool AllocConsole();
-#endif
 
     }
 }

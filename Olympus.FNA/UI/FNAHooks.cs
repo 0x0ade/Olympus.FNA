@@ -1,4 +1,6 @@
-﻿using FontStashSharp;
+﻿// #define FNAHOOKS_RENDERTARGETDISCARDCLEAR
+
+using FontStashSharp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Mono.Cecil.Cil;
@@ -18,15 +20,21 @@ using static OlympUI.Assets;
 namespace OlympUI {
     public static class FNAHooks {
 
-        public static bool ApplyWindowChangesWithoutCenter;
-        public static bool RenderTargetDiscardClear;
+        public static bool ApplyWindowChangesWithoutRestore = false;
+        public static bool ApplyWindowChangesWithoutResize = false;
+        public static bool ApplyWindowChangesWithoutCenter = false;
+#if FNAHOOKS_RENDERTARGETDISCARDCLEAR
+        public static bool RenderTargetDiscardClear = false;
+#endif
 
         public static string? FNA3DDriver;
         public static string? FNA3DDevice;
 
         private static ILHook? ApplyWindowChangesPatch;
         private static ILHook? DebugFNA3DPatch;
+#if FNAHOOKS_RENDERTARGETDISCARDCLEAR
         private static ILHook? DisableRenderTargetDiscardClearPatch;
+#endif
 
         private static Action<RenderTarget2D, RenderTargetUsage>? _SetRenderTargetUsage;
 
@@ -58,24 +66,31 @@ namespace OlympUI {
                 t_SDL2_FNAPlatform.GetMethod("ApplyWindowChanges"),
                 il => {
                     ILCursor c = new(il);
+                    c.GotoNext(i => i.MatchCall(typeof(SDL), "SDL_RestoreWindow"));
+                    c.Next.Operand = il.Import(t_FNAHooks.GetMethod(nameof(ApplyWindowChangesPatch_RestoreWindow), BindingFlags.NonPublic | BindingFlags.Static));
+                    c.GotoNext(i => i.MatchCall(typeof(SDL), "SDL_SetWindowSize"));
+                    c.Next.Operand = il.Import(t_FNAHooks.GetMethod(nameof(ApplyWindowChangesPatch_SetWindowSize), BindingFlags.NonPublic | BindingFlags.Static));
                     c.GotoNext(i => i.MatchCall(typeof(SDL), "SDL_SetWindowPosition"));
                     c.Next.Operand = il.Import(t_FNAHooks.GetMethod(nameof(ApplyWindowChangesPatch_SetWindowPosition), BindingFlags.NonPublic | BindingFlags.Static));
                 }
             );
 
-            DebugFNA3DPatch = new(
-                typeof(GraphicsDevice).GetConstructor(new Type[] { typeof(GraphicsAdapter), typeof(GraphicsProfile), typeof(PresentationParameters) }),
-                il => {
-                    ILCursor c = new(il);
-                    c.GotoNext(
-                        i => i.MatchLdcI4(0) || i.MatchLdcI4(1),
-                        i => i.MatchCall("Microsoft.Xna.Framework.Graphics.FNA3D", "FNA3D_CreateDevice")
-                    );
-                    c.Next.OpCode = OpCodes.Call;
-                    c.Next.Operand = il.Import(t_FNAHooks.GetMethod(nameof(GraphicsDevice_DebugFNA3D), BindingFlags.NonPublic | BindingFlags.Static));
-                }
-            );
+            string? debugFNA3D = Environment.GetEnvironmentVariable("OLYMPUS_DEBUG_FNA3D");
+            if (debugFNA3D == "0" || debugFNA3D == "1") {
+                DebugFNA3DPatch = new(
+                    typeof(GraphicsDevice).GetConstructor(new Type[] { typeof(GraphicsAdapter), typeof(GraphicsProfile), typeof(PresentationParameters) }),
+                    il => {
+                        ILCursor c = new(il);
+                        c.GotoNext(
+                            i => i.MatchLdcI4(0) || i.MatchLdcI4(1),
+                            i => i.MatchCall("Microsoft.Xna.Framework.Graphics.FNA3D", "FNA3D_CreateDevice")
+                        );
+                        c.Next.OpCode = debugFNA3D == "0" ? OpCodes.Ldc_I4_0 : OpCodes.Ldc_I4_1;
+                    }
+                );
+            }
 
+#if FNAHOOKS_RENDERTARGETDISCARDCLEAR
             DisableRenderTargetDiscardClearPatch = new(
                 typeof(GraphicsDevice).GetMethod(nameof(GraphicsDevice.SetRenderTargets))
                 ?? throw new Exception("FNA without GraphicsDevice.SetRenderTargets?"),
@@ -88,6 +103,7 @@ namespace OlympUI {
                     c.Next.Operand = il.Import(t_FNAHooks.GetMethod(nameof(GraphicsDevice_RenderTargetDiscardClear), BindingFlags.NonPublic | BindingFlags.Static));
                 }
             );
+#endif
 
             FNALoggerEXT.LogInfo += OnLogInfo;
         }
@@ -95,12 +111,25 @@ namespace OlympUI {
         public static void Undo() {
             ApplyWindowChangesPatch?.Dispose();
             DebugFNA3DPatch?.Dispose();
+#if FNAHOOKS_RENDERTARGETDISCARDCLEAR
             DisableRenderTargetDiscardClearPatch?.Dispose();
+#endif
             FNALoggerEXT.LogInfo -= OnLogInfo;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetRenderTargetUsage(this RenderTarget2D self, RenderTargetUsage value) {
-            _SetRenderTargetUsage?.Invoke(self, value);
+            _SetRenderTargetUsage!.Invoke(self, value);
+        }
+
+        private static void ApplyWindowChangesPatch_RestoreWindow(IntPtr window) {
+            if (!ApplyWindowChangesWithoutRestore)
+                SDL.SDL_RestoreWindow(window);
+        }
+
+        private static void ApplyWindowChangesPatch_SetWindowSize(IntPtr window, int width, int height) {
+            if (!ApplyWindowChangesWithoutResize)
+                SDL.SDL_SetWindowSize(window, width, height);
         }
 
         private static void ApplyWindowChangesPatch_SetWindowPosition(IntPtr window, int x, int y) {
@@ -108,18 +137,12 @@ namespace OlympUI {
                 SDL.SDL_SetWindowPosition(window, x, y);
         }
 
-        private static byte GraphicsDevice_DebugFNA3D() {
-#if DEBUG
-            return Environment.GetEnvironmentVariable("OLYMPUS_DEBUG_FNA3D") == "0" ? (byte) 0 : (byte) 1;
-#else
-            return Environment.GetEnvironmentVariable("OLYMPUS_DEBUG_FNA3D") == "1" ? (byte) 1 : (byte) 0;
-#endif
-        }
-
+#if FNAHOOKS_RENDERTARGETDISCARDCLEAR
         private static void GraphicsDevice_RenderTargetDiscardClear(GraphicsDevice gd, ClearOptions options, Vector4 color, float depth, int stencil) {
             if (RenderTargetDiscardClear)
                 gd.Clear(options, color, depth, stencil);
         }
+#endif
 
         private static void OnLogInfo(string line) {
             Console.WriteLine(line);

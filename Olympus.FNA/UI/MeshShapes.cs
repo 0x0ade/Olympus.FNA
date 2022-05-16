@@ -15,20 +15,26 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public sealed unsafe class MeshShapes : IEnumerable {
+    using static MeshShapes;
 
-        public VertexPositionColorTexture[] Vertices = new VertexPositionColorTexture[32];
+    public sealed unsafe class MeshShapes<TVertex> : IEnumerable where TVertex : unmanaged, IVertexType {
+
+        public TVertex[] Vertices = new TVertex[32];
         public int VerticesMax = 0;
         public short[] Indices = new short[128];
         public int IndicesMax = 0;
 
         public Color Color = Color.White;
-        public int AutoPoints = 16;
+        public int AutoPoints = 64;
 
-        public BasicMesh? Mesh;
+        public IVertexMesh<TVertex>? Mesh;
 
-        public static Vector2 GetNormal(Vector2 a, Vector2 b)
-            => Vector2.Normalize(new(b.Y - a.Y, a.X - b.X));
+        private readonly VertexGenerator<TVertex> Gen = VertexGenerator.Get<TVertex>();
+
+        public void Apply(IVertexMesh<TVertex> mesh) {
+            Mesh = mesh;
+            mesh.Apply(Vertices, VerticesMax, Indices, IndicesMax);
+        }
 
         public void Clear() {
             VerticesMax = 0;
@@ -57,7 +63,7 @@ namespace OlympUI {
             }
         }
 
-        public void AddVertex(VertexPositionColorTexture v) {
+        public void AddVertex(TVertex v) {
             GrowVertices(1);
             Vertices[VerticesMax++] = v;
         }
@@ -67,7 +73,7 @@ namespace OlympUI {
             Indices[IndicesMax++] = v;
         }
 
-        public void AddVertices(VertexPositionColorTexture[] arr) {
+        public void AddVertices(TVertex[] arr) {
             GrowVertices(arr.Length);
             Array.Copy(arr, 0, Vertices, VerticesMax, arr.Length);
             VerticesMax += arr.Length;
@@ -79,20 +85,11 @@ namespace OlympUI {
             IndicesMax += arr.Length;
         }
 
-        public void Apply(BasicMesh mesh) {
-            Mesh = mesh;
-            mesh.Vertices = Vertices;
-            mesh.VerticesMax = VerticesMax;
-            mesh.Indices = Indices;
-            mesh.IndicesMax = IndicesMax;
-            mesh.Reload();
-        }
-
-        public MeshShapes Optimize() {
-            VertexPositionColorTexture[] verticesOld = Vertices.ToArray();
+        public MeshShapes<TVertex> Optimize() {
+            TVertex[] verticesOld = Vertices.ToArray();
             int verticesOldMax = VerticesMax;
             VerticesMax = 0;
-            Dictionary<VertexPositionColorTexture, short> verticesMap = new();
+            Dictionary<TVertex, short> verticesMap = new();
 
             short[] indicesOld = Indices.ToArray();
             int indicesOldMax = IndicesMax;
@@ -100,7 +97,7 @@ namespace OlympUI {
             short[] indicesMap = new short[verticesOldMax];
 
             for (int i = 0; i < verticesOldMax; i++) {
-                VertexPositionColorTexture vertex = verticesOld[i];
+                TVertex vertex = verticesOld[i];
                 if (verticesMap.TryGetValue(vertex, out short found)) {
                     indicesMap[i] = found;
                 } else {
@@ -117,7 +114,7 @@ namespace OlympUI {
         }
 
         public void AutoApply() {
-            if (Mesh == null)
+            if (Mesh is null)
                 return;
 
             Mesh.QueueNext(Vertices, VerticesMax, Indices, IndicesMax);
@@ -154,6 +151,7 @@ namespace OlympUI {
 
         public void Add(Poly shape) {
             Prepare(shape.Color, out int index, out int indexIndex, out Color color);
+            VertexGenerator<TVertex> gen = Gen;
 
             if (shape.Width != 0f) {
                 // Luckily lines are somewhat easy to deal with...
@@ -163,10 +161,10 @@ namespace OlympUI {
                 }
 #else
                 GrowVertices(shape.VertexCount);
-                fixed (VertexPositionColorTexture* vertices = &Vertices[index]) {
-                    VertexPositionColorTexture* iV = vertices - 1;
-                    foreach (VertexPositionColorTexture vertex in shape) {
-                        *(++iV) = new(vertex.Position, color, vertex.TextureCoordinate);
+                fixed (TVertex* vertices = &Vertices[index]) {
+                    TVertex* iV = vertices - 1;
+                    foreach (TVertex vertex in shape) {
+                        *(++iV) = gen.Apply(vertex, null, color, null);
                     }
                 }
                 VerticesMax += shape.VertexCount;
@@ -199,41 +197,31 @@ namespace OlympUI {
 
             ContourVertex[] contour = new ContourVertex[shape.XYs.Count];
             int contourIndex = 0;
-            foreach (VertexPositionColorTexture vertex in shape)
+            foreach (TVertex vertex in shape) {
+                Vector3 pos = gen.GetPosition(vertex);
                 contour[contourIndex++] = new() {
-                    Position = new(vertex.Position.X, vertex.Position.Y, vertex.Position.Z),
-                    Data = new VertexPositionColorTexture(vertex.Position, color, vertex.TextureCoordinate)
+                    Position = new(pos.X, pos.Y, pos.Z),
+                    Data = gen.Apply(vertex, null, color, null)
                 };
+            }
 
             tess.AddContour(contour);
 
             tess.Tessellate(combineCallback: (pos, data, weights) => {
-                VertexPositionColorTexture[] input = {
-                    (VertexPositionColorTexture) data[0],
-                    (VertexPositionColorTexture) data[1],
-                    (VertexPositionColorTexture) data[2],
-                    (VertexPositionColorTexture) data[3]
+                Span<TVertex> input = stackalloc TVertex[] {
+                    (TVertex) data[0],
+                    (TVertex) data[1],
+                    (TVertex) data[2],
+                    (TVertex) data[3]
                 };
-                return new VertexPositionColorTexture(
-                    new(pos.X, pos.Y, pos.Z),
-                    new(
-                        (byte) (input[0].Color.R * weights[0] + input[1].Color.R * weights[1] + input[2].Color.R * weights[2] + input[3].Color.R * weights[3]),
-                        (byte) (input[0].Color.G * weights[0] + input[1].Color.G * weights[1] + input[2].Color.G * weights[2] + input[3].Color.G * weights[3]),
-                        (byte) (input[0].Color.B * weights[0] + input[1].Color.B * weights[1] + input[2].Color.B * weights[2] + input[3].Color.B * weights[3]),
-                        (byte) (input[0].Color.A * weights[0] + input[1].Color.A * weights[1] + input[2].Color.A * weights[2] + input[3].Color.A * weights[3])
-                    ),
-                    new(
-                        (byte) (input[0].TextureCoordinate.X * weights[0] + input[1].TextureCoordinate.X * weights[1] + input[2].TextureCoordinate.X * weights[2] + input[3].TextureCoordinate.X * weights[3]),
-                        (byte) (input[0].TextureCoordinate.Y * weights[0] + input[1].TextureCoordinate.Y * weights[1] + input[2].TextureCoordinate.Y * weights[2] + input[3].TextureCoordinate.Y * weights[3])
-                    )
-                );
+                return gen.Interpolate(new(pos.X, pos.Y, pos.Z), input, weights.AsSpan(0, 4));
             });
 
             ContourVertex[] tessVertices = tess.Vertices;
             GrowVertices(tessVertices.Length);
-            fixed (VertexPositionColorTexture* vertices = &Vertices[index]) {
+            fixed (TVertex* vertices = &Vertices[index]) {
                 for (int i = tessVertices.Length - 1; i >= 0; --i)
-                    vertices[i] = (VertexPositionColorTexture) tessVertices[i].Data;
+                    vertices[i] = (TVertex) tessVertices[i].Data;
             }
             VerticesMax += tessVertices.Length;
 
@@ -256,19 +244,20 @@ namespace OlympUI {
 
         public void Add(Quad shape) {
             Prepare(shape.Color, out int index, out int indexIndex, out Color color);
+            VertexGenerator<TVertex> gen = Gen;
 
             GrowVertices(4);
-            fixed (VertexPositionColorTexture* vertices = &Vertices[index]) {
+            fixed (TVertex* vertices = &Vertices[index]) {
                 if (!shape.HasUV) {
-                    vertices[0] = new(new(shape.XY1, 0f), color, new Vector2(0f, 0f));
-                    vertices[1] = new(new(shape.XY2, 0f), color, new Vector2(1f, 0f));
-                    vertices[2] = new(new(shape.XY3, 0f), color, new Vector2(0f, 1f));
-                    vertices[3] = new(new(shape.XY4, 0f), color, new Vector2(1f, 1f));
+                    vertices[0] = gen.New(new(shape.XY1, 0f), color, new Vector2(0f, 0f));
+                    vertices[1] = gen.New(new(shape.XY2, 0f), color, new Vector2(1f, 0f));
+                    vertices[2] = gen.New(new(shape.XY3, 0f), color, new Vector2(0f, 1f));
+                    vertices[3] = gen.New(new(shape.XY4, 0f), color, new Vector2(1f, 1f));
                 } else {
-                    vertices[0] = new(new(shape.XY1, 0f), color, shape.UV1);
-                    vertices[1] = new(new(shape.XY2, 0f), color, shape.UV2);
-                    vertices[2] = new(new(shape.XY3, 0f), color, shape.UV3);
-                    vertices[3] = new(new(shape.XY4, 0f), color, shape.UV4);
+                    vertices[0] = gen.New(new(shape.XY1, 0f), color, shape.UV1);
+                    vertices[1] = gen.New(new(shape.XY2, 0f), color, shape.UV2);
+                    vertices[2] = gen.New(new(shape.XY3, 0f), color, shape.UV3);
+                    vertices[3] = gen.New(new(shape.XY4, 0f), color, shape.UV4);
                 }
             }
             VerticesMax += 4;
@@ -325,40 +314,40 @@ namespace OlympUI {
                 // Top
                 Add(new Quad() {
                     Color = shape.Color,
-                    XY1 = new(min.X,            min.Y),
-                    XY2 = new(max.X,            min.Y),
-                    XY3 = new(min.X,            min.Y + border),
-                    XY4 = new(max.X,            min.Y + border),
+                    XY1 = new(min.X, min.Y),
+                    XY2 = new(max.X, min.Y),
+                    XY3 = new(min.X, min.Y + border),
+                    XY4 = new(max.X, min.Y + border),
                     UVXYMin = uvMin,
                     UVXYMax = uvMax
                 });
                 // Bottom
                 Add(new Quad() {
                     Color = shape.Color,
-                    XY1 = new(min.X,            max.Y - border),
-                    XY2 = new(max.X,            max.Y - border),
-                    XY3 = new(min.X,            max.Y),
-                    XY4 = new(max.X,            max.Y),
+                    XY1 = new(min.X, max.Y - border),
+                    XY2 = new(max.X, max.Y - border),
+                    XY3 = new(min.X, max.Y),
+                    XY4 = new(max.X, max.Y),
                     UVXYMin = uvMin,
                     UVXYMax = uvMax
                 });
                 // Left
                 Add(new Quad() {
                     Color = shape.Color,
-                    XY1 = new(min.X,            min.Y + border),
-                    XY2 = new(min.X + border,   min.Y + border),
-                    XY3 = new(min.X,            max.Y - border),
-                    XY4 = new(min.X + border,   max.Y - border),
+                    XY1 = new(min.X, min.Y + border),
+                    XY2 = new(min.X + border, min.Y + border),
+                    XY3 = new(min.X, max.Y - border),
+                    XY4 = new(min.X + border, max.Y - border),
                     UVXYMin = uvMin,
                     UVXYMax = uvMax
                 });
                 // Right
                 Add(new Quad() {
                     Color = shape.Color,
-                    XY1 = new(max.X - border,   min.Y + border),
-                    XY2 = new(max.X,            min.Y + border),
-                    XY3 = new(max.X - border,   max.Y - border),
-                    XY4 = new(max.X,            max.Y - border),
+                    XY1 = new(max.X - border, min.Y + border),
+                    XY2 = new(max.X, min.Y + border),
+                    XY3 = new(max.X - border, max.Y - border),
+                    XY4 = new(max.X, max.Y - border),
                     UVXYMin = uvMin,
                     UVXYMax = uvMax
                 });
@@ -457,7 +446,7 @@ namespace OlympUI {
             => throw new CompilerSatisfactionException();
 
         public struct Raw {
-            public VertexPositionColorTexture[] Vertices;
+            public TVertex[] Vertices;
             public ushort[] Indices;
         }
 
@@ -466,7 +455,7 @@ namespace OlympUI {
             Extend
         }
 
-        public class Poly : IEnumerable<VertexPositionColorTexture> {
+        public class Poly : IEnumerable<TVertex> {
             public Color Color;
 
             public List<Vector2> XYs = new();
@@ -498,7 +487,9 @@ namespace OlympUI {
             IEnumerator IEnumerable.GetEnumerator()
                 => GetEnumerator();
 
-            public IEnumerator<VertexPositionColorTexture> GetEnumerator() {
+            public IEnumerator<TVertex> GetEnumerator() {
+                VertexGenerator<TVertex> gen = VertexGenerator.Get<TVertex>();
+
                 Color color = Color != default ? Color : Color.White;
                 float width = Width * 0.5f;
 
@@ -523,7 +514,7 @@ namespace OlympUI {
                 if (width == 0f) {
                     for (int i = 0; i < XYs.Count; i++) {
                         Vector2 xy = XYs[i];
-                        yield return new(new(xy, 0f), color, xy * sizeInv - minSizeInv);
+                        yield return gen.New(new(xy, 0f), color, xy * sizeInv - minSizeInv);
                     }
 
                 } else {
@@ -575,8 +566,8 @@ namespace OlympUI {
                     normal = startN;
                     normalW = normal * width;
                     dir = startD;
-                    yield return new(new(startT, 0f), color, startT * sizeInv - minSizeInv);
-                    yield return new(new(startB, 0f), color, startB * sizeInv - minSizeInv);
+                    yield return gen.New(new(startT, 0f), color, startT * sizeInv - minSizeInv);
+                    yield return gen.New(new(startB, 0f), color, startB * sizeInv - minSizeInv);
 
                     for (int i = 1; i < XYs.Count - 1; i++) {
                         xy = XYs[i];
@@ -618,22 +609,29 @@ namespace OlympUI {
                             }
                         }
 
-                        yield return new(new(pT, 0f), color, pT * sizeInv - minSizeInv);
-                        yield return new(new(pB, 0f), color, pB * sizeInv - minSizeInv);
-                        yield return new(new(nT, 0f), color, nT * sizeInv - minSizeInv);
-                        yield return new(new(nB, 0f), color, nB * sizeInv - minSizeInv);
+                        yield return gen.New(new(pT, 0f), color, pT * sizeInv - minSizeInv);
+                        yield return gen.New(new(pB, 0f), color, pB * sizeInv - minSizeInv);
+                        yield return gen.New(new(nT, 0f), color, nT * sizeInv - minSizeInv);
+                        yield return gen.New(new(nB, 0f), color, nB * sizeInv - minSizeInv);
                     }
 
-                    yield return new(new(endT, 0f), color, endT * sizeInv - minSizeInv);
-                    yield return new(new(endB, 0f), color, endB * sizeInv - minSizeInv);
+                    yield return gen.New(new(endT, 0f), color, endT * sizeInv - minSizeInv);
+                    yield return gen.New(new(endB, 0f), color, endB * sizeInv - minSizeInv);
 
                     if (XYs[^1] == XYs[0]) {
-                        yield return new(new(startT, 0f), color, startT * sizeInv - minSizeInv);
-                        yield return new(new(startB, 0f), color, startB * sizeInv - minSizeInv);
+                        yield return gen.New(new(startT, 0f), color, startT * sizeInv - minSizeInv);
+                        yield return gen.New(new(startB, 0f), color, startB * sizeInv - minSizeInv);
                     }
                 }
             }
         }
+
+    }
+
+    public static class MeshShapes {
+
+        public static Vector2 GetNormal(Vector2 a, Vector2 b)
+            => Vector2.Normalize(new(b.Y - a.Y, a.X - b.X));
 
         public struct Quad {
             public Color Color;

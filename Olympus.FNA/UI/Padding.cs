@@ -61,6 +61,8 @@ namespace OlympUI {
             }
         }
 
+        public int Max => Math.Max(Math.Max(Left, Right), Math.Max(Top, Bottom));
+
         public Padding(int ltrb) {
             Left = Top = Right = Bottom = ltrb;
         }
@@ -77,13 +79,30 @@ namespace OlympUI {
             Bottom = b;
         }
 
-        public static implicit operator int(Padding p) => Math.Max(Math.Max(p.Left, p.Right), Math.Max(p.Top, p.Bottom));
+        public static implicit operator int(Padding p) => p.Max;
         public static implicit operator Padding(int p) => new() {
             Left = p,
             Top = p,
             Right = p,
             Bottom = p,
         };
+
+    }
+
+    public class PaddingConverter : Style.IConverter {
+
+        public (Type From, Type To)[] Supported { get; } = {
+            (typeof(Padding), typeof(int)),
+            (typeof(int), typeof(Padding)),
+        };
+
+        public T Convert<T>(object raw) {
+            if (raw is Padding pad && typeof(T) == typeof(int))
+                return (T) (object) pad.Max;
+            if (raw is int ltrb && typeof(T) == typeof(Padding))
+                return (T) (object) new Padding(ltrb);
+            throw new NotSupportedException();
+        }
 
     }
 }

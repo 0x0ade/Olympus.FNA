@@ -26,7 +26,7 @@ namespace OlympUI.MegaCanvas {
 
         public AtlasPage(CanvasManager manager) {
             Manager = manager;
-            Graphics = manager.Graphics;
+            Graphics = manager.GraphicsDevice;
 
             RT = new(Graphics, Manager.PageSize, Manager.PageSize, false, SurfaceFormat.Color, DepthFormat.None, 0, RenderTargetUsage.PreserveContents);
             Spaces.Add(new(0, 0, RT.Width, RT.Height));
@@ -172,7 +172,7 @@ namespace OlympUI.MegaCanvas {
         }
 
         public void Free(RenderTarget2DRegion? rtrg) {
-            if (rtrg == null)
+            if (rtrg is null)
                 return;
             if (rtrg.Page != this)
                 throw new Exception($"Attempting free of atlas region {rtrg.Region} that belongs to another page");

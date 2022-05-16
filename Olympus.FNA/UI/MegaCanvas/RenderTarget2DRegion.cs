@@ -17,6 +17,8 @@ namespace OlympUI.MegaCanvas {
         public readonly RenderTarget2D RT;
         public readonly Rectangle Region;
 
+        public bool IsDisposed { get; private set; }
+
         public RenderTarget2DRegion(CanvasPool pool, RenderTarget2D rt, Rectangle region) {
             Manager = pool.Manager;
             Pool = pool;
@@ -32,23 +34,41 @@ namespace OlympUI.MegaCanvas {
         }
 
         public void Dispose() {
-            if (!Manager.IsOnMainThread) {
+            if (IsDisposed)
+                return;
+            IsDisposed = true;
+
+            if (!UI.IsOnMainThread) {
                 Manager.Queue(() => Dispose());
                 return;
             }
 
-            if (Pool != null) {
+            if (Pool is not null) {
                 Pool.Free(RT);
                 return;
             }
 
-            if (Page != null) {
+            if (Page is not null) {
                 Page.Free(this);
                 return;
             }
 
             RT.Dispose();
         }
+
+    }
+
+    public struct RenderTarget2DRegionMeta : IReloadableMeta<RenderTarget2DRegion> {
+
+        public bool IsValid(RenderTarget2DRegion? value) => value is not null && !value.IsDisposed;
+
+    }
+
+    public static class RenderTarget2DRegionReloadableExtensions {
+
+        public static IReloadable<RenderTarget2D, Texture2DMeta> UnpackRT(this IReloadable<RenderTarget2DRegion, RenderTarget2DRegionMeta> target, bool owns)
+            => new ReloadableLink<RenderTarget2DRegion, RenderTarget2DRegionMeta, RenderTarget2D, Texture2DMeta>(
+                target, _ => new Texture2DMeta(target.Value.RT, null), value => value.RT, owns ? target => target.Dispose() : _ => { });
 
     }
 }

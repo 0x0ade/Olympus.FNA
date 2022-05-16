@@ -12,8 +12,8 @@ namespace OlympUI {
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector2 Intersect(
-            Vector2 v11, Vector2 v12,
-            Vector2 v21, Vector2 v22
+            in Vector2 v11, in Vector2 v12,
+            in Vector2 v21, in Vector2 v22
         ) {
             // Based on https://stackoverflow.com/questions/4543506/algorithm-for-intersection-of-2-lines
             // and https://www.topcoder.com/thrive/articles/Geometry%20Concepts%20part%202:%20%20Line%20Intersection%20and%20its%20Applications
@@ -68,6 +68,17 @@ namespace OlympUI {
             c.A == 255 ?
             $"#{c.R:X2}{c.G:X2}{c.B:X2}" :
             $"#{c.R:X2}{c.G:X2}{c.B:X2}{c.A:X2}";
+
+        public static int NextPoT(this int v) => (int) NextPoT((uint) v);
+        public static uint NextPoT(this uint v) {
+            --v;
+            v |= v >> 1;
+            v |= v >> 2;
+            v |= v >> 4;
+            v |= v >> 8;
+            v |= v >> 16;
+            return ++v;
+        }
 
     }
 }

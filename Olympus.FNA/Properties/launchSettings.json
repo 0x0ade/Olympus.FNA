@@ -2,12 +2,17 @@
   "profiles": {
     "Olympus.FNA": {
       "commandName": "Project",
-      "nativeDebugging": true
+      "nativeDebugging": false
     },
     "WSL": {
       "commandName": "WSL2",
       "environmentVariables": {},
       "distributionName": ""
+    },
+    "Olympus.FNA + SDL": {
+      "commandName": "Project",
+      "hotReloadEnabled": false,
+      "nativeDebugging": true
     }
   }
 }

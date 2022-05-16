@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoMod.Utils;
 using OlympUI;
 using Olympus.NativeImpls;
 using SDL2;
@@ -17,11 +18,17 @@ using System.Threading.Tasks;
 using static Olympus.NativeImpls.NativeImpl;
 
 namespace Olympus {
-    public unsafe class App : Game {
+    public unsafe class App : Game, IReloadableTemporaryContext {
 
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
         public static App Instance;
+        public Web Web;
+        public FinderManager FinderManager;
 #pragma warning restore CS8618
+
+        public Config Config = new();
+
+        public static readonly Version Version = typeof(App).Assembly.GetName().Version ?? new Version(1, 0, 0, 0);
 
         public static readonly object[] EmptyArgs = new object[0];
 
@@ -40,11 +47,6 @@ namespace Olympus {
 
         private Rectangle PrevClientBounds = new();
 
-        private RenderTarget2D? FakeBackbuffer;
-        private Reloadable<Texture2D> FakeBackbufferReloadable;
-        private BasicMesh FakeBackbufferMesh;
-
-
         private uint DrawCount = 0;
 
 
@@ -57,6 +59,7 @@ namespace Olympus {
         public bool ManualUpdate;
         private bool ManuallyUpdated = true;
         public bool ManualUpdateSkip;
+        private int UnresizedManualDrawCount = 0;
 
         private readonly Dictionary<Type, object> ComponentCache = new();
 
@@ -69,7 +72,16 @@ namespace Olympus {
 
         public float BackgroundOpacityTime = 0f;
 
+        // Note: Even though VSync can result in a higher FPS, it can cause Windows to start dropping *displayed* frames...
+#if DEBUG || true
         public bool VSync = false; // FIXME: DON'T SHIP WITH VSYNC OFF!
+#else
+        public bool VSync = true;
+#endif
+
+
+        private HashSet<IReloadable> TemporaryReloadables = new();
+        private HashSet<IReloadable> TemporaryReloadablesDead = new();
 
         
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
@@ -97,12 +109,21 @@ namespace Olympus {
 
             Content.RootDirectory = "Content";
 
-#if WINDOWS
-            Native = new NativeWin32(this);
-#else
-            Native = new NativeNop(this);
-#endif
+            UI.MainThread = Thread.CurrentThread;
 
+            Web = new(this);
+            FinderManager = new(this);
+
+            if (PlatformHelper.Is(Platform.Windows)) {
+#if WINDOWS
+                Native = new NativeWin32(this);
+#else
+                Console.WriteLine("Olympus compiled without Windows dependencies, using NativeNop");
+                Native = new NativeNop(this);
+#endif
+            } else {
+                Native = new NativeNop(this);
+            }
         }
 
 
@@ -116,11 +137,39 @@ namespace Olympus {
         }
 
 
+        public IReloadable<TValue, TMeta> MarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) {
+            lock (TemporaryReloadables) {
+                TemporaryReloadables.Add(reloadable);
+                reloadable.LifeBump();
+                return reloadable;
+            }
+        }
+
+        public IReloadable<TValue, TMeta> UnmarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) {
+            lock (TemporaryReloadables) {
+                TemporaryReloadables.Remove(reloadable);
+                return reloadable;
+            }
+        }
+
+
+        protected override void BeginRun() {
+            Native.PrepareEarly();
+
+            base.BeginRun();
+        }
+
+
         protected override void Initialize() {
+            Config.Load();
+            Config.Save();
+
             Components.Add(new OverlayComponent(this));
-            if (Native.SplashSize != default)
-                Components.Add(new SplashComponent(this));
+            Components.Add(new SplashComponent(this));
             Components.Add(new MainComponent(this));
+            Components.Add(new CodeWarmupComponent(this));
+
+            Get<SplashComponent>().Locks.Add(this);
 
             base.Initialize();
         }
@@ -132,28 +181,6 @@ namespace Olympus {
 
             SpriteBatch?.Dispose();
             SpriteBatch = new SpriteBatch(GraphicsDevice);
-
-            FakeBackbufferReloadable = new(null, () => FakeBackbuffer);
-            FakeBackbufferMesh = new(GraphicsDevice) {
-                Shapes = {
-                    // Will be updated in Draw.
-                    new MeshShapes.Quad() {
-                        XY1 = new(0, 0),
-                        XY2 = new(1, 0),
-                        XY3 = new(0, 1),
-                        XY4 = new(1, 1),
-                        UV1 = new(0, 0),
-                        UV2 = new(1, 0),
-                        UV3 = new(0, 1),
-                        UV4 = new(1, 1),
-                    },
-                },
-                MSAA = false,
-                Texture = FakeBackbufferReloadable,
-                BlendState = BlendState.AlphaBlend,
-                SamplerState = SamplerState.LinearClamp,
-            };
-            FakeBackbufferMesh.Reload();
 
             base.LoadContent();
         }
@@ -179,6 +206,22 @@ namespace Olympus {
             IsFixedTimeStep = !Native.IsActive;
 
             Native.Update((float) gameTime.ElapsedGameTime.TotalSeconds);
+
+            lock (TemporaryReloadables) {
+                if (TemporaryReloadables.Count > 0) {
+                    foreach (IReloadable reloadable in TemporaryReloadables) {
+                        if (!reloadable.LifeTick())
+                            TemporaryReloadablesDead.Add(reloadable);
+                    }
+                    if (TemporaryReloadablesDead.Count > 0) {
+                        foreach (IReloadable reloadable in TemporaryReloadablesDead) {
+                            reloadable.Dispose();
+                            TemporaryReloadables.Remove(reloadable);
+                        }
+                        TemporaryReloadablesDead.Clear();
+                    }
+                }
+            }
 
             base.Update(gameTime);
 
@@ -217,20 +260,29 @@ namespace Olympus {
                 if (PrevClientBounds.Width != clientBounds.Width ||
                     PrevClientBounds.Height != clientBounds.Height
                 ) {
+                    PresentationParameters pp = GraphicsDevice.PresentationParameters;
                     if (!Native.ReduceBackBufferResizes) {
                         WidthOverride = HeightOverride = null;
+#if false
                         m_GameWindow_OnClientSizeChanged.Invoke(Window, EmptyArgs);
+#else
+                        pp.BackBufferWidth = clientBounds.Width;
+                        pp.BackBufferHeight = clientBounds.Height;
+                        GraphicsDevice.Reset(pp);
+#endif
+                        UnresizedManualDrawCount = -1;
                     } else {
                         WidthOverride = clientBounds.Width;
                         HeightOverride = clientBounds.Height;
-                        if (GraphicsDevice.PresentationParameters is PresentationParameters pp && (
+                        if (UnresizedManualDrawCount == -1 ||
                             pp.BackBufferWidth < Width ||
                             pp.BackBufferHeight < Height
-                        )) {
+                        ) {
                             pp.BackBufferWidth = Math.Max(pp.BackBufferWidth, Width + 256);
                             pp.BackBufferHeight = Math.Max(pp.BackBufferHeight, Height + 256);
                             GraphicsDevice.Reset(pp);
                         }
+                        UnresizedManualDrawCount = 0;
                     }
                 }
 
@@ -255,6 +307,16 @@ namespace Olympus {
                     Native.WindowPosition = Native.FixWindowPositionDisplayDrag(pos);
 
                 WidthOverride = HeightOverride = null;
+                UnresizedManualDrawCount = -1;
+
+            } else if (UnresizedManualDrawCount != -1 && UnresizedManualDrawCount++ >= 60) {
+                // After enough time of manually drawing with a missized backbuffer, snap back to sharpness.
+                // Ironically enough WPF seems to do something similar with text when resizing a window, albeit fading, not snapping.
+                UnresizedManualDrawCount = -1;
+                PresentationParameters pp = GraphicsDevice.PresentationParameters;
+                pp.BackBufferWidth = Width;
+                pp.BackBufferHeight = Height;
+                GraphicsDevice.Reset(pp);
             }
 
             if (CountingFramesTime.Ticks >= TimeSpan.TicksPerSecond) {
@@ -276,82 +338,70 @@ namespace Olympus {
                     BackgroundOpacityTime = 1f;
             }
 
-            if (WidthOverride != null || HeightOverride != null) {
-                if (FakeBackbuffer != null && (FakeBackbuffer.Width < Width || FakeBackbuffer.Height < Height)) {
-                    FakeBackbuffer.Dispose();
-                    FakeBackbuffer = null;
-                }
-
-                if (FakeBackbuffer == null || FakeBackbuffer.IsDisposed) {
-                    FakeBackbuffer = new RenderTarget2D(GraphicsDevice, Width, Height, false, SurfaceFormat.Color, DepthFormat.None, UI.MultiSampleCount, RenderTargetUsage.PlatformContents);
-                    FakeBackbufferReloadable.Dispose();
-                }
-
-                GraphicsDevice.SetRenderTarget(FakeBackbuffer);
-                GraphicsDevice.Viewport = new(0, 0, Width, Height);
+            GraphicsDevice.Viewport = new(0, 0, Width, Height);
+            if (Native.CanRenderTransparentBackground) {
                 GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
-                Native.BeginDrawRT(dt);
-
-                // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
-                if (ManualUpdate) {
-                    if (ManualUpdateSkip) {
-                        ManualUpdateSkip = false;
-                    } else {
-                        base.Update(gameTime);
-                    }
-                }
-
-                base.Draw(gameTime);
-                Native.EndDrawRT(dt);
-
-                GraphicsDevice.SetRenderTarget(null);
-                if (Native.CanRenderTransparentBackground) {
-                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
-                } else if (Native.DarkMode) {
-                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
-                } else {
-                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
-                }
-                Native.BeginDrawBB(dt);
-                Viewport viewBB = GraphicsDevice.Viewport;
-                Vector2 viewBBUV = new(Width / (float) FakeBackbuffer.Width, Height / (float) FakeBackbuffer.Height);
-                fixed (VertexPositionColorTexture* vertices = &FakeBackbufferMesh.Vertices[0]) {
-                    vertices[1].Position = new(viewBB.Width, 0, 0);
-                    vertices[1].TextureCoordinate = new(viewBBUV.X, 0);
-                    vertices[2].Position = new(0, viewBB.Height, 0);
-                    vertices[2].TextureCoordinate = new(0, viewBBUV.Y);
-                    vertices[3].Position = new(viewBB.Width, viewBB.Height, 0);
-                    vertices[3].TextureCoordinate = new(viewBBUV.X, viewBBUV.Y);
-                }
-                FakeBackbufferMesh.QueueNext();
-                FakeBackbufferMesh.Draw();
-                Native.EndDrawBB(dt);
-
+            } else if (Native.DarkMode) {
+                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
             } else {
-                GraphicsDevice.Viewport = new(0, 0, Width, Height);
-                if (Native.CanRenderTransparentBackground) {
-                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0f, 0f, 0f, 0f), 0, 0);
-                } else if (Native.DarkMode) {
-                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.1f, 0.1f, 0.1f, 1f), 0, 0);
+                GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
+            }
+            Native.BeginDrawDirect(dt);
+
+            // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
+            if (ManualUpdate) {
+                if (ManualUpdateSkip) {
+                    ManualUpdateSkip = false;
                 } else {
-                    GraphicsDevice.Clear(ClearOptions.Target, new Vector4(0.9f, 0.9f, 0.9f, 1f), 0, 0);
+                    base.Update(gameTime);
                 }
-                Native.BeginDrawDirect(dt);
-
-                // FIXME: This should be in a better spot, but Native can edit Viewport which UI relies on and ugh.
-                if (ManualUpdate) {
-                    if (ManualUpdateSkip) {
-                        ManualUpdateSkip = false;
-                    } else {
-                        base.Update(gameTime);
-                    }
-                }
-
-                base.Draw(gameTime);
-                Native.EndDrawDirect(dt);
             }
 
+            base.Draw(gameTime);
+            Native.EndDrawDirect(dt);
+
             DrawCount++;
+
+            if (DrawCount == 1) {
+                // This needs to happen *after* the first draw, otherwise shader warmup delays the first draw even further.
+                Get<SplashComponent>().Locks.Remove(this);
+                Components.Add(new ShaderWarmupComponent(this));
+            }
+        }
+
+        public void ForceRedraw() {
+            if (DrawCount > 0 && BeginDraw()) {
+                Draw(new GameTime());
+                EndDraw();
+            }
+        }
+
+        protected override void EndDraw() {
+            // FNA calls GraphicsDeviceManager.EndDraw() which calls GraphicsDevice.Present(null, null, NULL)
+            if (WidthOverride is null || HeightOverride is null) {
+                base.EndDraw();
+                return;
+            }
+
+            GraphicsDevice gd = GraphicsDevice;
+            if (FNAHooks.FNA3DDriver?.Equals("opengl", StringComparison.InvariantCultureIgnoreCase) ?? false) {
+                // OpenGL starts bottom left.
+                // In an ideal world FNA3D abstracts this difference away, but I don't have enough time to debug that right now. -ade
+                PresentationParameters pp = gd.PresentationParameters;
+                gd.Present(
+                    new Rectangle(0, pp.BackBufferHeight - Height, Width, pp.BackBufferHeight),
+                    null,
+                    IntPtr.Zero
+                );
+
+            } else {
+                // D3D11 starts top left.
+                gd.Present(
+                    new Rectangle(0, 0, Width, Height),
+                    null,
+                    IntPtr.Zero
+                );
+            }
         }
 
     }

@@ -1,0 +1,63 @@
+﻿using MonoMod.Utils;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Newtonsoft.Json;
+using OlympUI;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Win32;
+using System.Text.RegularExpressions;
+using Microsoft.Data.Sqlite;
+
+namespace Olympus.Finders {
+    public class LutrisDatabaseFinder : Finder {
+
+        public LutrisDatabaseFinder(FinderManager manager)
+            : base(manager) {
+        }
+
+        public string? FindDatabase() {
+            if (PlatformHelper.Is(Platform.Linux)) {
+                return IsFile(Combine(GetEnv("HOME"), ".local", "share", "lutris", "pga.db"));
+            }
+
+            return null;
+        }
+
+        public override async IAsyncEnumerable<Installation> FindCandidates() {
+            string? dbPath = FindDatabase();
+            if (string.IsNullOrEmpty(dbPath))
+                yield break;
+
+            string? path;
+
+            using (SqliteConnection con = new(new SqliteConnectionStringBuilder() {
+                DataSource = dbPath,
+                Mode = SqliteOpenMode.ReadOnly
+            }.ToString())) {
+                await con.OpenAsync();
+
+                using SqliteCommand cmd = con.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT directory FROM games
+                    WHERE name == ""Celeste""
+                ";
+
+                path = await cmd.ExecuteScalarAsync() as string;
+            }
+
+            if (!string.IsNullOrEmpty(path)) {
+                yield return new(FinderTypeDefault, "Lutris (DB)", path);
+                yield break;
+            }
+        }
+
+    }
+}

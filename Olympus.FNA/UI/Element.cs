@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -65,7 +66,15 @@ namespace OlympUI {
 
         public uint Collection;
 
-        internal uint UpdateID;
+        protected uint UpdateID;
+        public bool UpdatePending {
+            get => UpdateID != UI.GlobalUpdateID;
+            set => UpdateID = value ? 0 : UI.GlobalUpdateID;
+        }
+        public bool RevivePending {
+            get => UpdateID != UI.GlobalUpdateID - 1;
+            set => UpdateID = value ? 0 : (UI.GlobalUpdateID - 1);
+        }
 
         protected uint ReflowID;
         protected uint ReflowLoopCycles;
@@ -84,10 +93,12 @@ namespace OlympUI {
             set => RepaintID = value ? 0 : UI.GlobalRepaintID;
         }
 
+        protected uint CachedPaintID;
+
         protected uint ConsecutiveCachedPaints;
         protected uint ConsecutiveUncachedPaints;
 
-        protected RenderTarget2DRegion? CachedTexture;
+        protected IReloadable<RenderTarget2DRegion, RenderTarget2DRegionMeta>? CachedTexture;
 
 
         internal bool Awakened;
@@ -138,7 +149,7 @@ namespace OlympUI {
         public virtual bool? ForceDrawAllChildren { get; protected set; }
 
         public virtual bool? Cached { get; set; } = null;
-        public virtual Padding CachePadding { get; set; } = 16;
+        public virtual Padding ClipExtend { get; set; } = 16;
         public virtual CanvasPool? CachePool { get; set; }
         public virtual bool MSAA { get; set; } = false;
 
@@ -176,7 +187,7 @@ namespace OlympUI {
             get => _Children;
             set {
                 _Children.Clear();
-                if (value == null)
+                if (value is null)
                     return;
                 foreach (Element child in value)
                     _Children.Add(child);
@@ -190,7 +201,7 @@ namespace OlympUI {
                 StringBuilder sb = new();
                 sb.Append(ID);
 
-                for (Element? el = Parent; el != null; el = el.Parent) {
+                for (Element? el = Parent; el is not null; el = el.Parent) {
                     sb.Insert(0, ".");
                     sb.Insert(0, el.ID);
                 }
@@ -202,7 +213,7 @@ namespace OlympUI {
 
         public bool IsRooted {
             get {
-                for (Element? el = this; el != null; el = el.Parent)
+                for (Element? el = this; el is not null; el = el.Parent)
                     if (el == UI.Root)
                         return true;
                 return false;
@@ -212,8 +223,8 @@ namespace OlympUI {
         public Element this[int i] => Children[i];
         public Element this[string id] => GetChild(id) ?? throw new Exception($"Element \"{Path}\" doesn't contain any child with ID \"{id}\"");
 
-        public bool Is<T>() where T : Element => As<T>() != null;
-        public virtual T? As<T>() where T : Element => this as T;
+        public bool Is<T>() where T : Element => As<T>() is not null;
+        public T? As<T>() where T : Element => this as T;
 
         #endregion
 
@@ -225,7 +236,7 @@ namespace OlympUI {
         /// <summary>
         /// Actual position inside of parent.
         /// </summary>
-        public virtual Vector2 RealXY {
+        public Vector2 RealXY {
             get => _RealXY ?? XY;
             set => _RealXY = value;
         }
@@ -237,7 +248,7 @@ namespace OlympUI {
             get => RealXY.Y;
             set => RealXY = new(RealXY.X, value);
         }
-        public virtual void ResetRealXY() => _RealXY = null;
+        public void ResetRealXY() => _RealXY = null;
 
         public Rectangle RealXYWH {
             get {
@@ -247,14 +258,28 @@ namespace OlympUI {
             }
         }
 
-        public virtual Vector2 ScreenXY {
+        protected Vector2? PaintingScreenXY;
+        public Vector2 ScreenXY {
             get {
-                Vector2 xy = new(0, 0);
-                for (Element? el = this; el != null; el = el.Parent)
+                if (PaintingScreenXY is Vector2 cached)
+                    return cached;
+
+                Vector2 xy = RealXY;
+                for (Element? el = Parent; el is not null; el = el.Parent) {
+                    if (el.PaintingScreenXY is Vector2 offs) {
+                        xy += offs;
+                        break;
+                    }
                     xy += el.RealXY;
+                }
+
                 return xy;
             }
-            set => RealXY = XY = value - ScreenXY;
+            set {
+                RealXY = XY = value - ScreenXY;
+                if (PaintingScreenXY is not null)
+                    PaintingScreenXY = value;
+            }
         }
 
         public virtual Padding Padding => new();
@@ -287,8 +312,11 @@ namespace OlympUI {
         public bool Focused => Owns(UI.Focusing);
 
         public Rectangle? OnScreen { get; protected set; }
+        public Rectangle? OnScreenExtended { get; protected set; }
         internal void InternalSetOnScreen(Rectangle? value) => OnScreen = value;
+        internal void InternalSetOnScreenExtended(Rectangle? value) => OnScreenExtended = value;
         public bool Contains(Point xy) => OnScreen?.Contains(xy) ?? false;
+        public bool ContainsExtended(Point xy) => OnScreenExtended?.Contains(xy) ?? false;
 
         #endregion
 
@@ -306,6 +334,8 @@ namespace OlympUI {
             Siblings = new(this);
 
             Children.CollectionChanged += OnCollectionChanged;
+
+            SetupStyleEntries();
         }
 
         ~Element() {
@@ -326,13 +356,44 @@ namespace OlympUI {
             GC.SuppressFinalize(this);
         }
 
+        protected virtual void SetupStyleEntries() {
+        }
+
         #region Recursion
 
-        public void Add(Element child)
-            => Children.Add(child);
+        public Element Add(Element child) {
+            Children.Add(child);
+            return child;
+        }
+
+        public T Add<T>(T child) where T : Element {
+            Children.Add(child);
+            return child;
+        }
+
+        public bool Remove(Element child) {
+            return Children.Remove(child);
+        }
+
+        public bool Remove<T>(T child) where T : Element {
+            return Children.Remove(child);
+        }
+
+        public bool RemoveSelf() {
+            return Parent?.Remove(this) ?? false;
+        }
 
         public void Clear()
             => Children.Clear();
+
+        public void DisposeChildren() {
+            foreach (Element child in Children) {
+                child.DisposeChildren();
+                child.Dispose();
+            }
+
+            Children.Clear();
+        }
 
         IEnumerator IEnumerable.GetEnumerator()
             => GetEnumerator();
@@ -340,9 +401,9 @@ namespace OlympUI {
             => Children.GetEnumerator();
 
         public bool Owns(Element? other) {
-            if (other == null)
+            if (other is null)
                 return false;
-            for (Element? el = other; el != null; el = el.Parent)
+            for (Element? el = other; el is not null; el = el.Parent)
                 if (el == this)
                     return true;
             return false;
@@ -356,10 +417,10 @@ namespace OlympUI {
 
         public T? ForEach<T>(Func<Element, T?> cb) where T : class {
             T? rv;
-            if ((rv = cb(this)) != null)
+            if ((rv = cb(this)) is not null)
                 return rv;
             foreach (Element child in Children)
-                if ((rv = child.ForEach(cb)) != null)
+                if ((rv = child.ForEach(cb)) is not null)
                     return rv;
             return null;
         }
@@ -405,7 +466,7 @@ namespace OlympUI {
         }
 
         public virtual void InvalidateFull() {
-            for (Element? el = this; el != null; el = el.Parent) {
+            for (Element? el = this; el is not null; el = el.Parent) {
                 el.Reflowing = true;
                 el.Repainting = true;
             }
@@ -420,7 +481,7 @@ namespace OlympUI {
         }
 
         public virtual void InvalidatePaint() {
-            for (Element? el = this; el != null; el = el.Parent) {
+            for (Element? el = this; el is not null; el = el.Parent) {
                 el.Repainting = true;
             }
         }
@@ -433,7 +494,7 @@ namespace OlympUI {
         }
 
         public virtual void InvalidateCachedTexture() {
-            for (Element? el = this; el != null; el = el.Parent) {
+            for (Element? el = this; el is not null; el = el.Parent) {
                 el.CachedTexture?.Dispose();
                 el.CachedTexture = null;
             }
@@ -455,12 +516,15 @@ namespace OlympUI {
         public virtual void Awake() {
         }
 
+        public virtual void Revive() {
+            Style.Revive();
+        }
+
         public virtual void Update(float dt) {
             Style.Update(dt);
         }
 
         public virtual void UpdateHidden(float dt) {
-            UpdateHiddenTime += dt;
         }
 
         public virtual void DrawContent() {
@@ -470,7 +534,7 @@ namespace OlympUI {
                 }
             } else {
                 foreach (Element el in Children) {
-                    if (el.Visible && el.OnScreen != null) {
+                    if (el.Visible && el.OnScreen is not null) {
                         el.Paint();
                     }
                 }
@@ -488,10 +552,14 @@ namespace OlympUI {
             if (!Visible)
                 return;
 
+            PaintingScreenXY = ScreenXY;
+
             PaintContent();
             if (UI.GlobalDrawDebug) {
                 DrawDebug();
             }
+
+            PaintingScreenXY = null;
         }
 
         protected virtual void DrawDebug() {
@@ -501,14 +569,21 @@ namespace OlympUI {
             c.A = 0xff;
             UI.SpriteBatch.DrawDebugRect(c, xywh);
             if ((Cached ?? true) && ConsecutiveCachedPaints <= 2) {
-                UI.SpriteBatch.DrawDebugRect(Cached == null ? Color.Green : ConsecutiveUncachedPaints <= 2 ? Color.Yellow : Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2));
+                UI.SpriteBatch.DrawDebugRect(Cached is null ? Color.Green : ConsecutiveUncachedPaints <= 2 ? Color.Yellow : Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2));
             }
         }
 
         protected virtual void PaintContent() {
-            if (Cached == false /* and not null */ || UI.ForceDisableCache) {
+            Point wh = WH;
+            Padding padding = ClipExtend;
+            Point whTexture = new(wh.X + padding.W, wh.Y + padding.H);
+            bool? cached = Cached;
+            RenderTarget2DRegion? cachedTexture = CachedTexture?.ValueValid;
+
+            if (cached == false /* and not null */ || UI.ForceDisableCache) {
                 CachedTexture?.Dispose();
                 CachedTexture = null;
+                cachedTexture = null;
                 DrawContent();
                 return;
             }
@@ -521,7 +596,7 @@ namespace OlympUI {
                 ConsecutiveUncachedPaints = 0;
                 if (ConsecutiveCachedPaints < 16) {
                     ConsecutiveCachedPaints++;
-                    if (ConsecutiveCachedPaints < 8 && Cached == null && !MSAA) {
+                    if (ConsecutiveCachedPaints < 8 && cached is null && !MSAA && !Clip) {
                         DrawContent();
                         return;
                     }
@@ -535,71 +610,78 @@ namespace OlympUI {
                 if (ConsecutiveUncachedPaints < 16) {
                     ConsecutiveUncachedPaints++;
 
-                } else if (Cached == null && !MSAA) {
+                } else if (cached is null && !MSAA && !Clip) {
                     CachedTexture?.Dispose();
                     CachedTexture = null;
+                    cachedTexture = null;
                     DrawContent();
                     return;
                 }
             }
 
-            GraphicsDevice gd = Game.GraphicsDevice;
-            Vector2 xy = ScreenXY;
-            Point wh = WH;
-            Padding padding = CachePadding;
-            Point whTexture = new(wh.X + padding.W, wh.Y + padding.H);
-
-            if (CachedTexture != null && (CachedTexture.RT.IsDisposed || CachedTexture.RT.Width < whTexture.X || CachedTexture.RT.Height < whTexture.Y)) {
+            if (cachedTexture is not null && (cachedTexture.RT.IsDisposed || cachedTexture.RT.Width < whTexture.X || cachedTexture.RT.Height < whTexture.Y)) {
                 CachedTexture?.Dispose();
                 CachedTexture = null;
+                cachedTexture = null;
             }
 
-            if ((repainting || UI.GlobalDrawDebug) && CachedTexture != null && CachedTexture.Page != null) {
+            if ((repainting || UI.GlobalDrawDebug) && cachedTexture is not null && cachedTexture.Page is not null) {
                 CachedTexture?.Dispose();
                 CachedTexture = null;
+                cachedTexture = null;
             }
 
-            if (CachedTexture == null) {
-                CachedTexture = (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whTexture.X, whTexture.Y);
+            if (cachedTexture is null) {
+                CachedTexture?.Dispose();
+                CachedTexture = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whTexture.X, whTexture.Y), true);
+                cachedTexture = CachedTexture.Value;
                 repainting = true;
             }
 
-            if (CachedTexture == null) {
+            if (cachedTexture is null) {
                 DrawContent();
                 return;
             }
 
+            Vector2 xy = ScreenXY;
+            GraphicsDevice gd = Game.GraphicsDevice;
+            SpriteBatch spriteBatch = SpriteBatch;
             if (repainting || UI.GlobalDrawDebug) {
-                SpriteBatch.End();
+                CachedPaintID++;
+                spriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
-                CachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                gd.SetRenderTarget(CachedTexture.RT);
+                cachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
+                gd.SetRenderTarget(cachedTexture.RT);
                 gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
-                CachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
+                cachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
                 Vector2 offsPrev = UI.TransformOffset;
                 UI.TransformOffset = -xy + new Vector2(padding.Left, padding.Top);
-                SpriteBatch.BeginUI();
+                spriteBatch.BeginUI();
 
                 DrawContent();
 
-                SpriteBatch.End();
+                spriteBatch.End();
                 gss.Apply();
                 UI.TransformOffset = offsPrev;
-                SpriteBatch.BeginUI();
+                spriteBatch.BeginUI();
 
-            } else if (!repainting && pack && CachedTexture.Page == null) {
-                RenderTarget2DRegion? packed = UI.MegaCanvas.GetPackedAndFree(CachedTexture, new(0, 0, whTexture.X, whTexture.Y));
-                if (packed != null) {
-                    CachedTexture = packed;
+            } else if (!repainting && pack && cachedTexture.Page is null) {
+                RenderTarget2DRegion? packed = UI.MegaCanvas.GetPackedAndFree(cachedTexture, new(0, 0, whTexture.X, whTexture.Y));
+                if (packed is not null) {
+                    CachedTexture = new Reloadable<RenderTarget2DRegion, RenderTarget2DRegionMeta>(null, default, () => packed, _ => {
+                        packed?.Dispose();
+                        packed = null;
+                    });
+                    cachedTexture = CachedTexture.Value;
                     InvalidateCachedTextureDown();
                 }
             }
 
-            DrawCachedTexture(CachedTexture.RT, xy, padding, new(CachedTexture.Region.X, CachedTexture.Region.Y, whTexture.X, whTexture.Y));
+            DrawCachedTexture(spriteBatch, cachedTexture.RT, xy, padding, new(cachedTexture.Region.X, cachedTexture.Region.Y, whTexture.X, whTexture.Y));
         }
 
-        protected virtual void DrawCachedTexture(RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {
-            SpriteBatch.Draw(
+        protected virtual void DrawCachedTexture(SpriteBatch spriteBatch, RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {
+            spriteBatch.Draw(
                 rt,
                 new Rectangle(
                     (int) xy.X - padding.Left,
@@ -618,14 +700,20 @@ namespace OlympUI {
         #region Finders
 
         public Element? GetParent(string id) {
-            for (Element? el = Parent; el != null; el = el.Parent)
+            for (Element? el = Parent; el is not null; el = el.Parent)
                 if (el.ID == id)
                     return el;
             return null;
         }
 
+        public Element GetParent() {
+            if (Parent is not null)
+                return Parent;
+            throw new Exception($"Failed to get parent in hierarchy {Path}");
+        }
+
         public T GetParent<T>() where T : Element {
-            for (Element? el = Parent; el != null; el = el.Parent)
+            for (Element? el = Parent; el is not null; el = el.Parent)
                 if (el is T found)
                     return found;
             throw new Exception($"Failed to get parent of type {typeof(T)} in hierarchy {Path}");
@@ -645,6 +733,13 @@ namespace OlympUI {
             throw new Exception($"Failed to get child of type {typeof(T)} in hierarchy {Path}");
         }
 
+        public T GetChild<T>(string id) where T : Element {
+            foreach (Element el in Children)
+                if (el is T found && found.ID == id)
+                    return found;
+            throw new Exception($"Failed to get child of with ID \"{id}\" type {typeof(T).Name} in hierarchy {Path}");
+        }
+
         public Element? FindChild(string id) {
             foreach (Element el in Children)
                 if (el.ID == id)
@@ -655,14 +750,24 @@ namespace OlympUI {
             return null;
         }
 
-        public Element? FindChild<T>() where T : Element {
+        public T? FindChild<T>() where T : Element {
             foreach (Element el in Children)
                 if (el is T found)
                     return found;
             foreach (Element el in Children)
                 if (el.FindChild<T>() is Element found)
-                    return found;
+                    return (T) found;
             return null;
+        }
+
+        public T FindChild<T>(string? id) where T : Element {
+            foreach (Element el in Children)
+                if (el is T found && (string.IsNullOrEmpty(id) || el.ID == id))
+                    return found;
+            foreach (Element el in Children)
+                if (el.FindChild<T>(id) is Element found)
+                    return (T) found;
+            throw new Exception($"Element \"{Path}\" doesn't contain any child (or subchild) with ID \"{id}\" type {typeof(T).Name}");
         }
 
         public Element? Hit(int mx, int my) {
@@ -704,7 +809,7 @@ namespace OlympUI {
         }
 
         public T InvokeUp<T>(T e) where T : Event {
-            for (Element? el = this; el != null; el = el.Parent) {
+            for (Element? el = this; el is not null; el = el.Parent) {
                 el.Invoke(e);
                 if (e.Status == EventStatus.Cancelled)
                     return e;

@@ -11,7 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class ScrollBox : Group {
+    public partial class ScrollBox : Group {
 
         public static readonly new Style DefaultStyle = new() {
             { "BarPadding", 4 }
@@ -37,6 +37,7 @@ namespace OlympUI {
 
         public ScrollBox() {
             Cached = false;
+            ClipExtend = 0;
             Interactive = InteractiveMode.Process;
             Content = new Dummy();
             ScrollHandleX = new(ScrollAxis.X);
@@ -93,12 +94,19 @@ namespace OlympUI {
 
         public void AfterScroll() {
             InvalidateFull();
+#if false
+            // Can fail as it gets stuck in a loop. Doesn't seem to be necessary anymore anyways.
             Content.InvalidatePaint();
             Content.ForceFullReflow();
             ScrollHandleX.InvalidatePaint();
             ScrollHandleX.ForceFullReflow();
             ScrollHandleY.InvalidatePaint();
             ScrollHandleY.ForceFullReflow();
+#else
+            Content.InvalidateFull();
+            ScrollHandleX.InvalidateFull();
+            ScrollHandleY.InvalidateFull();
+#endif
         }
 
         public void ForceScroll(Point dxy) {
@@ -163,7 +171,7 @@ namespace OlympUI {
         Y,
     }
 
-    public class ScrollHandle : Element {
+    public partial class ScrollHandle : Element {
 
         public static readonly new Style DefaultStyle = new() {
             {
@@ -222,8 +230,8 @@ namespace OlympUI {
         public ScrollHandle(ScrollAxis axis) {
             MSAA = true;
             Interactive = InteractiveMode.Process;
-            Mesh = new BasicMesh(Game.GraphicsDevice) {
-                Texture = Assets.GradientQuad
+            Mesh = new BasicMesh(Game) {
+                Texture = Assets.GradientQuadY
             };
 
             Axis = axis;
@@ -281,7 +289,7 @@ namespace OlympUI {
                 PrevRadius = radius;
                 PrevWH = wh;
 
-                MeshShapes shapes = Mesh.Shapes;
+                MeshShapes<MiniVertex> shapes = Mesh.Shapes;
                 shapes.Clear();
 
                 if (color != default) {
@@ -294,8 +302,8 @@ namespace OlympUI {
 
                 // Fix UVs manually as we're using a gradient texture.
                 for (int i = 0; i < shapes.VerticesMax; i++) {
-                    ref VertexPositionColorTexture vertex = ref shapes.Vertices[i];
-                    vertex.TextureCoordinate = new(1f, 1f);
+                    ref MiniVertex vertex = ref shapes.Vertices[i];
+                    vertex.UV = new(1f, 1f);
                 }
 
                 shapes.AutoApply();
@@ -309,7 +317,7 @@ namespace OlympUI {
 
         // Mostly ported from the Lua counterpart as-is.
 
-        #region X axis scroll layout
+#region X axis scroll layout
 
         private void AxisX_LayoutReset(LayoutEvent e) {
             Style.GetReal(out int widthMax);
@@ -367,9 +375,9 @@ namespace OlympUI {
             box.ForceScroll(new(e.DXY.X * box.Content.WH.X / box.WH.X, 0));
         }
 
-        #endregion
+#endregion
 
-        #region Y axis scroll layout
+#region Y axis scroll layout
 
         private void AxisY_LayoutReset(LayoutEvent e) {
             Style.GetReal(out int widthMax);
@@ -427,7 +435,7 @@ namespace OlympUI {
             box.ForceScroll(new(0, e.DXY.Y * box.Content.WH.Y / box.WH.Y));
         }
 
-        #endregion
+#endregion
 
     }
 }

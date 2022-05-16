@@ -33,6 +33,10 @@ namespace OlympUI {
 
         public static Skin? Current;
 
+        static Skin() {
+            // beforefieldinit
+        }
+
         public static void Serialize(TextWriter writer, Skin skin) {
             Serializer.Serialize(writer, skin);
         }
@@ -66,13 +70,13 @@ namespace OlympUI {
                     props[kvp.Key] = value = dict;
                 }
 
-                if ((dict = value as Dictionary<string, object>) != null) {
+                if ((dict = value as Dictionary<string, object>) is not null) {
                     Fixup(dict);
                     if (dict.TryGetValue("Fade", out object? fadeRaw) && fadeRaw is float fade) {
                         FaderStub fader = new() {
                             Fade = fade,
                         };
-                        if (dict.TryGetValue("Value", out object? fadeValue) && fadeValue != null &&
+                        if (dict.TryGetValue("Value", out object? fadeValue) && fadeValue is not null &&
                             !(fadeValue is string fadeText && string.IsNullOrEmpty(fadeText))) {
                             fader.Value = fadeValue;
                         }
@@ -85,14 +89,11 @@ namespace OlympUI {
         public static Skin CreateDump() {
             Skin skin = new();
 
-            foreach (Assembly asm in AppDomain.CurrentDomain.GetAssemblies()) {
-                foreach (Type type in asm.GetTypes()) {
-                    if (!typeof(Element).IsAssignableFrom(type) ||
-                        type.GetField("DefaultStyle", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is not Style style)
-                        continue;
+            foreach (Type type in UIReflection.GetAllTypes(typeof(Element))) {
+                if (type.GetField("DefaultStyle", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) is not Style style)
+                    continue;
 
-                    skin.Map[type.Name] = GenerateProps(style, new());
-                }
+                skin.Map[type.Name] = GenerateProps(style, new());
             }
 
             return skin;
@@ -108,6 +109,7 @@ namespace OlympUI {
 
                 } else if (raw is IFader fader) {
                     raw = new FaderStub() {
+                        Type = fader.GetSerializedType(),
                         Fade = fader.GetSerializedDuration(),
                         Value = fader.GetSerializedValue()
                     };
@@ -152,8 +154,19 @@ namespace OlympUI {
 
         public class FaderStub {
 
+            public Type? Type { get; set; }
             public float Fade { get; set; } = 0.15f;
             public object? Value { get; set; }
+
+            public override bool Equals(object? obj) {
+                if (obj is not FaderStub other)
+                    return false;
+                return Type == other.Type && Fade == other.Fade && Value == other.Value;
+            }
+
+            public override int GetHashCode() {
+                return HashCode.Combine(Type, Fade, Value);
+            }
 
         }
 

@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class Dummy : Element {
+    public partial class Dummy : Element {
 
     }
 }

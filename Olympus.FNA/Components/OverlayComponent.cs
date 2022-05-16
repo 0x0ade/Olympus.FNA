@@ -17,7 +17,8 @@ namespace Olympus {
 
         public float Time = 0f;
 
-        public BasicMesh? Mesh;
+        private Reloadable<Texture2D, Texture2DMeta>? Overlay;
+        private BasicMesh? Mesh;
 
         public OverlayComponent(App app)
             : base(app) {
@@ -25,8 +26,17 @@ namespace Olympus {
             DrawOrder = 1000000;
         }
 
+        public override void Initialize() {
+            base.Initialize();
+
+            Overlay = OlympUI.Assets.GetTexturePremulUnmipped("overlay");
+        }
+
         protected override void LoadContent() {
-            Mesh = new(GraphicsDevice) {
+            if (Overlay is null)
+                return;
+
+            Mesh = new(Game) {
                 Shapes = {
                     // Will be updated in Draw.
                     new MeshShapes.Quad() {
@@ -41,7 +51,7 @@ namespace Olympus {
                     },
                 },
                 MSAA = false,
-                Texture = Assets.Overlay,
+                Texture = Overlay,
                 BlendState = BlendState.Additive,
                 SamplerState = SamplerState.LinearWrap,
             };
@@ -51,7 +61,7 @@ namespace Olympus {
         }
 
         public override void Draw(GameTime gameTime) {
-            if (Mesh == null)
+            if (Mesh is null)
                 return;
 
             float dt = gameTime.GetDeltaTime();
@@ -72,42 +82,46 @@ namespace Olympus {
 
             DisplayMode dm = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
 
-            Texture2D overlay = Assets.Overlay.Value;
-            float scale = Math.Max(
-                Math.Max(dm.Width * 0.75f / overlay.Width, dm.Height * 0.75f / overlay.Height),
-                Math.Max((float) App.Width / overlay.Width, (float) App.Height / overlay.Height)
-            ) * 1.4f;
-            int width = (int) (overlay.Width * scale);
-            int height = (int) (overlay.Height * scale);
+            Texture2D overlay = Mesh.Texture.Value;
+            float scale = Math.Max(dm.Width / overlay.Width, dm.Height / overlay.Height) * 1.5f;
+            float width = App.Width * scale;
+            float height = App.Height * scale;
 
-            float offs = App.Time * 0.001f % 1f;
-            int x = (int) (width * offs) + (App.Window.ClientBounds.X % width);
-            int y = (int) (height * offs) + (App.Window.ClientBounds.Y % height);
-            Vector2 uvTL = new(x / (float) overlay.Width, y / (float) overlay.Height);
-            Vector2 uvBR = new((x + width) / (float) overlay.Width, (y + height) / (float) overlay.Height);
+            float x = App.Window.ClientBounds.X;
+            float y = App.Window.ClientBounds.Y;
+            Vector2 uvTL = new(x / overlay.Width, y / overlay.Height);
+            Vector2 uvBR = new((x + width) / overlay.Width, (y + height) / overlay.Height);
 
             Mesh.Color = tint;
-            fixed (VertexPositionColorTexture* vertices = &Mesh.Vertices[0]) {
-                vertices[0].TextureCoordinate = new(uvTL.X, uvTL.Y);
-                vertices[1].Position = new(App.Width, 0, 0);
-                vertices[1].TextureCoordinate = new(uvBR.X, uvTL.Y);
-                vertices[2].Position = new(0, App.Height, 0);
-                vertices[2].TextureCoordinate = new(uvTL.X, uvBR.Y);
-                vertices[3].Position = new(App.Width, App.Height, 0);
-                vertices[3].TextureCoordinate = new(uvBR.X, uvBR.Y);
+            fixed (MiniVertex* vertices = &Mesh.Vertices[0]) {
+                vertices[0].UV = new(uvTL.X, uvTL.Y);
+                vertices[1].XY = new(App.Width, 0);
+                vertices[1].UV = new(uvBR.X, uvTL.Y);
+                vertices[2].XY = new(0, App.Height);
+                vertices[2].UV = new(uvTL.X, uvBR.Y);
+                vertices[3].XY = new(App.Width, App.Height);
+                vertices[3].UV = new(uvBR.X, uvBR.Y);
             }
             Mesh.QueueNext();
             Mesh.Draw();
 
 #if false
-            SpriteBatch.Begin();
-            SpriteBatch.Draw(
-                OlympUI.Assets.White,
-                new Vector2(100f, 300f),
+            SpriteBatch.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                SamplerState.LinearClamp,
+                DepthStencilState.None,
+                RasterizerState.CullCounterClockwise,
                 null,
-                Color.Black,
-                0f, Vector2.Zero,
+                Matrix.Identity
+            );
+            SpriteBatch.Draw(
+                OlympUI.Assets.Test,
                 new Vector2(100f, 100f),
+                null,
+                Color.White,
+                0f, Vector2.Zero,
+                new Vector2(1f, 1f),
                 SpriteEffects.None, 0f
             );
             SpriteBatch.End();
