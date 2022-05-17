@@ -85,8 +85,21 @@ namespace Olympus {
 
             FNAHooks.Apply();
 
-            using App game = new();
-            NativeImpl.Native.Run();
+            if (PlatformHelper.Is(Platform.Windows)) {
+#if WINDOWS
+                NativeImpl.Native = new NativeWin32();
+#else
+                Console.WriteLine("Olympus compiled without Windows dependencies, using NativeSDL2");
+                NativeImpl.Native = new NativeSDL2();
+#endif
+            } else if (PlatformHelper.Is(Platform.Linux)) {
+                NativeImpl.Native = new NativeLinux();
+            } else {
+                NativeImpl.Native = new NativeSDL2();
+            }
+
+            using (NativeImpl.Native)
+                NativeImpl.Native.Run();
         }
 
         [DllImport("kernel32.dll", SetLastError = true)]

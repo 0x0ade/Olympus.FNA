@@ -1,6 +1,4 @@
-﻿#if WINDOWS
-
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SDL2;
 using System;
@@ -10,13 +8,13 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Olympus.NativeImpls {
-	public unsafe partial class NativeWin32 : NativeImpl {
-        public class WrappedGraphicsDeviceManager : IGraphicsDeviceService, IGraphicsDeviceManager, IDisposable {
+namespace Olympus {
+    public class WrappedGraphicsDeviceManager : IGraphicsDeviceService, IGraphicsDeviceManager, IDisposable {
 
             public GraphicsDeviceManager Real;
 
             public bool CanCreateDevice = true;
+            public bool ApplyChangesOnCreateDevice = false;
 
             public GraphicsDevice? GraphicsDevice => ((IGraphicsDeviceService) Real).GraphicsDevice;
 
@@ -47,6 +45,8 @@ namespace Olympus.NativeImpls {
             public void CreateDevice() {
                 if (CanCreateDevice)
                     ((IGraphicsDeviceManager) Real).CreateDevice();
+                if (ApplyChangesOnCreateDevice && Real is GraphicsDeviceManager gdm)
+                    gdm.ApplyChanges();
             }
 
             public bool BeginDraw() {
@@ -62,7 +62,4 @@ namespace Olympus.NativeImpls {
             }
 
         }
-    }
 }
-
-#endif

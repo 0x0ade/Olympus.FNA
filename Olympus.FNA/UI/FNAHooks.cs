@@ -28,7 +28,7 @@ namespace OlympUI {
 #endif
 
         public static string? FNA3DDriver;
-        public static string? FNA3DDevice;
+        public static FNA3DDeviceInfo FNA3DDevice;
 
         private static ILHook? ApplyWindowChangesPatch;
         private static ILHook? DebugFNA3DPatch;
@@ -151,13 +151,73 @@ namespace OlympUI {
                 FNA3DDriver = line.Substring("FNA3D Driver: ".Length).Trim();
 
             } else if (line.StartsWith("D3D11 Adapter: ")) {
-                FNA3DDevice = line.Substring("D3D11 Adapter: ".Length).Trim();
+                FNA3DDevice = new FNA3DD3D11DeviceInfo(line.Substring("D3D11 Adapter: ".Length).Trim());
 
             } else if (line.StartsWith("Vulkan Device: ")) {
-                FNA3DDevice = line.Substring("Vulkan Device: ".Length).Trim();
+                FNA3DDevice = new FNA3DVulkanDeviceInfo(line.Substring("Vulkan Device: ".Length).Trim());
 
             } else if (line.StartsWith("OpenGL Renderer: ")) {
-                FNA3DDevice = line.Substring("OpenGL Renderer: ".Length).Trim();
+                FNA3DDevice = new FNA3DOpenGLDeviceInfo(line.Substring("OpenGL Renderer: ".Length).Trim());
+            }
+
+            FNA3DDevice?.OnLogInfo(line);
+        }
+
+    }
+
+    public abstract class FNA3DDeviceInfo {
+
+        public readonly string Device;
+
+        protected FNA3DDeviceInfo(string device) {
+            Device = device;
+        }
+
+        public virtual void OnLogInfo(string line) {
+        }
+
+    }
+
+    public sealed class FNA3DD3D11DeviceInfo : FNA3DDeviceInfo {
+
+        public FNA3DD3D11DeviceInfo(string device) : base(device) {
+        }
+
+    }
+
+    public sealed class FNA3DVulkanDeviceInfo : FNA3DDeviceInfo {
+
+        public string? Driver { get; private set; }
+
+        public FNA3DVulkanDeviceInfo(string device) : base(device) {
+        }
+
+        public override void OnLogInfo(string line) {
+            base.OnLogInfo(line);
+
+            if (line.StartsWith("Vulkan Driver: ")) {
+                Driver = line.Substring("Vulkan Driver: ".Length).Trim();
+            }
+        }
+
+    }
+
+    public sealed class FNA3DOpenGLDeviceInfo : FNA3DDeviceInfo {
+
+        public string? Driver { get; private set; }
+        public string? Vendor { get; private set; }
+
+        public FNA3DOpenGLDeviceInfo(string device) : base(device) {
+        }
+
+        public override void OnLogInfo(string line) {
+            base.OnLogInfo(line);
+
+            if (line.StartsWith("OpenGL Driver: ")) {
+                Driver = line.Substring("OpenGL Driver: ".Length).Trim();
+
+            } else if (line.StartsWith("OpenGL Vendor: ")) {
+                Driver = line.Substring("OpenGL Vendor: ".Length).Trim();
             }
         }
 

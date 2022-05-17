@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Olympus.NativeImpls {
-    public unsafe partial class NativeNop : NativeImpl {
+    public unsafe partial class NativeSDL2 : NativeImpl {
 
         public override bool CanRenderTransparentBackground => false;
         public override bool IsActive => App.IsActive;
@@ -57,12 +57,12 @@ namespace Olympus.NativeImpls {
         public override Point MouseOffset => default;
 
 
-        public NativeNop(App app)
-            : base(app) {
+        public override void Run() {
+            using App app = App = new();
+            app.Run();
         }
 
-        public override void Run() {
-            Game.Run();
+        public override void Dispose() {
         }
 
         public override void PrepareEarly() {

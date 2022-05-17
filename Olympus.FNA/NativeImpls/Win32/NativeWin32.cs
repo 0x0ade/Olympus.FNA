@@ -294,8 +294,8 @@ namespace Olympus.NativeImpls {
         public override Microsoft.Xna.Framework.Point MouseOffset => IsMaximized ? new(0, -8) : new(0, 0);
 
 
-        public NativeWin32(App app)
-            : base(app) {
+        public NativeWin32() {
+            App app = App = new();
 
             Console.WriteLine($"Total time until new NativeWin32(): {app.GlobalWatch.Elapsed}");
             InitStopwatch.Start();
@@ -422,6 +422,10 @@ namespace Olympus.NativeImpls {
 
             Console.WriteLine("Game.Run() #2 - running main loop on main thread");
             Game.Run();
+        }
+
+        public override void Dispose() {
+            App.Dispose();
         }
 
         public override void PrepareEarly() {

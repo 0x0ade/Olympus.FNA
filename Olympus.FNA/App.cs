@@ -113,17 +113,6 @@ namespace Olympus {
 
             Web = new(this);
             FinderManager = new(this);
-
-            if (PlatformHelper.Is(Platform.Windows)) {
-#if WINDOWS
-                Native = new NativeWin32(this);
-#else
-                Console.WriteLine("Olympus compiled without Windows dependencies, using NativeNop");
-                Native = new NativeNop(this);
-#endif
-            } else {
-                Native = new NativeNop(this);
-            }
         }
 
 

@@ -8,13 +8,19 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Olympus.NativeImpls {
-    public abstract class NativeImpl : UINativeImpl {
+    public abstract class NativeImpl : UINativeImpl, IDisposable {
 
 #pragma warning disable CS8618 // Nothing should ever access this too early.
         public static NativeImpl Native;
 #pragma warning restore CS8618
 
-        public readonly App App;
+        private App? _App;
+        public App App {
+            get => _App ?? throw new Exception($"NativeImpl {GetType().Name} forgot to set App!");
+            protected set => _App = value;
+        }
+
+        public override Game Game => App;
 
         public abstract bool CanRenderTransparentBackground { get; }
         public abstract bool IsActive { get; }
@@ -38,12 +44,8 @@ namespace Olympus.NativeImpls {
         public abstract ClientSideDecorationMode ClientSideDecoration { get; }
 
 
-        public NativeImpl(App app)
-            : base(app) {
-            App = app;
-        }
-
         public abstract void Run();
+        public abstract void Dispose();
 
         public abstract void PrepareEarly();
         public abstract void PrepareLate();
