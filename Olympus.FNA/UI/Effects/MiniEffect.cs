@@ -11,6 +11,8 @@ using System.Threading.Tasks;
 namespace OlympUI {
     public class MiniEffect : Effect {
 
+        protected const int MiniEffectParamCount = 2;
+
         public static readonly MiniEffectCache Cache = new(
             $"effects/{nameof(MiniEffect)}.fxo",
             (gd, _) => new MiniEffect(gd)
@@ -56,8 +58,8 @@ namespace OlympUI {
         [MemberNotNull(nameof(TransformParam))]
         [MemberNotNull(nameof(ColorParam))]
         private void SetupParams() {
-            TransformParam = Parameters["Transform"];
-            ColorParam = Parameters["Color"];
+            TransformParam = Parameters[0];
+            ColorParam = Parameters[1];
         }
 
         protected override void OnApply() {
@@ -75,7 +77,7 @@ namespace OlympUI {
     }
 
     public class MiniEffectCache {
-        
+
         protected static readonly object?[] DefaultWarmupKeys = { null };
 
         public readonly string Name;

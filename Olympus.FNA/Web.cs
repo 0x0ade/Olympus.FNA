@@ -77,7 +77,7 @@ namespace Olympus {
             return App.MarkTemporary(Texture2DMeta.Reloadable($"Texture (Web) (Mipmapped) '{url}'", w, h, () => {
                 unsafe {
                     Color[] data = new Color[w * h];
-                    
+
                     // TODO: Cache and unload dataRaw after timeout.
 
                     if (dataRaw is not null) {

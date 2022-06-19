@@ -126,7 +126,7 @@ namespace Olympus.NativeImpls {
                     CombineRgn(rgnResize, rgnResize, rgnClient, CombineRgnStyles.RGN_XOR);
                     SetWindowRgn(Handle, rgnResize, false);
                     DeleteObject(rgnClient);
-                    
+
                     PostMessage(
                         Native.HWnd, (int) WindowsMessage.WM_USER_ADE_MOVE_AFTER,
                         Handle,

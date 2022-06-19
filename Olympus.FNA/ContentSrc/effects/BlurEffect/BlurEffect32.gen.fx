@@ -4,7 +4,6 @@ float4x4 Transform;
 float4 Color;
 float4 OffsetsWeights[65];
 float4 MinMax;
-float Noise;
 
 
 texture2D Tex0;

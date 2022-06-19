@@ -28,7 +28,7 @@ namespace OlympUI {
 #endif
 
         public static string? FNA3DDriver;
-        public static FNA3DDeviceInfo FNA3DDevice;
+        public static FNA3DDeviceInfo? FNA3DDevice;
 
         private static ILHook? ApplyWindowChangesPatch;
         private static ILHook? DebugFNA3DPatch;

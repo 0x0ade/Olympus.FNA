@@ -21,7 +21,6 @@ namespace OlympUI {
         private float TimeOffs;
 
         public Spinner() {
-            MSAA = true;
             WH = new(24, 24);
             Mesh = new BasicMesh(Game) {
                 Texture = Assets.White

@@ -80,8 +80,8 @@ namespace OlympUI {
         [MemberNotNull(nameof(OffsetsWeightsParam))]
         [MemberNotNull(nameof(MinMaxParam))]
         private void SetupParams() {
-            OffsetsWeightsParam = Parameters["OffsetsWeights"];
-            MinMaxParam = Parameters["MinMax"];
+            OffsetsWeightsParam = Parameters[MiniEffectParamCount + 0];
+            MinMaxParam = Parameters[MiniEffectParamCount + 1];
         }
 
         public override Effect Clone()

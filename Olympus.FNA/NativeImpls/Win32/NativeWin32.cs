@@ -921,7 +921,7 @@ namespace Olympus.NativeImpls {
                         0b00000000000000000000000000000000U,
                     GradientColor = color.PackedValue, // Kinda lucky about alignment here.
             };
-            
+
             data = new() {
                 Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
                 Data = (IntPtr) (&accent),

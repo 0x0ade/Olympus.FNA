@@ -32,7 +32,6 @@ float4x4 Transform;
 float4 Color;
 float4 OffsetsWeights[<#= kernelSize #>];
 float4 MinMax;
-float Noise;
 
 
 texture2D Tex0;

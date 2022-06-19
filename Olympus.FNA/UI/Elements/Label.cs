@@ -52,7 +52,7 @@ namespace OlympUI {
             // FIXME: FontStashSharp can't even do basic font maximum size precomputations...
 
             DynamicSpriteFont font = StyleFont.GetCurrent<DynamicSpriteFont>();
-            
+
             Bounds bounds = new();
             string text = _Text;
             _TextDrawn = text;

@@ -150,7 +150,7 @@ namespace OlympUI.MegaCanvas {
 #else
                     CullTriggered = true;
                     rt.Dispose();
-                    TotalMemory -= rt.GetMemoryUsage();
+                    TotalMemory -= rt.GetMemorySizePoT();
 #endif
                 }
             }

@@ -47,6 +47,8 @@ namespace OlympUI {
 
         public abstract void Unloaded(Reloadable<TValue, TMeta> asset);
 
+        public abstract void MetaUpdated(Reloadable<TValue, TMeta> asset, TMeta prev, TMeta next);
+
     }
 
     public sealed class TextureTracker : AssetTracker<Texture2D, Texture2DMeta> {
@@ -62,17 +64,18 @@ namespace OlympUI {
             Texture2DMeta meta = asset.Meta;
 
             TotalCount++;
-            TotalMemory += meta.MemorySize;
+            TotalMemory += meta.MemorySizePoT;
         }
 
         public override void Collected(Reloadable<Texture2D, Texture2DMeta> asset) {
             Texture2DMeta meta = asset.Meta;
 
             TotalCount--;
-            TotalMemory -= meta.MemorySize;
+            TotalMemory -= meta.MemorySizePoT;
 
 #if DEBUG
-            if (asset.ValueRaw is not null && (!string.IsNullOrEmpty(asset.ID) || asset.Unloader is not null) && Debugger.IsAttached) {
+            // if (asset.ValueRaw is not null && (!string.IsNullOrEmpty(asset.ID) || asset.Unloader is not null) && Debugger.IsAttached) {
+            if (asset.ValueRaw is not null && Debugger.IsAttached) {
                 Debugger.Break();
             }
 #endif
@@ -90,6 +93,16 @@ namespace OlympUI {
 
             UsedCount--;
             UsedMemory -= meta.MemorySizePoT;
+        }
+
+        public override void MetaUpdated(Reloadable<Texture2D, Texture2DMeta> asset, Texture2DMeta prev, Texture2DMeta next) {
+            TotalMemory -= prev.MemorySizePoT;
+            TotalMemory += next.MemorySizePoT;
+
+            if (asset.ValueRaw is not null) {
+                UsedMemory -= prev.MemorySizePoT;
+                UsedMemory += next.MemorySizePoT;
+            }
         }
 
     }

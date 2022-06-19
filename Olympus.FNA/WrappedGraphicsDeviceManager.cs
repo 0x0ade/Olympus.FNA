@@ -56,7 +56,7 @@ namespace Olympus {
             public void EndDraw() {
                 ((IGraphicsDeviceManager) Real).EndDraw();
             }
-            
+
             public void Dispose() {
                 ((IDisposable) Real).Dispose();
             }

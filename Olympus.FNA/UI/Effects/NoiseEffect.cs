@@ -58,8 +58,8 @@ namespace OlympUI {
         [MemberNotNull(nameof(MinMaxParam))]
         [MemberNotNull(nameof(NoiseParam))]
         private void SetupParams() {
-            MinMaxParam = Parameters["MinMax"];
-            NoiseParam = Parameters["Noise"];
+            MinMaxParam = Parameters[MiniEffectParamCount + 0];
+            NoiseParam = Parameters[MiniEffectParamCount + 1];
         }
 
         public override Effect Clone()

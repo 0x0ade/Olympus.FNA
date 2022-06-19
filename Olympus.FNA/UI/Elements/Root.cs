@@ -194,7 +194,7 @@ namespace OlympUI {
                     allOnScreen.Add(child);
 
                     RectLTRB clip = child.Clip ? visibleExtend : parentClip;
-                    
+
                     switch (interactive ? child.Interactive : InteractiveMode.Discard) {
                         case InteractiveMode.Discard:
                             CollectAllOnScreen(all, allOffScreen, allOnScreen, allInteractive, child, collection, rect.Left, rect.Top, clip, false);

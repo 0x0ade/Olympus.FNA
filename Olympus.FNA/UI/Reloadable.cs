@@ -16,10 +16,19 @@ using System.Threading.Tasks;
 namespace OlympUI {
     public static class Reloadable {
 
+        internal static uint NextGlobalID;
+
         public static IReloadableTemporaryContext? TemporaryContext;
 
         public static IReloadable<TValue, TMeta> Temporary<TValue, TMeta>(TMeta meta, Func<TValue?> loader, bool owns) {
             Reloadable<TValue, TMeta> reloadable = new(null, meta, loader, owns ? value => (value as IDisposable)?.Dispose() : null);
+
+#if DEBUG
+            if (TemporaryContext is null && Debugger.IsAttached) {
+                Debugger.Break();
+            }
+#endif
+
             return owns ? TemporaryContext?.MarkTemporary(reloadable) ?? reloadable : reloadable;
         }
 
@@ -63,6 +72,7 @@ namespace OlympUI {
 
     public sealed class Reloadable<TValue, TMeta> : IReloadable<TValue, TMeta> {
 
+        public readonly uint GlobalID;
         public readonly string ID;
         public readonly Func<TValue?> Loader;
         public readonly Action<TValue?>? Unloader;
@@ -115,8 +125,11 @@ namespace OlympUI {
             set {
                 if (value is null)
                     throw new ArgumentNullException(nameof(value));
+
                 _Meta = value;
                 _MetaTyped = value as IReloadableMeta<TValue>;
+
+                AssetTracker<TValue, TMeta>.Instance?.MetaUpdated(this, _Meta, value);
             }
         }
 
@@ -125,10 +138,13 @@ namespace OlympUI {
             Source = new StackTrace(1);
 #endif
 
+            GlobalID = Reloadable.NextGlobalID++;
+
             ID = id ?? "";
             Loader = loader;
             Unloader = unloader;
-            Meta = meta;
+            _Meta = meta;
+            _MetaTyped = meta as IReloadableMeta<TValue>;
 
             AssetTracker<TValue, TMeta>.Instance?.Created(this);
         }

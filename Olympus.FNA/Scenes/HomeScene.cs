@@ -26,7 +26,7 @@ namespace Olympus {
                     Layouts.Fill(1, 1),
                 },
                 Children = {
-                        
+
                     new Group() {
                         Style = {
                             { "Spacing", 16 },

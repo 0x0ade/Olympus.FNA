@@ -515,6 +515,7 @@ namespace OlympUI {
                 },
                 MSAA = false,
                 Texture = Reloadable.Temporary(new Texture2DMeta(w, h, null), () => texRaw, false),
+                DisposeTexture = true,
                 BlendState = BlendState.Opaque,
             };
             mesh.Draw();

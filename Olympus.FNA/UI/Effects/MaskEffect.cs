@@ -41,7 +41,7 @@ namespace OlympUI {
 
         [MemberNotNull(nameof(MaskXYWHParam))]
         private void SetupParams() {
-            MaskXYWHParam = Parameters["MaskXYWH"];
+            MaskXYWHParam = Parameters[MiniEffectParamCount + 0];
         }
 
         public override Effect Clone()

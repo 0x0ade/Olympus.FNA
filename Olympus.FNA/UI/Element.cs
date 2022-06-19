@@ -149,9 +149,8 @@ namespace OlympUI {
         public virtual bool? ForceDrawAllChildren { get; protected set; }
 
         public virtual bool? Cached { get; set; } = null;
-        public virtual Padding ClipExtend { get; set; } = 16;
+        public virtual Padding ClipExtend { get; set; } = 8;
         public virtual CanvasPool? CachePool { get; set; }
-        public virtual bool MSAA { get; set; } = false;
 
         protected bool _Clip = false;
         public virtual bool Clip {
@@ -207,7 +206,7 @@ namespace OlympUI {
                 }
 
                 return sb.ToString();
-                
+
             }
         }
 
@@ -554,12 +553,23 @@ namespace OlympUI {
 
             PaintingScreenXY = ScreenXY;
 
-            PaintContent();
+            PaintContent(false, true, ClipExtend);
+
             if (UI.GlobalDrawDebug) {
                 DrawDebug();
             }
 
             PaintingScreenXY = null;
+        }
+
+        public virtual IReloadable<RenderTarget2DRegion, RenderTarget2DRegionMeta>? PaintToCache(Padding padding) {
+            PaintingScreenXY = ScreenXY;
+
+            PaintContent(true, false, padding);
+
+            PaintingScreenXY = null;
+
+            return CachedTexture;
         }
 
         protected virtual void DrawDebug() {
@@ -573,18 +583,18 @@ namespace OlympUI {
             }
         }
 
-        protected virtual void PaintContent() {
+        protected virtual void PaintContent(bool paintToCache, bool paintToScreen, Padding padding) {
             Point wh = WH;
-            Padding padding = ClipExtend;
             Point whTexture = new(wh.X + padding.W, wh.Y + padding.H);
-            bool? cached = Cached;
+            bool? cached = paintToCache ? true : Cached;
             RenderTarget2DRegion? cachedTexture = CachedTexture?.ValueValid;
 
-            if (cached == false /* and not null */ || UI.ForceDisableCache) {
+            if (cached == false /* and not null */ || (!paintToCache && UI.ForceDisableCache)) {
                 CachedTexture?.Dispose();
                 CachedTexture = null;
                 cachedTexture = null;
-                DrawContent();
+                if (paintToScreen)
+                    DrawContent();
                 return;
             }
 
@@ -594,10 +604,11 @@ namespace OlympUI {
 
             if (!repainting) {
                 ConsecutiveUncachedPaints = 0;
-                if (ConsecutiveCachedPaints < 16) {
+                if (ConsecutiveCachedPaints < 32) {
                     ConsecutiveCachedPaints++;
-                    if (ConsecutiveCachedPaints < 8 && cached is null && !MSAA && !Clip) {
-                        DrawContent();
+                    if (ConsecutiveCachedPaints < 16 && cached is null && !Clip) {
+                        if (paintToScreen)
+                            DrawContent();
                         return;
                     }
 
@@ -607,14 +618,18 @@ namespace OlympUI {
 
             } else {
                 ConsecutiveCachedPaints = 0;
-                if (ConsecutiveUncachedPaints < 16) {
+                if (ConsecutiveUncachedPaints < 8) {
                     ConsecutiveUncachedPaints++;
 
-                } else if (cached is null && !MSAA && !Clip) {
+                } else if (cached is null && !Clip) {
                     CachedTexture?.Dispose();
                     CachedTexture = null;
                     cachedTexture = null;
-                    DrawContent();
+                }
+
+                if (cachedTexture is null && (cached is null && !Clip)) {
+                    if (paintToScreen)
+                        DrawContent();
                     return;
                 }
             }
@@ -632,14 +647,15 @@ namespace OlympUI {
             }
 
             if (cachedTexture is null) {
-                CachedTexture?.Dispose();
-                CachedTexture = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whTexture.X, whTexture.Y), true);
+                if (CachedTexture is null)
+                    CachedTexture = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => (CachePool ?? UI.MegaCanvas.PoolMSAA).Get(whTexture.X, whTexture.Y), true);
                 cachedTexture = CachedTexture.Value;
                 repainting = true;
             }
 
             if (cachedTexture is null) {
-                DrawContent();
+                if (paintToScreen)
+                    DrawContent();
                 return;
             }
 
@@ -648,7 +664,8 @@ namespace OlympUI {
             SpriteBatch spriteBatch = SpriteBatch;
             if (repainting || UI.GlobalDrawDebug) {
                 CachedPaintID++;
-                spriteBatch.End();
+                if (paintToScreen)
+                    spriteBatch.End();
                 GraphicsStateSnapshot gss = new(gd);
                 cachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
                 gd.SetRenderTarget(cachedTexture.RT);
@@ -663,7 +680,8 @@ namespace OlympUI {
                 spriteBatch.End();
                 gss.Apply();
                 UI.TransformOffset = offsPrev;
-                spriteBatch.BeginUI();
+                if (paintToScreen)
+                    spriteBatch.BeginUI();
 
             } else if (!repainting && pack && cachedTexture.Page is null) {
                 RenderTarget2DRegion? packed = UI.MegaCanvas.GetPackedAndFree(cachedTexture, new(0, 0, whTexture.X, whTexture.Y));
@@ -677,7 +695,8 @@ namespace OlympUI {
                 }
             }
 
-            DrawCachedTexture(spriteBatch, cachedTexture.RT, xy, padding, new(cachedTexture.Region.X, cachedTexture.Region.Y, whTexture.X, whTexture.Y));
+            if (paintToScreen)
+                DrawCachedTexture(spriteBatch, cachedTexture.RT, xy, padding, new(cachedTexture.Region.X, cachedTexture.Region.Y, whTexture.X, whTexture.Y));
         }
 
         protected virtual void DrawCachedTexture(SpriteBatch spriteBatch, RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {

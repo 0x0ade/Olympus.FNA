@@ -45,7 +45,7 @@ namespace Olympus {
                     return System.IO.Path.Combine(home, "Library", "Application Support", "Olympus.FNA");
                 }
             }
-            
+
             if (PlatformHelper.Is(Platform.Unix)) {
                 string? config = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
                 if (!string.IsNullOrEmpty(config)) {

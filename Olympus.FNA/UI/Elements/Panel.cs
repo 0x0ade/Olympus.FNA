@@ -22,11 +22,10 @@ namespace OlympUI {
         protected new Style.Entry StyleSpacing = new(8);
 
         private BasicMesh BackgroundMesh;
-        private BasicMesh BackgroundBlitMesh;
         private BasicMesh? ContentsMesh;
         private IReloadable<RenderTarget2D, Texture2DMeta>? BackgroundMask;
-        private IReloadable<RenderTarget2D, Texture2DMeta>? Background;
-        private IReloadable<RenderTarget2D, Texture2DMeta>? Contents;
+        private IReloadable<RenderTarget2D, Texture2DMeta>? ContentsWrap;
+        private IReloadable<Texture2D, Texture2DMeta>? ContentsCurrent;
         private Color PrevBackground;
         private Color PrevBorder;
         private float PrevBorderSize;
@@ -34,31 +33,14 @@ namespace OlympUI {
         private float PrevRadius;
         private bool PrevClip;
         private Point PrevWH;
+        private Point PrevContentsXY;
         private Point PrevContentsWH;
 
         public Panel() {
+            ClipExtend = 16;
             BackgroundMesh = new(Game) {
                 Texture = Assets.GradientQuadY
             };
-
-            BackgroundBlitMesh = new(Game) {
-                Texture = Assets.White,
-                // Will be updated in Draw.
-                Shapes = {
-                    new MeshShapes.Quad() {
-                        XY1 = new(0, 0),
-                        XY2 = new(1, 0),
-                        XY3 = new(0, 1),
-                        XY4 = new(1, 1),
-                        UV1 = new(0, 0),
-                        UV2 = new(1, 0),
-                        UV3 = new(0, 1),
-                        UV4 = new(1, 1),
-                    },
-                },
-                MSAA = false,
-            };
-            BackgroundBlitMesh.Reload();
         }
 
         protected override void Dispose(bool disposing) {
@@ -67,12 +49,10 @@ namespace OlympUI {
             base.Dispose(disposing);
 
             BackgroundMesh?.Dispose();
-            BackgroundBlitMesh?.Dispose();
             ContentsMesh?.Dispose();
             BackgroundMask?.Dispose();
-            Background?.Dispose();
-            Contents?.Dispose();
-            Contents = null;
+            ContentsWrap?.Dispose();
+            ContentsWrap = null;
         }
 
         public override void DrawContent() {
@@ -98,30 +78,13 @@ namespace OlympUI {
             {
                 if (BackgroundMask is not null && (!Clip || BackgroundMask.ValueValid is not { } rt || rt.Width < wh.X || rt.Height < wh.Y)) {
                     BackgroundMask?.Dispose();
-                    Background?.Dispose();
                     BackgroundMask = null;
-                    Background = null;
-                    BackgroundBlitMesh.Texture = Assets.White;
                 }
             }
 
-            {
-                if (Background is not null && (Background.ValueValid is not { } rt || rt.Width < whPadded.X || rt.Height < whPadded.Y)) {
-                    BackgroundMask?.Dispose();
-                    Background?.Dispose();
-                    BackgroundMask = null;
-                    Background = null;
-                    BackgroundBlitMesh.Texture = Assets.White;
-                }
-            }
-
-            if (BackgroundMask is null || Background is null) {
+            if (BackgroundMask is null) {
                 if (BackgroundMask is null && Clip) {
                     BackgroundMask = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y), true).UnpackRT(true);
-                }
-                if (Background is null) {
-                    Background = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(whPadded.X, whPadded.Y), true).UnpackRT(true);
-                    BackgroundBlitMesh.Texture = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(Background);
                 }
                 PrevWH = default;
             }
@@ -243,51 +206,65 @@ namespace OlympUI {
                 }
 
                 shapes.AutoApply();
+            }
 
-                {
-                    RenderTarget2D rt = Background.Value;
+            if (Clip) {
+                Padding selfPadding = Padding;
+
+                Point contentsXY;
+
+                if (Children.Count == 1 && Children[0] is { } child &&
+                    child.PaintToCache(selfPadding) is { } childCache) {
+                    ContentsWrap?.Dispose();
+                    ContentsWrap = null;
+
+                    ContentsCurrent = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(childCache.UnpackRT(false));
+                    contentsXY = child.RealXY.ToPoint() - selfPadding.LT;
+
+                } else {
+                    if (ContentsWrap is not null && (ContentsWrap.ValueValid is not { } rt || rt.Width < wh.X || rt.Height < wh.Y)) {
+                        ContentsWrap?.Dispose();
+                        ContentsWrap = null;
+                        if (ContentsMesh is not null)
+                            ContentsMesh.Texture = Assets.White;
+                    }
+
+                    if (ContentsWrap is null) {
+                        ContentsWrap = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y), true).UnpackRT(true);
+                        PrevContentsWH = default;
+                    }
+
+                    gss ??= new(gd);
+
+                    rt = ContentsWrap.Value;
                     rt.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
                     gd.SetRenderTarget(rt);
                     gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
                     rt.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
+                    offsPrev = UI.TransformOffset;
+                    UI.TransformOffset = -xy;
+                    SpriteBatch.BeginUI();
 
-                    BackgroundMesh.Draw(BackgroundMesh.CreateTransform(new(padding, padding)));
+                    base.DrawContent();
 
-                    fixed (MiniVertex* vertices = &BackgroundBlitMesh.Vertices[0]) {
-                        Vector2 uv = new(whPadded.X / (float) rt.Width, whPadded.Y / (float) rt.Height);
-                        vertices[0].XY = new(0, 0);
-                        vertices[0].UV = new(0, 0);
-                        vertices[1].XY = new(whPadded.X, 0);
-                        vertices[1].UV = new(uv.X, 0);
-                        vertices[2].XY = new(0, whPadded.Y);
-                        vertices[2].UV = new(0, uv.Y);
-                        vertices[3].XY = new(whPadded.X, whPadded.Y);
-                        vertices[3].UV = new(uv.X, uv.Y);
-                    }
-                    BackgroundBlitMesh.QueueNext();
-                }
-            }
+                    SpriteBatch.End();
 
-            if (Clip) {
-                if (Contents is not null && (Contents.ValueValid is not { } rt || rt.Width < wh.X || rt.Height < wh.Y)) {
-                    Contents?.Dispose();
-                    Contents = null;
-                    if (ContentsMesh is not null)
-                        ContentsMesh.Texture = Assets.White;
+                    ContentsCurrent = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(ContentsWrap);
+                    contentsXY = default;
                 }
 
-                if (Contents is null) {
-                    Contents = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y), true).UnpackRT(true);
-                    PrevContentsWH = default;
-                }
-                Point contentsWH = new(Contents.Meta.Width, Contents.Meta.Height);
+                Point contentsWH = new(ContentsCurrent.Meta.Width, ContentsCurrent.Meta.Height);
 
                 if (ContentsMesh is null ||
                     PrevBackground != background ||
                     PrevRadius != radius ||
+                    PrevContentsXY != contentsXY ||
                     PrevContentsWH != contentsWH ||
                     PrevWH != wh ||
                     maskUpdated) {
+                    PrevContentsXY = contentsXY;
+                    PrevContentsWH = contentsWH;
+
                     if (ContentsMesh is null) {
                         ContentsMesh = new BasicMesh(Game) {
                             Effect = MaskEffect.Cache.GetEffect(() => Game.GraphicsDevice),
@@ -309,40 +286,26 @@ namespace OlympUI {
                         };
                         ContentsMesh.Reload();
                     }
-                    ContentsMesh.Texture = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(Contents);
 
                     fixed (MiniVertex* vertices = &ContentsMesh.Vertices[0]) {
-                        Vector2 uv = new(wh.X / (float) Contents.Meta.Width, wh.Y / (float) Contents.Meta.Height);
+                        Vector2 uv0 = new(-contentsXY.X / (float) contentsWH.X, -contentsXY.Y / (float) contentsWH.Y);
+                        Vector2 uv1 = new((wh.X - contentsXY.X) / (float) contentsWH.X, (wh.Y - contentsXY.Y) / (float) contentsWH.Y);
                         vertices[0].XY = new(0, 0);
-                        vertices[0].UV = new(0, 0);
+                        vertices[0].UV = new(uv0.X, uv0.Y);
                         vertices[1].XY = new(wh.X, 0);
-                        vertices[1].UV = new(uv.X, 0);
+                        vertices[1].UV = new(uv1.X, uv0.Y);
                         vertices[2].XY = new(0, wh.Y);
-                        vertices[2].UV = new(0, uv.Y);
+                        vertices[2].UV = new(uv0.X, uv1.Y);
                         vertices[3].XY = new(wh.X, wh.Y);
-                        vertices[3].UV = new(uv.X, uv.Y);
+                        vertices[3].UV = new(uv1.X, uv1.Y);
                     }
                     ContentsMesh.QueueNext();
                 }
 
-                gss ??= new(gd);
-
-                rt = Contents.Value;
-                rt.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                gd.SetRenderTarget(rt);
-                gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
-                rt.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-                offsPrev = UI.TransformOffset;
-                UI.TransformOffset = -xy;
-                SpriteBatch.BeginUI();
-
-                base.DrawContent();
-
-                SpriteBatch.End();
-
             } else {
-                Contents?.Dispose();
-                Contents = null;
+                ContentsCurrent = null;
+                ContentsWrap?.Dispose();
+                ContentsWrap = null;
                 ContentsMesh?.Dispose();
                 ContentsMesh = null;
             }
@@ -351,16 +314,22 @@ namespace OlympUI {
             if (offsPrev is not null)
                 UI.TransformOffset = offsPrev.Value;
 
-            BackgroundBlitMesh.Draw(UI.CreateTransform(new(xy.X - padding, xy.Y - padding)));
-            if (Contents is not null && ContentsMesh is not null) {
+            Matrix offs = UI.CreateTransform(xy);
+
+            BackgroundMesh.Draw(offs);
+
+            if (ContentsCurrent is not null) {
+                // ContentsMesh is created earlier in this method if it's null and if clipping is enabled.
+                Debug.Assert(ContentsMesh is not null);
+                ContentsMesh.Texture = ContentsCurrent;
                 // BackgroundMask is created earlier in this method if it's null and if clipping is enabled.
                 Debug.Assert(BackgroundMask is not null);
                 gd.Textures[1] = BackgroundMask.Value;
                 ((MaskEffect) ContentsMesh.Effect.Value).MaskXYWH = new(
                     0, 0,
-                    Contents.Meta.Width / (float) BackgroundMask.Meta.Width, Contents.Meta.Height / (float) BackgroundMask.Meta.Height
+                    ContentsCurrent.Meta.Width / (float) BackgroundMask.Meta.Width, ContentsCurrent.Meta.Height / (float) BackgroundMask.Meta.Height
                 );
-                ContentsMesh.Draw(UI.CreateTransform(xy));
+                ContentsMesh.Draw(offs);
                 gd.Textures[1] = null;
             }
 

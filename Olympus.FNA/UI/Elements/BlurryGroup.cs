@@ -78,7 +78,7 @@ namespace OlympUI {
                     BlurredX = blurredX = null;
                 }
                 if (blurredX is null) {
-                    BlurredX = blurredX = (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whMin.X, whFull.Y);
+                    BlurredX = blurredX = (CachePool ?? UI.MegaCanvas.PoolMSAA).Get(whMin.X, whFull.Y);
                 }
                 if (blurredX is null) {
                     throw new Exception($"{nameof(BlurryGroup)} tried obtaining blurred X render target but got null");
@@ -90,7 +90,7 @@ namespace OlympUI {
                     BlurredXY = blurredXY = null;
                 }
                 if (blurredXY is null) {
-                    BlurredXY = blurredXY = (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whMin.X, whMin.Y);
+                    BlurredXY = blurredXY = (CachePool ?? UI.MegaCanvas.PoolMSAA).Get(whMin.X, whMin.Y);
                 }
                 if (blurredXY is null) {
                     throw new Exception($"{nameof(BlurryGroup)} tried obtaining blurred XY render target but got null");
@@ -121,7 +121,7 @@ namespace OlympUI {
                         Noised = noised = null;
                     }
                     if (noised is null) {
-                        Noised = noised = (CachePool ?? (MSAA ? UI.MegaCanvas.PoolMSAA : UI.MegaCanvas.Pool)).Get(whFull.X, whFull.Y);
+                        Noised = noised = (CachePool ?? UI.MegaCanvas.PoolMSAA).Get(whFull.X, whFull.Y);
                     }
                     if (noised is null) {
                         throw new Exception($"{nameof(BlurryGroup)} tried obtaining noised render target but got null");

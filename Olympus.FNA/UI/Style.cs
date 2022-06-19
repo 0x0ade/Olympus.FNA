@@ -289,7 +289,7 @@ namespace OlympUI {
             => GetEnumerator();
         public IEnumerator<Entry> GetEnumerator() {
             HashSet<string> returned = new();
-            
+
             foreach (KeyValuePair<string, Entry> kvp in Map)
                 if (!kvp.Value.IsUnset && returned.Add(kvp.Key))
                     yield return kvp.Value;

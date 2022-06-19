@@ -83,7 +83,7 @@ namespace OlympUI {
             => GetEnumerator();
         public IEnumerator<Entry> GetEnumerator() {
             HashSet<string> returned = new();
-            
+
             foreach (KeyValuePair<string, InnerEntry> kvp in Map)
                 if (returned.Add(kvp.Key))
                     yield return new(this, kvp.Key, kvp.Value.ObjectValue);

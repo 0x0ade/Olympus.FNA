@@ -213,7 +213,7 @@ namespace OlympUI.MegaCanvas {
             }
 
             gss.Apply();
-            
+
             foreach ((string Name, CanvasPool Pool) pool in new (string, CanvasPool)[] {
                 ("main", Pool),
                 ("msaa", PoolMSAA),

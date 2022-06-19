@@ -399,7 +399,7 @@ namespace OlympUI {
     }
 
     public sealed class BasicMesh : BasicMesh<MiniVertex> {
-        
+
         public BasicMesh(Game game) : base(game) {
         }
 

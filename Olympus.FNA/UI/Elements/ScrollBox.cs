@@ -228,7 +228,6 @@ namespace OlympUI {
         public readonly ScrollAxis Axis;
 
         public ScrollHandle(ScrollAxis axis) {
-            MSAA = true;
             Interactive = InteractiveMode.Process;
             Mesh = new BasicMesh(Game) {
                 Texture = Assets.GradientQuadY
@@ -324,7 +323,7 @@ namespace OlympUI {
             XY = RealXY = default;
             WH = new(0, widthMax);
         }
-        
+
         private void AxisX_LayoutNormal(LayoutEvent e) {
             ScrollBox box = Parent as ScrollBox ?? throw new Exception("Scroll handles belong into scroll boxes!");
             Element content = box.Content;

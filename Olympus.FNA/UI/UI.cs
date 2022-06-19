@@ -343,24 +343,13 @@ namespace OlympUI {
             );
         }
 
-        public static void BeginUIWithMSAA(this SpriteBatch batch)
-            => batch.Begin(
-                SpriteSortMode.Deferred,
-                BlendState.AlphaBlend,
-                SamplerState.LinearClamp,
-                DepthStencilState.Default,
-                RasterizerStateCullCounterClockwiseUnscissoredWithMSAA,
-                null,
-                Matrix.CreateTranslation(new(TransformOffset, 0f))
-            );
-
         public static void BeginUI(this SpriteBatch batch)
             => batch.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
                 DepthStencilState.Default,
-                RasterizerStateCullCounterClockwiseUnscissoredNoMSAA,
+                RasterizerStateCullCounterClockwiseUnscissoredWithMSAA,
                 null,
                 Matrix.CreateTranslation(new(TransformOffset, 0f))
             );

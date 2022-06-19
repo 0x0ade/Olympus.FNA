@@ -83,7 +83,7 @@ namespace Olympus {
         private HashSet<IReloadable> TemporaryReloadables = new();
         private HashSet<IReloadable> TemporaryReloadablesDead = new();
 
-        
+
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
         public App() {
 #pragma warning restore CS8618
