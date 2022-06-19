@@ -55,6 +55,10 @@ namespace Olympus {
             App.Get<SplashComponent>().Locks.Add(this);
         }
 
+        public override bool UpdateDraw() {
+            return true;
+        }
+
         public override void Draw(GameTime gameTime) {
             if (CacheIndex >= Caches.Count) {
                 Finish();

@@ -13,7 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Olympus {
-    public class AppComponent : DrawableGameComponent {
+    public abstract class AppComponent : DrawableGameComponent {
 
         public readonly App App;
         public NativeImpl Native => NativeImpl.Native;
@@ -23,6 +23,8 @@ namespace Olympus {
             : base(app) {
             App = app;
         }
+
+        public abstract bool UpdateDraw();
 
     }
 }

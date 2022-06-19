@@ -38,6 +38,10 @@ namespace Olympus {
             SplashWheel = OlympUI.Assets.GetTexture("splash_wheel");
         }
 
+        public override bool UpdateDraw() {
+            return true;
+        }
+
         public override void Draw(GameTime gameTime) {
             float dt = gameTime.GetDeltaTime();
 

@@ -66,6 +66,7 @@ namespace Olympus {
 
             if (UIInput.Pressed(Keys.F1)) {
                 DebugLabel.Visible = !DebugLabel.Visible;
+                UI.Root.Repainting = true;
             }
 
             if (UIInput.Pressed(Keys.F2)) {
@@ -137,6 +138,12 @@ namespace Olympus {
 
             Scener.Update(dt);
             UI.Update(dt);
+        }
+
+        public override bool UpdateDraw() {
+            UI.UpdateDraw();
+
+            return UI.Root.Repainting;
         }
 
         public override void Draw(GameTime gameTime) {

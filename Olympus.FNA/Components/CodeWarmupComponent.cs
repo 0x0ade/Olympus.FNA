@@ -39,6 +39,10 @@ namespace Olympus {
             UI.Update(0f);
         }
 
+        public override bool UpdateDraw() {
+            return true;
+        }
+
         public override void Draw(GameTime gameTime) {
             App.Components.Remove(this);
         }

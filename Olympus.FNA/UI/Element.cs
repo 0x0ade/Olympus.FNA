@@ -589,6 +589,9 @@ namespace OlympUI {
             bool? cached = paintToCache ? true : Cached;
             RenderTarget2DRegion? cachedTexture = CachedTexture?.ValueValid;
 
+            bool repainting = Repainting;
+            Repainting = false;
+
             if (cached == false /* and not null */ || (!paintToCache && UI.ForceDisableCache)) {
                 CachedTexture?.Dispose();
                 CachedTexture = null;
@@ -598,8 +601,6 @@ namespace OlympUI {
                 return;
             }
 
-            bool repainting = Repainting;
-            Repainting = false;
             bool pack = false;
 
             if (!repainting) {

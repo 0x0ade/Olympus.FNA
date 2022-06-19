@@ -295,15 +295,17 @@ namespace OlympUI {
             }
             #endregion
 
+            Root.Repainting |= forceReflow;
+        }
 
+        public static void UpdateDraw() {
+            Game.GraphicsDevice.Textures[0] = null;
+            MegaCanvas.Update();
         }
 
         public static void Paint() {
-            GraphicsDevice gd = Game.GraphicsDevice;
-            gd.Textures[0] = null;
-            MegaCanvas.Update();
             GlobalDrawID = GlobalUpdateID;
-            gd.Textures[0] = null;
+            Game.GraphicsDevice.Textures[0] = null;
             SpriteBatch.BeginUI();
             Root.Paint();
             SpriteBatch.End();

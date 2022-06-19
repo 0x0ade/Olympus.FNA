@@ -60,6 +60,7 @@ namespace Olympus {
         private bool ManuallyUpdated = true;
         public bool ManualUpdateSkip;
         private int UnresizedManualDrawCount = 0;
+        private bool ForceBeginDraw;
 
         private readonly Dictionary<Type, object> ComponentCache = new();
 
@@ -359,10 +360,22 @@ namespace Olympus {
         }
 
         public void ForceRedraw() {
+            ForceBeginDraw = true;
             if (DrawCount > 0 && BeginDraw()) {
                 Draw(new GameTime());
                 EndDraw();
             }
+        }
+
+        protected override bool BeginDraw() {
+            bool shouldDraw = ForceBeginDraw;
+            ForceBeginDraw = false;
+
+            for (int i = 0; i < Components.Count; i++)
+                if (Components[i] is AppComponent component && component.UpdateDraw())
+                    shouldDraw = true;
+
+            return shouldDraw && base.BeginDraw();
         }
 
         protected override void EndDraw() {

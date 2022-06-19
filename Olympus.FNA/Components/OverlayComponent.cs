@@ -16,6 +16,7 @@ namespace Olympus {
     public unsafe class OverlayComponent : AppComponent {
 
         public float Time = 0f;
+        private bool Redraw;
 
         private Reloadable<Texture2D, Texture2DMeta>? Overlay;
         private BasicMesh? Mesh;
@@ -60,11 +61,10 @@ namespace Olympus {
             base.LoadContent();
         }
 
-        public override void Draw(GameTime gameTime) {
-            if (Mesh is null)
-                return;
-
+        public override void Update(GameTime gameTime) {
             float dt = gameTime.GetDeltaTime();
+
+            float prevTime = Time;
 
             if (Native.IsActive) {
                 Time += dt * 4f;
@@ -75,6 +75,19 @@ namespace Olympus {
                 if (Time < 0f)
                     Time = 0f;
             }
+
+            Redraw = Time != prevTime;
+        }
+
+        public override bool UpdateDraw() {
+            return Redraw;
+        }
+
+        public override void Draw(GameTime gameTime) {
+            Redraw = false;
+
+            if (Mesh is null)
+                return;
 
             float tintF = Ease.QuadInOut(Math.Max(0f, Math.Min(1f, Time)));
             float tintA = tintF * 0.25f;
