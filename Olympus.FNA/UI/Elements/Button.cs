@@ -17,7 +17,8 @@ namespace OlympUI {
                 new Style() {
                     { "Background", new Color(0x30, 0x30, 0x30, 0xff) },
                     { "Foreground", new Color(0xe8, 0xe8, 0xe8, 0xff) },
-                    { "Shadow", 1f },
+                    { "Border", new Color(0x38, 0x38, 0x38, 0x80) },
+                    { "Shadow", 0.5f },
                 }
             },
 
@@ -26,7 +27,8 @@ namespace OlympUI {
                 new Style() {
                     { "Background", new Color(0x70, 0x70, 0x70, 0xff) },
                     { "Foreground", new Color(0x30, 0x30, 0x30, 0xff) },
-                    { "Shadow", 0.75f },
+                    { "Border", new Color(0x28, 0x28, 0x28, 0x70) },
+                    { "Shadow", 0.2f },
                 }
             },
 
@@ -35,7 +37,8 @@ namespace OlympUI {
                 new Style() {
                     { "Background", new Color(0x50, 0x50, 0x50, 0xff) },
                     { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                    { "Shadow", 2f },
+                    { "Border", new Color(0x68, 0x68, 0x68, 0x90) },
+                    { "Shadow", 0.8f },
                 }
             },
 
@@ -44,12 +47,14 @@ namespace OlympUI {
                 new Style() {
                     { "Background", new Color(0x38, 0x38, 0x38, 0xff) },
                     { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                    { "Shadow", 0.5f },
+                    { "Border", new Color(0x18, 0x18, 0x18, 0x90) },
+                    { "Shadow", 0.35f },
                 }
             },
 
             { "Foreground", new ColorFader() },
 
+            { "BorderSize", 1f },
             { "Radius", 4f },
         };
 

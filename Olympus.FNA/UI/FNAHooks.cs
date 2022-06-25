@@ -176,12 +176,16 @@ namespace OlympUI {
         public virtual void OnLogInfo(string line) {
         }
 
+        public override string ToString() => Device;
+
     }
 
     public sealed class FNA3DD3D11DeviceInfo : FNA3DDeviceInfo {
 
         public FNA3DD3D11DeviceInfo(string device) : base(device) {
         }
+
+        public override string ToString() => $"{Device} (using D3D11)";
 
     }
 
@@ -200,6 +204,8 @@ namespace OlympUI {
             }
         }
 
+        public override string ToString() => $"{Device} (using Vulkan: {Driver})";
+
     }
 
     public sealed class FNA3DOpenGLDeviceInfo : FNA3DDeviceInfo {
@@ -217,9 +223,11 @@ namespace OlympUI {
                 Driver = line.Substring("OpenGL Driver: ".Length).Trim();
 
             } else if (line.StartsWith("OpenGL Vendor: ")) {
-                Driver = line.Substring("OpenGL Vendor: ".Length).Trim();
+                Vendor = line.Substring("OpenGL Vendor: ".Length).Trim();
             }
         }
+
+        public override string ToString() => $"{Device} (using OpenGL Driver: {Vendor} - {Driver})";
 
     }
 }

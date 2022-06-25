@@ -85,7 +85,7 @@ namespace Olympus {
                                         new Label($"Version: {App.Version} @ {Path.GetDirectoryName(typeof(App).Assembly.Location)}"),
                                         new Label($".NET Runtime: {Environment.Version} @ {Path.GetDirectoryName(typeof(object).Assembly.Location)}"),
                                         new Label($"System: {Environment.OSVersion} (using {NativeImpl.Native.GetType().Name})"),
-                                        new Label($"Renderer: {FNAHooks.FNA3DDevice} (using {FNAHooks.FNA3DDriver})"),
+                                        new Label($"Renderer: {FNAHooks.FNA3DDevice}"),
                                     }
                                 },
                             }

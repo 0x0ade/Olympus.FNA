@@ -74,7 +74,7 @@ namespace Olympus {
         public float BackgroundOpacityTime = 0f;
 
         // Note: Even though VSync can result in a higher FPS, it can cause Windows to start dropping *displayed* frames...
-#if DEBUG || true
+#if DEBUG && false
         public bool VSync = false; // FIXME: DON'T SHIP WITH VSYNC OFF!
 #else
         public bool VSync = true;
@@ -194,6 +194,12 @@ namespace Olympus {
             }
 
             IsFixedTimeStep = !Native.IsActive;
+
+            if (Graphics.SynchronizeWithVerticalRetrace && !VSync) {
+                Graphics.SynchronizeWithVerticalRetrace = false;
+                Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.Immediate;
+                GraphicsDevice.Reset(Graphics.GraphicsDevice.PresentationParameters);
+            }
 
             Native.Update((float) gameTime.ElapsedGameTime.TotalSeconds);
 

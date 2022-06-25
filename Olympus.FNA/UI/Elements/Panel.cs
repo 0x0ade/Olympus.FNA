@@ -23,7 +23,6 @@ namespace OlympUI {
 
         private BasicMesh BackgroundMesh;
         private BasicMesh? ContentsMesh;
-        private IReloadable<RenderTarget2D, Texture2DMeta>? BackgroundMask;
         private IReloadable<RenderTarget2D, Texture2DMeta>? ContentsWrap;
         private IReloadable<Texture2D, Texture2DMeta>? ContentsCurrent;
         private Color PrevBackground;
@@ -50,7 +49,6 @@ namespace OlympUI {
 
             BackgroundMesh?.Dispose();
             ContentsMesh?.Dispose();
-            BackgroundMask?.Dispose();
             ContentsWrap?.Dispose();
             ContentsWrap = null;
         }
@@ -73,22 +71,6 @@ namespace OlympUI {
             int padding = (int) MathF.Ceiling(10 * shadow);
             Point whPadded = new(wh.X + padding * 2, wh.Y + padding * 2);
 
-            bool maskUpdated = false;
-
-            {
-                if (BackgroundMask is not null && (!Clip || BackgroundMask.ValueValid is not { } rt || rt.Width < wh.X || rt.Height < wh.Y)) {
-                    BackgroundMask?.Dispose();
-                    BackgroundMask = null;
-                }
-            }
-
-            if (BackgroundMask is null) {
-                if (BackgroundMask is null && Clip) {
-                    BackgroundMask = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y), true).UnpackRT(true);
-                }
-                PrevWH = default;
-            }
-
             if (PrevBackground != background ||
                 PrevBorder != border ||
                 PrevBorderSize != borderSize ||
@@ -100,36 +82,6 @@ namespace OlympUI {
                 shapes.Clear();
 
                 gss ??= new(gd);
-
-                if (Clip) {
-                    // BackgroundMask is created earlier in this method if it's null and if clipping is enabled.
-                    Debug.Assert(BackgroundMask is not null);
-
-                    shapes.Add(new MeshShapes.Rect() {
-                        Color = new(1f, 1f, 1f, 1f),
-                        Size = new(wh.X, wh.Y),
-                        Radius = radius,
-                    });
-
-                    // Fix UVs manually as we're using a gradient texture.
-                    for (int i = 0; i < shapes.VerticesMax; i++) {
-                        ref MiniVertex vertex = ref shapes.Vertices[i];
-                        vertex.UV = new(1f, 1f);
-                    }
-
-                    shapes.AutoApply();
-
-                    RenderTarget2D rt = BackgroundMask.Value;
-                    rt.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                    gd.SetRenderTarget(rt);
-                    gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
-                    rt.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-
-                    BackgroundMesh.Draw(BackgroundMesh.CreateTransform());
-                    maskUpdated = true;
-                }
-
-                shapes.Clear();
 
                 int shadowIndex = -1;
                 int shadowEnd = -1;
@@ -260,46 +212,27 @@ namespace OlympUI {
                     PrevRadius != radius ||
                     PrevContentsXY != contentsXY ||
                     PrevContentsWH != contentsWH ||
-                    PrevWH != wh ||
-                    maskUpdated) {
+                    PrevWH != wh) {
                     PrevContentsXY = contentsXY;
                     PrevContentsWH = contentsWH;
 
                     if (ContentsMesh is null) {
-                        ContentsMesh = new BasicMesh(Game) {
-                            Effect = MaskEffect.Cache.GetEffect(() => Game.GraphicsDevice),
-                            Texture = Assets.White,
-                            // Will be updated afterwards.
-                            Shapes = {
-                                new MeshShapes.Quad() {
-                                    XY1 = new(0, 0),
-                                    XY2 = new(1, 0),
-                                    XY3 = new(0, 1),
-                                    XY4 = new(1, 1),
-                                    UV1 = new(0, 0),
-                                    UV2 = new(1, 0),
-                                    UV3 = new(0, 1),
-                                    UV4 = new(1, 1),
-                                },
-                            },
-                            MSAA = false,
-                        };
+                        ContentsMesh = new BasicMesh(Game);
                         ContentsMesh.Reload();
                     }
 
-                    fixed (MiniVertex* vertices = &ContentsMesh.Vertices[0]) {
-                        Vector2 uv0 = new(-contentsXY.X / (float) contentsWH.X, -contentsXY.Y / (float) contentsWH.Y);
-                        Vector2 uv1 = new((wh.X - contentsXY.X) / (float) contentsWH.X, (wh.Y - contentsXY.Y) / (float) contentsWH.Y);
-                        vertices[0].XY = new(0, 0);
-                        vertices[0].UV = new(uv0.X, uv0.Y);
-                        vertices[1].XY = new(wh.X, 0);
-                        vertices[1].UV = new(uv1.X, uv0.Y);
-                        vertices[2].XY = new(0, wh.Y);
-                        vertices[2].UV = new(uv0.X, uv1.Y);
-                        vertices[3].XY = new(wh.X, wh.Y);
-                        vertices[3].UV = new(uv1.X, uv1.Y);
-                    }
-                    ContentsMesh.QueueNext();
+                    MeshShapes<MiniVertex> shapes = ContentsMesh.Shapes;
+                    shapes.Clear();
+
+                    shapes.Add(new MeshShapes.Rect() {
+                        Color = Color.White,
+                        Size = new(wh.X, wh.Y),
+                        UVXYMin = new(0, 0),
+                        UVXYMax = new(contentsWH.X, contentsWH.Y),
+                        Radius = radius,
+                    });
+
+                    shapes.AutoApply();
                 }
 
             } else {
@@ -322,15 +255,7 @@ namespace OlympUI {
                 // ContentsMesh is created earlier in this method if it's null and if clipping is enabled.
                 Debug.Assert(ContentsMesh is not null);
                 ContentsMesh.Texture = ContentsCurrent;
-                // BackgroundMask is created earlier in this method if it's null and if clipping is enabled.
-                Debug.Assert(BackgroundMask is not null);
-                gd.Textures[1] = BackgroundMask.Value;
-                ((MaskEffect) ContentsMesh.Effect.Value).MaskXYWH = new(
-                    0, 0,
-                    ContentsCurrent.Meta.Width / (float) BackgroundMask.Meta.Width, ContentsCurrent.Meta.Height / (float) BackgroundMask.Meta.Height
-                );
                 ContentsMesh.Draw(offs);
-                gd.Textures[1] = null;
             }
 
             SpriteBatch.BeginUI();

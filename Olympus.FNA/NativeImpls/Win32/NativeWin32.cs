@@ -47,7 +47,8 @@ namespace Olympus.NativeImpls {
         // Some Windows build after 1809 made moving acrylic windows laggy.
         // Windows 11 introduces Mica for certain Win32 applications, which also suffer from the same lag.
         // Microsoft, please fix this. In the meantime, we can work around it, but why should we if Microsoft doesn't?
-        static readonly bool FlickerAcrylicOnSelfMove = true;
+        // Update: Turns out some 22H2 insider build fixed it, finally?
+        static readonly bool FlickerAcrylicOnSelfMove = false;
 
         static bool IsOpenGL => FNAHooks.FNA3DDriver?.Equals("opengl", StringComparison.InvariantCultureIgnoreCase) ?? false;
         static bool IsVulkan => FNAHooks.FNA3DDriver?.Equals("vulkan", StringComparison.InvariantCultureIgnoreCase) ?? false;

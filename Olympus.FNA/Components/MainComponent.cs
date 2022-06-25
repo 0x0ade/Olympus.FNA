@@ -23,6 +23,8 @@ namespace Olympus {
 
         private Label DebugLabel;
 
+        private bool AlwaysRepaint;
+
         public MainComponent(App app)
             : base(app) {
             SkinDefault = Skin.CreateDump();
@@ -104,6 +106,11 @@ namespace Olympus {
                 }
             }
 
+            if (UIInput.Pressed(Keys.F10)) {
+                AlwaysRepaint = !AlwaysRepaint;
+                App.VSync = !AlwaysRepaint;
+            }
+
             if (UIInput.Pressed(Keys.F11)) {
                 UI.GlobalDrawDebug = !UI.GlobalDrawDebug;
                 UI.GlobalRepaintID++;
@@ -121,6 +128,7 @@ namespace Olympus {
             if (DebugLabel.Visible) {
                 DebugLabel.Text =
                     $"FPS: {App.FPS}\n" +
+                    $"Repaint Mode: {(AlwaysRepaint ? "always (debug)" : "on demand")}\n" +
                     $"Mouse: {UIInput.Mouse}\n" +
                     $"Root Size: {UI.Root.WH.X} x {UI.Root.WH.Y}\n" +
                     $"App Size: {App.Width} x {App.Height} ({(Native.IsMaximized ? "maximized" : "windowed")})\n" +
@@ -143,7 +151,7 @@ namespace Olympus {
         public override bool UpdateDraw() {
             UI.UpdateDraw();
 
-            return UI.Root.Repainting;
+            return AlwaysRepaint || UI.Root.Repainting;
         }
 
         public override void Draw(GameTime gameTime) {
