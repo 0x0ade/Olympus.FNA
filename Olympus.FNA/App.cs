@@ -211,6 +211,7 @@ namespace Olympus {
                     }
                     if (TemporaryReloadablesDead.Count > 0) {
                         foreach (IReloadable reloadable in TemporaryReloadablesDead) {
+                            Console.WriteLine($"Disposing temporary reloadable: {reloadable}");
                             reloadable.Dispose();
                             TemporaryReloadables.Remove(reloadable);
                         }
@@ -392,7 +393,7 @@ namespace Olympus {
             }
 
             GraphicsDevice gd = GraphicsDevice;
-            if (FNAHooks.FNA3DDriver?.Equals("opengl", StringComparison.InvariantCultureIgnoreCase) ?? false) {
+            if (FNAHooks.FNA3DDevice is FNA3DOpenGLDeviceInfo) {
                 // OpenGL starts bottom left.
                 // In an ideal world FNA3D abstracts this difference away, but I don't have enough time to debug that right now. -ade
                 PresentationParameters pp = gd.PresentationParameters;

@@ -15,16 +15,17 @@ namespace OlympUI.MegaCanvas {
 
         public bool MSAA;
 
-        public readonly Entry[] Entries = new Entry[64];
+        public readonly Entry[] Entries = new Entry[32];
         public int EntriesAlive = 0;
         public readonly HashSet<RenderTarget2D> Used = new();
         public long UsedMemory = 0;
         public long TotalMemory = 0;
-        public int Padding = 32;
+        public int Padding = 16;
+        public bool ForcePoT = true;
         private int SquishFrame = 0;
-        public int SquishFrames = 60 * 15;
-        public int MaxAgeFrames = 60 * 5;
-        public int CullTarget = 32;
+        public int SquishFrames = 60 * 3;
+        public int MaxAgeFrames = 60 * 1;
+        public int CullTarget = 16;
         public bool CullTriggered = false;
 
         public CanvasPool(CanvasManager manager, bool msaa) {
@@ -96,8 +97,12 @@ namespace OlympUI.MegaCanvas {
             }
 
             if (rt is null) {
-                int widthReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(width / Padding + 1) * Padding).NextPoT();
-                int heightReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(height / Padding + 1) * Padding).NextPoT();
+                int widthReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(width / Padding + 1) * Padding);
+                int heightReal = Math.Min(Manager.MaxSize, (int) MathF.Ceiling(height / Padding + 1) * Padding);
+                if (ForcePoT) {
+                    widthReal = widthReal.NextPoT();
+                    heightReal = heightReal.NextPoT();
+                }
                 rt = new(Graphics, widthReal, heightReal, false, SurfaceFormat.Color, DepthFormat.None, MSAA ? Manager.MultiSampleCount : 0, RenderTargetUsage.PlatformContents);
                 fresh = true;
 

@@ -29,6 +29,8 @@ namespace Olympus {
                 ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             }
 
+            bool forceSDL2 = Environment.GetEnvironmentVariable("OLYMPUS_FORCE_SDL2") == "1";
+
             // FIXME: For some reason DWM hates FNA3D's D3D11 renderer and misrepresents the backbuffer too often on multi-GPU setups?!
             // FIXME: Default to D3D11, but detect multi-GPU setups and use the non-Intel GPU with OpenGL (otherwise buggy drivers).
             if (PlatformHelper.Is(Platform.Windows) && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("FNA3D_FORCE_DRIVER"))) {
@@ -47,7 +49,8 @@ namespace Olympus {
             bool helpExit = false;
             bool console = false;
             OptionSet options = new() {
-                { "h|help", "Show this message and exit.", h => help = h is not null },
+                { "h|help", "Show this message and exit.", v => help = v is not null },
+                { "force-sdl2", "Force using the SDL2 native helpers.", v => forceSDL2 = v is not null },
             };
 
 #if DEBUG
@@ -85,7 +88,10 @@ namespace Olympus {
 
             FNAHooks.Apply();
 
-            if (PlatformHelper.Is(Platform.Windows)) {
+            if (forceSDL2) {
+                NativeImpl.Native = new NativeSDL2();
+
+            } else if (PlatformHelper.Is(Platform.Windows)) {
 #if WINDOWS
                 NativeImpl.Native = new NativeWin32();
 #else

@@ -81,6 +81,7 @@ namespace Olympus {
 
             if (UIInput.Pressed(Keys.F5)) {
                 string path = Path.Combine(Environment.CurrentDirectory, "skin.yaml");
+                Console.WriteLine($"Loading skin from {path}");
                 if (!File.Exists(path)) {
                     SkinForce = null;
                 } else {
@@ -96,11 +97,13 @@ namespace Olympus {
             if (UIInput.Pressed(Keys.F7)) {
                 if (UIInput.Down(Keys.LeftShift)) {
                     string path = Path.Combine(Environment.CurrentDirectory, "megacanvas");
+                    Console.WriteLine($"Dumping megacanvas to {path}");
                     if (!Directory.Exists(path))
                         Directory.CreateDirectory(path);
                     UI.MegaCanvas.Dump(path);
                 } else {
                     string path = Path.Combine(Environment.CurrentDirectory, "skin.yaml");
+                    Console.WriteLine($"Dumping skin to {path}");
                     using StreamWriter writer = new(new FileStream(path, FileMode.Create));
                     Skin.Serialize(writer, Skin.CreateDump());
                 }

@@ -237,8 +237,8 @@ namespace OlympUI {
         }
         public static FontSystem OpenFont(params string[] paths) {
             FontSystem font = new(new() {
-                TextureWidth = 2048,
-                TextureHeight = 2048,
+                TextureWidth = 256,
+                TextureHeight = 256,
                 PremultiplyAlpha = true,
                 // FontResolutionFactor = 2f,
                 KernelWidth = 1,

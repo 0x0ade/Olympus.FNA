@@ -18,8 +18,6 @@ namespace Olympus {
         public override Element Generate()
             => new AlertContainer() {
                 ID = "MetaAlertScene",
-                Cached = true,
-                Clip = true,
                 Layout = {
                     Layouts.Fill(1, 1, 0, 0),
                     Layouts.Grow(0, NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? 0 : (-48 + 8)),
@@ -92,6 +90,7 @@ namespace Olympus {
                 Style.GetEntry(out StyleOpacity);
 
                 Cached = true;
+                Clip = true;
                 Interactive = InteractiveMode.Process;
             }
 
@@ -120,6 +119,14 @@ namespace Olympus {
                 }
 
                 base.Update(dt);
+            }
+
+            protected override void PaintContent(bool paintToCache, bool paintToScreen, Padding padding) {
+                if (StyleOpacity.GetCurrent<float>() < 0.004f) {
+                    return;
+                }
+
+                base.PaintContent(paintToCache, paintToScreen, padding);
             }
 
             protected override void DrawCachedTexture(SpriteBatch spriteBatch, RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {

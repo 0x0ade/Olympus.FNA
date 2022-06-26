@@ -17,8 +17,8 @@ namespace OlympUI.MegaCanvas {
 
         public int MinSize = 8;
         public int MaxSize = 4096;
-        public int PageSize = 4096;
-        public int MaxPackedSize = 2048;
+        public int PageSize = 2048;
+        public int MaxPackedSize = 768;
         public int MultiSampleCount;
 
         public readonly CanvasPool Pool;
