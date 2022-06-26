@@ -906,6 +906,22 @@ namespace OlympUI {
 
         #endregion
 
+        #region Style Helpers
+
+        public abstract partial class StyleKeys {
+
+            protected StyleKeys(Secret secret) {
+                throw new InvalidOperationException("StyleKeys cannot be instantiated.");
+            }
+
+            protected sealed class Secret {
+                private Secret() { }
+            }
+
+        }
+
+        #endregion
+
     }
 
     public class SiblingCollection : IEnumerable<Element> {

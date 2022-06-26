@@ -9,11 +9,11 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace OlympUI {
-    public sealed class Faders : IEnumerable<(string, IFader)> {
+    public sealed class Faders : IEnumerable<(Style.Key, IFader)> {
 
         private List<Action<Faders>> Links = new();
-        private List<(string, IFader)> List = new();
-        private Dictionary<string, IFader> Map = new();
+        private List<(Style.Key, IFader)> List = new();
+        private Dictionary<Style.Key, IFader> Map = new();
 
         public void Link(Action<Faders> cb)
             => Links.Add(cb);
@@ -21,9 +21,9 @@ namespace OlympUI {
         public void LinkInvalidatePaint(Element element)
             => Links.Add(_ => element.InvalidatePaint());
 
-        public void LinkSetStyle(Element element, string key)
+        public void LinkSetStyle(Element element, Style.Key key)
             => Links.Add(faders => {
-                foreach ((string Key, IFader Fader) entry in faders.List)
+                foreach ((Style.Key Key, IFader Fader) entry in faders.List)
                     entry.Fader.SetStyle(element.Style, entry.Key);
                 element.InvalidatePaint();
             });
@@ -33,14 +33,14 @@ namespace OlympUI {
                 link(this);
         }
 
-        public void Add(string key, IFader fader) {
+        public void Add(Style.Key key, IFader fader) {
             List.Add((key, fader));
             Map.Add(key, fader);
         }
 
         public bool Update(float dt, Style style) {
             bool updated = false;
-            foreach ((string Key, IFader Fader) entry in List) {
+            foreach ((Style.Key Key, IFader Fader) entry in List) {
                 bool subupdated = entry.Fader.Update(dt, style, entry.Key);
                 updated |= subupdated;
             }
@@ -49,16 +49,16 @@ namespace OlympUI {
             return updated;
         }
 
-        public T Get<T>(string key) where T : struct
+        public T Get<T>(Style.Key key) where T : struct
             => ((Fader<T>) Map[key]).Value;
 
-        public void Get<T>(string key, out T value) where T : struct
+        public void Get<T>(Style.Key key, out T value) where T : struct
             => value = ((Fader<T>) Map[key]).Value;
 
         IEnumerator IEnumerable.GetEnumerator()
             => GetEnumerator();
 
-        public IEnumerator<(string, IFader)> GetEnumerator()
+        public IEnumerator<(Style.Key, IFader)> GetEnumerator()
             => List.GetEnumerator();
 
     }
@@ -83,9 +83,9 @@ namespace OlympUI {
 
         void LinkInvalidatePaint(Element element);
 
-        void LinkSetStyle(Element element, string key);
+        void LinkSetStyle(Element element, Style.Key key);
 
-        void SetStyle(Style style, string key);
+        void SetStyle(Style style, Style.Key key);
 
         void Revive();
 
@@ -93,7 +93,7 @@ namespace OlympUI {
 
         bool Update(float dt, Style style);
 
-        bool Update(float dt, Style style, string key);
+        bool Update(float dt, Style style, Style.Key key);
 
         IFader Clone();
 
@@ -250,7 +250,7 @@ namespace OlympUI {
         public void LinkInvalidatePaint(Element element)
             => Links.Add(_ => element.InvalidatePaint());
 
-        public void LinkSetStyle(Element element, string key)
+        public void LinkSetStyle(Element element, Style.Key key)
             => Links.Add(fader => {
                 element.Style.Add(key, fader.Value);
                 element.InvalidatePaint();
@@ -261,7 +261,7 @@ namespace OlympUI {
                 link(this);
         }
 
-        public void SetStyle(Style style, string key) {
+        public void SetStyle(Style style, Style.Key key) {
             style.Add(key, Value);
         }
 
@@ -327,7 +327,7 @@ namespace OlympUI {
             return Update(dt);
         }
 
-        public bool Update(float dt, Style style, string key) {
+        public bool Update(float dt, Style style, Style.Key key) {
             ValueTo = style.GetReal<T>(key);
             return Update(dt);
         }

@@ -13,64 +13,64 @@ namespace OlympUI {
 
         public static readonly new Style DefaultStyle = new() {
             {
-                "Normal",
+                StyleKeys.Normal,
                 new Style() {
-                    { "Background", new Color(0x30, 0x30, 0x30, 0xff) },
-                    { "Foreground", new Color(0xe8, 0xe8, 0xe8, 0xff) },
-                    { "Border", new Color(0x38, 0x38, 0x38, 0x80) },
-                    { "Shadow", 0.5f },
+                    { Panel.StyleKeys.Background, new Color(0x30, 0x30, 0x30, 0xff) },
+                    { StyleKeys.Foreground, new Color(0xe8, 0xe8, 0xe8, 0xff) },
+                    { Panel.StyleKeys.Border, new Color(0x38, 0x38, 0x38, 0x80) },
+                    { Panel.StyleKeys.Shadow, 0.5f },
                 }
             },
 
             {
-                "Disabled",
+                StyleKeys.Disabled,
                 new Style() {
-                    { "Background", new Color(0x70, 0x70, 0x70, 0xff) },
-                    { "Foreground", new Color(0x30, 0x30, 0x30, 0xff) },
-                    { "Border", new Color(0x28, 0x28, 0x28, 0x70) },
-                    { "Shadow", 0.2f },
+                    { Panel.StyleKeys.Background, new Color(0x70, 0x70, 0x70, 0xff) },
+                    { StyleKeys.Foreground, new Color(0x30, 0x30, 0x30, 0xff) },
+                    { Panel.StyleKeys.Border, new Color(0x28, 0x28, 0x28, 0x70) },
+                    { Panel.StyleKeys.Shadow, 0.2f },
                 }
             },
 
             {
-                "Hovered",
+                StyleKeys.Hovered,
                 new Style() {
-                    { "Background", new Color(0x50, 0x50, 0x50, 0xff) },
-                    { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                    { "Border", new Color(0x68, 0x68, 0x68, 0x90) },
-                    { "Shadow", 0.8f },
+                    { Panel.StyleKeys.Background, new Color(0x50, 0x50, 0x50, 0xff) },
+                    { StyleKeys.Foreground, new Color(0xff, 0xff, 0xff, 0xff) },
+                    { Panel.StyleKeys.Border, new Color(0x68, 0x68, 0x68, 0x90) },
+                    { Panel.StyleKeys.Shadow, 0.8f },
                 }
             },
 
             {
-                "Pressed",
+                StyleKeys.Pressed,
                 new Style() {
-                    { "Background", new Color(0x38, 0x38, 0x38, 0xff) },
-                    { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                    { "Border", new Color(0x18, 0x18, 0x18, 0x90) },
-                    { "Shadow", 0.35f },
+                    { Panel.StyleKeys.Background, new Color(0x38, 0x38, 0x38, 0xff) },
+                    { StyleKeys.Foreground, new Color(0xff, 0xff, 0xff, 0xff) },
+                    { Panel.StyleKeys.Border, new Color(0x18, 0x18, 0x18, 0x90) },
+                    { Panel.StyleKeys.Shadow, 0.35f },
                 }
             },
 
-            { "Foreground", new ColorFader() },
-
-            { "BorderSize", 1f },
-            { "Radius", 4f },
+            { Panel.StyleKeys.BorderSize, 1f },
+            { Panel.StyleKeys.Radius, 4f },
         };
 
         public bool Enabled = true;
         public Action<Button>? Callback;
+
+        protected Style.Entry StyleForeground = new(new ColorFader());
 
         public string Text {
             get => GetChild<Label>()?.Text ?? "";
             set => _ = GetChild<Label>() is Label label ? label.Text = value : null;
         }
 
-        public virtual string StyleState =>
-            !Enabled ? "Disabled" :
-            Pressed ? "Pressed" :
-            Hovered ? "Hovered" :
-            "Normal";
+        public virtual Style.Key StyleState =>
+            !Enabled ? StyleKeys.Disabled :
+            Pressed ? StyleKeys.Pressed :
+            Hovered ? StyleKeys.Hovered :
+            StyleKeys.Normal;
 
         public Button() {
             Interactive = InteractiveMode.Process;
@@ -83,7 +83,7 @@ namespace OlympUI {
             Children.Add(new Label(text) {
                 ID = "label",
                 Style = {
-                    { "Color", Style.GetLink("Foreground") }
+                    { Label.StyleKeys.Color, Style.GetLink(StyleKeys.Foreground) }
                 }
             });
         }
@@ -109,5 +109,12 @@ namespace OlympUI {
                 Callback?.Invoke(this);
         }
 
+        public new abstract partial class StyleKeys {
+
+            public static readonly Style.Key Normal = new("Normal");
+            public static readonly Style.Key Disabled = new("Disabled");
+            public static readonly Style.Key Hovered = new("Hovered");
+            public static readonly Style.Key Pressed = new("Pressed");
+        }
     }
 }

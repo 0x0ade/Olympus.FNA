@@ -20,7 +20,7 @@ namespace Olympus {
         public override Element Generate()
             => new Group() {
                 Style = {
-                    { "Padding", 8 },
+                    { Group.StyleKeys.Padding, 8 },
                 },
                 Layout = {
                     Layouts.Fill(1, 1),
@@ -29,7 +29,7 @@ namespace Olympus {
 
                     new Group() {
                         Style = {
-                            { "Spacing", 16 },
+                            { Group.StyleKeys.Spacing, 16 },
                         },
                         Layout = {
                             Layouts.Fill(1f, 0.4f, 0, 32),
@@ -277,7 +277,7 @@ namespace Olympus {
                                                             fg.G / 255f * 0.3f,
                                                             fg.B / 255f * 0.3f
                                                         );
-                                                    panel.Style.Add("Background", colors[0].Color);
+                                                    panel.Style.Add(Panel.StyleKeys.Background, colors[0].Color);
                                                     foreach (Element child in imgs) {
                                                         child.Style.Update(0f); // Force faders to be non-fresh.
                                                         child.Style.Add(Color.White * 0.3f);
@@ -303,7 +303,7 @@ namespace Olympus {
 
                     new Group() {
                         Style = {
-                            { "Spacing", 4 },
+                            { Group.StyleKeys.Spacing, 4 },
                         },
                         Layout = {
                             Layouts.Fill(0.7f, 0.6f, 32, 0),
@@ -314,7 +314,7 @@ namespace Olympus {
                         Children = {
                             new Group() {
                                 Style = {
-                                    { "Spacing", 16 },
+                                    { Group.StyleKeys.Spacing, 16 },
                                 },
                                 Layout = {
                                     Layouts.Fill(1, 0),
@@ -329,7 +329,7 @@ namespace Olympus {
                                         Children = {
                                             new Group() {
                                                 Style = {
-                                                    { "Spacing", -4 },
+                                                    { Group.StyleKeys.Spacing, -4 },
                                                 },
                                                 Layout = {
                                                     Layouts.Column(),
@@ -341,7 +341,7 @@ namespace Olympus {
                                             },
                                             new Button("Manage Installs", _ => Scener.Push<InstallManagerScene>()) {
                                                 Style = {
-                                                    { "Padding", new Padding(8, 4) },
+                                                    { Group.StyleKeys.Padding, new Padding(8, 4) },
                                                 },
                                                 Layout = {
                                                     Layouts.Right(),
@@ -356,7 +356,7 @@ namespace Olympus {
                                 Clip = true,
                                 ClipExtend = 8,
                                 Style = {
-                                    { "Spacing", 16 },
+                                    { Group.StyleKeys.Spacing, 16 },
                                 },
                                 Layout = {
                                     Layouts.Fill(1, 1, 0, LayoutConsts.Prev),
@@ -379,7 +379,7 @@ namespace Olympus {
                                         },
                                         Content = new Group() {
                                             Style = {
-                                                { "Spacing", 8 },
+                                                { Group.StyleKeys.Spacing, 8 },
                                             },
                                             Layout = {
                                                 Layouts.Fill(1, 0),
@@ -427,7 +427,7 @@ namespace Olympus {
                                                             },
                                                             new Group() {
                                                                 Style = {
-                                                                    { "Spacing", 0 },
+                                                                    { Group.StyleKeys.Spacing, 0 },
                                                                 },
                                                                 Layout = {
                                                                     Layouts.Fill(1, 0),
@@ -451,7 +451,7 @@ namespace Olympus {
 
                     new Group() {
                         Style = {
-                            { "Spacing", 16 },
+                            { Group.StyleKeys.Spacing, 16 },
                         },
                         Layout = {
                             Layouts.Fill(0.3f, 0.6f, 0, 0),
@@ -474,7 +474,7 @@ namespace Olympus {
                                         },
                                         Content = new Group() {
                                             Style = {
-                                                { "Spacing", 8 },
+                                                { Group.StyleKeys.Spacing, 8 },
                                             },
                                             Layout = {
                                                 Layouts.Fill(1, 0),

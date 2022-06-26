@@ -48,25 +48,25 @@ namespace Olympus {
                         X = 300,
                         Y = 100,
                         Style = {
-                            { "Background", new Color(0xf0, 0xf0, 0xf0, 0xff) },
-                            { "Shadow", 2f }
+                            { Panel.StyleKeys.Background, new Color(0xf0, 0xf0, 0xf0, 0xff) },
+                            { Panel.StyleKeys.Shadow, 2f }
                         }
                     },
                     new Panel() {
                         X = 500,
                         Y = 100,
                         Style = {
-                            { "Background", Color.Black },
-                            { "Shadow", 1f }
+                            { Panel.StyleKeys.Background, Color.Black },
+                            { Panel.StyleKeys.Shadow, 1f }
                         },
                         Events = {
                             (MouseEvent.Enter e) => e.Element.Style = new() {
-                                { "Background", Color.White },
-                                { "Shadow", 3f }
+                                { Panel.StyleKeys.Background, Color.White },
+                                { Panel.StyleKeys.Shadow, 3f }
                             },
                             (MouseEvent.Leave e) => e.Element.Style = new() {
-                                { "Background", Color.Black },
-                                { "Shadow", 1f }
+                                { Panel.StyleKeys.Background, Color.Black },
+                                { Panel.StyleKeys.Shadow, 1f }
                             },
                         }
                     },
@@ -74,25 +74,25 @@ namespace Olympus {
                         X = 700,
                         Y = 100,
                         Style = {
-                            { "Background", Color.Black },
-                            { "Shadow", 1f }
+                            { Panel.StyleKeys.Background, Color.Black },
+                            { Panel.StyleKeys.Shadow, 1f }
                         },
                         Events = {
                             (MouseEvent.Press e) => e.Element.Style = new() {
-                                { "Background", Color.White },
-                                { "Shadow", 3f }
+                                { Panel.StyleKeys.Background, Color.White },
+                                { Panel.StyleKeys.Shadow, 3f }
                             },
                             (MouseEvent.Release e) => e.Element.Style = new() {
-                                { "Background", Color.Black },
-                                { "Shadow", 1f }
+                                { Panel.StyleKeys.Background, Color.Black },
+                                { Panel.StyleKeys.Shadow, 1f }
                             },
                             (MouseEvent.Click e) => e.Element.Style = new() {
-                                { "Background", Color.Red },
-                                { "Shadow", 5f }
+                                { Panel.StyleKeys.Background, Color.Red },
+                                { Panel.StyleKeys.Shadow, 5f }
                             },
                             (MouseEvent.Scroll e) => e.Element.Style = new() {
-                                { "Background", e.ScrollDXY.Y <= 0 ? Color.Green : Color.Blue },
-                                { "Shadow", 5f }
+                                { Panel.StyleKeys.Background, e.ScrollDXY.Y <= 0 ? Color.Green : Color.Blue },
+                                { Panel.StyleKeys.Shadow, 5f }
                             },
                         }
                     },

@@ -39,11 +39,9 @@ namespace OlympUI {
             }
         }
 
-        protected Style.Entry StyleColor;
+        protected Style.Entry StyleColor = new(Color.White);
 
         public ImageBase(IReloadable<Texture2D, Texture2DMeta> texture) {
-            Style.GetEntry(out StyleColor);
-
             Texture = texture;
             Texture2DMeta tex = texture.Meta;
             WH = new Point(tex.Width, tex.Height);

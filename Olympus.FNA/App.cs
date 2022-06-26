@@ -211,7 +211,6 @@ namespace Olympus {
                     }
                     if (TemporaryReloadablesDead.Count > 0) {
                         foreach (IReloadable reloadable in TemporaryReloadablesDead) {
-                            Console.WriteLine($"Disposing temporary reloadable: {reloadable}");
                             reloadable.Dispose();
                             TemporaryReloadables.Remove(reloadable);
                         }

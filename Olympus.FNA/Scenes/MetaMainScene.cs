@@ -43,7 +43,7 @@ namespace Olympus {
                             new Group() {
                                 ID = "WindowButtons",
                                 Style = {
-                                    { "Spacing", 2 },
+                                    { Group.StyleKeys.Spacing, 2 },
                                 },
                                 Layout = {
                                     Layouts.Top(),
@@ -77,7 +77,7 @@ namespace Olympus {
                     new BlurryGroup() {
                         ID = "MainBox",
                         Style = {
-                            { "Spacing", 0 },
+                            { Group.StyleKeys.Spacing, 0 },
                         },
                         Layout = {
                             Layouts.Fill(1, 1, 0, LayoutConsts.Prev),
@@ -96,7 +96,7 @@ namespace Olympus {
                                     new Group() {
                                         ID = "SidebarTop",
                                         Style = {
-                                            { "Spacing", 8 },
+                                            { Group.StyleKeys.Spacing, 8 },
                                         },
                                         Layout = {
                                             Layouts.Fill(1, 0),
@@ -116,7 +116,7 @@ namespace Olympus {
                                     new Group() {
                                         ID = "SidebarBottom",
                                         Style = {
-                                            { "Spacing", 8 },
+                                            { Group.StyleKeys.Spacing, 8 },
                                         },
                                         Layout = {
                                             Layouts.Fill(1, 0),
@@ -134,7 +134,7 @@ namespace Olympus {
                             new ContentContainer() {
                                 ID = "ContentBox",
                                 Style = {
-                                    { "Padding", 0 },
+                                    { Group.StyleKeys.Padding, 0 },
                                 },
                                 Layout = {
                                     Layouts.Fill(1, 1, LayoutConsts.Prev, 0),
@@ -187,10 +187,10 @@ namespace Olympus {
         public partial class ContentContainer : Panel {
 
             public static readonly new Style DefaultStyle = new() {
-                { "Background", new ColorFader(0x08, 0x08, 0x08, 0xB0) },
-                { "Border", new ColorFader(0x08, 0x08, 0x08, 0x40) },
-                { "BorderSize", 1f },
-                { "Shadow", 0f },
+                { StyleKeys.Background, new ColorFader(0x08, 0x08, 0x08, 0xB0) },
+                { StyleKeys.Border, new ColorFader(0x08, 0x08, 0x08, 0x40) },
+                { StyleKeys.BorderSize, 1f },
+                { StyleKeys.Shadow, 0f },
             };
 
         }
@@ -199,42 +199,42 @@ namespace Olympus {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Normal",
+                    StyleKeys.Normal,
                     new Style() {
-                        { "Background", new Color(0x00, 0x00, 0x00, 0x00) },
-                        { "Foreground", new Color(0xf0, 0x50, 0x50, 0x50) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x00, 0x00, 0x00, 0x00) },
+                        { StyleKeys.Foreground, new Color(0xf0, 0x50, 0x50, 0x50) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Disabled",
+                    StyleKeys.Disabled,
                     new Style() {
-                        { "Background", new Color(0x70, 0x70, 0x70, 0x70) },
-                        { "Foreground", new Color(0x30, 0x30, 0x30, 0xff) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x70, 0x70, 0x70, 0x70) },
+                        { StyleKeys.Foreground, new Color(0x30, 0x30, 0x30, 0xff) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Hovered",
+                    StyleKeys.Hovered,
                     new Style() {
-                        { "Background", new Color(0x00, 0x00, 0x00, 0x50) },
-                        { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x00, 0x00, 0x00, 0x50) },
+                        { StyleKeys.Foreground, new Color(0xff, 0xff, 0xff, 0xff) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Pressed",
+                    StyleKeys.Pressed,
                     new Style() {
-                        { "Background", new Color(0x30, 0x30, 0x30, 0x70) },
-                        { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x30, 0x30, 0x30, 0x70) },
+                        { StyleKeys.Foreground, new Color(0xff, 0xff, 0xff, 0xff) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
-                { "Padding", 0 },
+                { Group.StyleKeys.Padding, 0 },
             };
 
             public Icon Icon;
@@ -252,7 +252,7 @@ namespace Olympus {
                 Icon iconi = new(icon) {
                     ID = "icon",
                     Style = {
-                        { "Color", Style.GetLink("Foreground") },
+                        { ImageBase.StyleKeys.Color, Style.GetLink(StyleKeys.Foreground) },
                     },
                     Layout = {
                         Layouts.Left(0.5f, -0.5f),
@@ -270,7 +270,7 @@ namespace Olympus {
                 Label = Add(new LabelSmall(text) {
                     ID = "label",
                     Style = {
-                        { "Color", Style.GetLink("Foreground") },
+                        { Label.StyleKeys.Color, Style.GetLink(StyleKeys.Foreground) },
                     },
                     Layout = {
                         Layouts.Left(0.5f, -0.5f),
@@ -285,12 +285,12 @@ namespace Olympus {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Current",
+                    StyleKeys.Current,
                     new Style() {
-                        { "Background", () => NativeImpl.Native.Accent * 0.2f },
-                        // { "Foreground", new Color(0xff, 0xff, 0xff, 0xff) },
-                        { "Foreground", () => NativeImpl.Native.Accent },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, () => NativeImpl.Native.Accent * 0.2f },
+                        // { Button.StyleKeys.Foreground, new Color(0xff, 0xff, 0xff, 0xff) },
+                        { Button.StyleKeys.Foreground, () => NativeImpl.Native.Accent },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
             };
@@ -299,8 +299,8 @@ namespace Olympus {
 
             public bool Current => Scener.Scenes.Contains(Scene);
 
-            public override string StyleState =>
-                Current ? "Current" :
+            public override Style.Key StyleState =>
+                Current ? StyleKeys.Current :
                 base.StyleState;
 
             public SidebarNavButton(string icon, string text, Scene scene)
@@ -321,34 +321,40 @@ namespace Olympus {
                 Callback += b => Scener.Set(((SidebarNavButton) b).Scene);
             }
 
+            public new abstract partial class StyleKeys : SidebarButton.StyleKeys {
+                protected StyleKeys(Secret secret) : base(secret) { }
+
+                public static readonly Style.Key Current = new("Current");
+            }
+
         }
 
         public partial class SidebarNavButtonIndicator : Element {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Normal",
+                    StyleKeys.Normal,
                     new Style() {
                         { new Color(0x00, 0x00, 0x00, 0x00) },
-                        { "Scale", 0f },
+                        { StyleKeys.Scale, 0f },
                     }
                 },
 
                 {
-                    "Active",
+                    StyleKeys.Active,
                     new Style() {
                         { () => NativeImpl.Native.Accent },
-                        { "Scale", 1f },
+                        { StyleKeys.Scale, 1f },
                     }
                 },
-
-                new ColorFader(),
-                { "Scale", new FloatFader() },
             };
 
             public readonly SidebarNavButton Button;
 
-            private BasicMesh Mesh;
+            protected Style.Entry StyleColor = new(new ColorFader());
+            protected Style.Entry StyleScale = new(new FloatFader());
+
+            private readonly BasicMesh Mesh;
             private Color PrevColor;
             private float PrevScale;
             private Point PrevWH;
@@ -361,7 +367,7 @@ namespace Olympus {
             }
 
             public override void Update(float dt) {
-                Style.Apply(Button.Current ? "Active" : "Normal");
+                Style.Apply(Button.Current ? StyleKeys.Active : StyleKeys.Normal);
 
                 base.Update(dt);
             }
@@ -369,8 +375,8 @@ namespace Olympus {
             public override void DrawContent() {
                 SpriteBatch.End();
 
-                Style.GetCurrent(out Color color);
-                Style.GetCurrent(out float scale);
+                StyleColor.GetCurrent(out Color color);
+                StyleScale.GetCurrent(out float scale);
                 Point wh = WH;
 
                 if (PrevColor != color ||
@@ -407,40 +413,45 @@ namespace Olympus {
                 PrevWH = wh;
             }
 
+            public new abstract partial class StyleKeys {
+                public static readonly Style.Key Normal = new("Normal");
+                public static readonly Style.Key Active = new("Active");
+            }
+
         }
 
         public partial class SidebarPlayButton : SidebarButton {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Normal",
+                    StyleKeys.Normal,
                     new Style() {
-                        { "Background", new Color(0x00, 0x30, 0x10, 0x50) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x00, 0x30, 0x10, 0x50) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Disabled",
+                    StyleKeys.Disabled,
                     new Style() {
-                        { "Background", new Color(0x70, 0x70, 0x70, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x70, 0x70, 0x70, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Hovered",
+                    StyleKeys.Hovered,
                     new Style() {
-                        { "Background", new Color(0x40, 0x70, 0x45, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x40, 0x70, 0x45, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Pressed",
+                    StyleKeys.Pressed,
                     new Style() {
-                        { "Background", new Color(0x20, 0x50, 0x25, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x20, 0x50, 0x25, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
             };
@@ -482,44 +493,43 @@ namespace Olympus {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Normal",
+                    StyleKeys.Normal,
                     new Style() {
-                        { "Background", new Color(0x00, 0x00, 0x00, 0x50) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x00, 0x00, 0x00, 0x50) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Disabled",
+                    StyleKeys.Disabled,
                     new Style() {
-                        { "Background", new Color(0x70, 0x70, 0x70, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x70, 0x70, 0x70, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Hovered",
+                    StyleKeys.Hovered,
                     new Style() {
-                        { "Background", new Color(0x60, 0x60, 0x60, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x60, 0x60, 0x60, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Pressed",
+                    StyleKeys.Pressed,
                     new Style() {
-                        { "Background", new Color(0x30, 0x30, 0x30, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x30, 0x30, 0x30, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
-                { "Radius", 0f },
-
-                { "Padding", 0 },
+                { Panel.StyleKeys.Radius, 0f },
+                { Panel.StyleKeys.Padding, 0 },
             };
 
             public Func<IReloadable<Texture2D, Texture2DMeta>> IconGen;
-            private Icon Icon;
+            private readonly Icon Icon;
 
             public WindowButton(string icon)
                 : this(OlympUI.Assets.GetTexture($"icons/{icon}")) {
@@ -544,7 +554,7 @@ namespace Olympus {
                 Icon iconi = Icon = new(icon) {
                     ID = "icon",
                     Style = {
-                        { "Color", Style.GetLink("Foreground") },
+                        { ImageBase.StyleKeys.Color, Style.GetLink(StyleKeys.Foreground) },
                     },
                     Layout = {
                         Layouts.Left(0.5f, -0.5f),
@@ -576,16 +586,16 @@ namespace Olympus {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Hovered",
+                    StyleKeys.Hovered,
                     new Style() {
-                        { "Background", new Color(0x90, 0x20, 0x20, 0x90) },
+                        { Panel.StyleKeys.Background, new Color(0x90, 0x20, 0x20, 0x90) },
                     }
                 },
 
                 {
-                    "Pressed",
+                    StyleKeys.Pressed,
                     new Style() {
-                        { "Background", new Color(0x70, 0x10, 0x10, 0x90) },
+                        { Panel.StyleKeys.Background, new Color(0x70, 0x10, 0x10, 0x90) },
                     }
                 },
             };

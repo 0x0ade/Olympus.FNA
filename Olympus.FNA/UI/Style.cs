@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -13,17 +14,17 @@ using System.Threading.Tasks;
 namespace OlympUI {
     public sealed class Style : IEnumerable<Style.Entry> {
 
-        public static readonly Dictionary<Type, string> CommonNames = new() {
-            { typeof(DynamicSpriteFont), "Font" },
+        public static readonly Dictionary<Type, Key> CommonKeys = new() {
+            { typeof(DynamicSpriteFont), new("Font") },
         };
 
-        private static readonly Dictionary<string, string> ExpressionNames = new();
+        private static readonly Dictionary<string, Key> ExpressionKeys = new();
 
         // This must sadly be an ordered list for update order. A dict can be added alongside this later if needed.
         public static readonly List<Style> TypeStyles = new();
         public static readonly Dictionary<(Type From, Type To), IConverter> Converters = new();
 
-        private readonly Dictionary<string, Entry> Map = new();
+        private readonly Dictionary<Key, Entry> Map = new(KeyEqualityComparer.Instance);
 
         private Style? Parent;
 
@@ -68,36 +69,36 @@ namespace OlympUI {
             return (T) System.Convert.ChangeType(raw, typeof(T));
         }
 
-        public static string GetCommonName(Type type) {
-            if (CommonNames.TryGetValue(type, out string? value))
-                return value;
+        public static Key GetCommonKey(Type type) {
+            if (CommonKeys.TryGetValue(type, out Key key))
+                return key;
 
             for (Type? typeBase = type; typeBase is not null; typeBase = typeBase.BaseType) {
                 if (typeBase.IsConstructedGenericType && typeBase.GetGenericTypeDefinition() == typeof(Reloadable<,>))
-                    return GetCommonName(typeBase.GetGenericArguments()[0]);
+                    return GetCommonKey(typeBase.GetGenericArguments()[0]);
 
                 if (typeBase.IsConstructedGenericType && typeBase.GetGenericTypeDefinition() == typeof(IReloadable<,>))
-                    return GetCommonName(typeBase.GetGenericArguments()[0]);
+                    return GetCommonKey(typeBase.GetGenericArguments()[0]);
 
                 if (typeBase.IsConstructedGenericType && typeBase.GetGenericTypeDefinition() == typeof(Fader<>))
-                    return GetCommonName(typeBase.GetGenericArguments()[0]);
+                    return GetCommonKey(typeBase.GetGenericArguments()[0]);
             }
 
-            return type.Name;
+            return new(type.Name);
         }
 
-        public static string? GetKeyFromCallerArgumentExpression(string? expr) {
+        public static Key? GetKeyFromCallerArgumentExpression(string? expr) {
             if (string.IsNullOrEmpty(expr))
                 return null;
 
-            if (ExpressionNames.TryGetValue(expr, out string? value))
-                return value;
+            if (ExpressionKeys.TryGetValue(expr, out Key key))
+                return key;
 
             int split = expr.IndexOf(' ');
             string sub = char.ToUpperInvariant(expr[split + 1]) + expr.Substring(split + 2);
             if (sub.StartsWith("Style"))
                 sub = expr.Substring(5);
-            return ExpressionNames[expr] = sub;
+            return ExpressionKeys[expr] = new(sub);
         }
 
         private void SetupParent(Type type) {
@@ -134,34 +135,34 @@ namespace OlympUI {
         }
 
         public void GetEntry<T>(out Entry value)
-            => value = GetEntry(GetCommonName(typeof(T)));
+            => value = GetEntry(GetCommonKey(typeof(T)));
 #if !OLYMPUS_STYLE_NOEXPR
         public void GetEntry(out Entry value, [CallerArgumentExpression("value")] string? expr = null)
             => value = GetEntry(GetKeyFromCallerArgumentExpression(expr) ?? throw new ArgumentException($"Couldn't parse entry name from \"{expr}\"", nameof(value)));
 #endif
         public Entry GetEntry<T>()
-            => GetEntry(GetCommonName(typeof(T)));
-        public Entry GetEntry(string key) {
+            => GetEntry(GetCommonKey(typeof(T)));
+        public Entry GetEntry(Key key) {
             if (Map.TryGetValue(key, out Entry? entry))
                 return entry;
             return Map[key] = new(this, key, Parent?.GetEntry(key));
         }
 
         public void Add<T>(Func<T> value)
-            => Add(GetCommonName(typeof(T)), (object) value);
-        public void Add<T>(string key, Func<T> value)
+            => Add(GetCommonKey(typeof(T)), (object) value);
+        public void Add<T>(Key key, Func<T> value)
             => Add(key, (object) value);
         public void Add(Link value)
             => Add(value.Key, (object) value);
-        public void Add(string key, Link value)
+        public void Add(Key key, Link value)
             => Add(key, (object) value);
         public void Add<T>(Fader<T> value) where T : struct
-            => Add(GetCommonName(typeof(T)), (object) value);
-        public void Add<T>(string key, Fader<T> value) where T : struct
+            => Add(GetCommonKey(typeof(T)), (object) value);
+        public void Add<T>(Key key, Fader<T> value) where T : struct
             => Add(key, (object) value);
         public void Add<T>(T value)
-            => Add(GetCommonName(typeof(T)), value);
-        public void Add(string key, object? value)
+            => Add(GetCommonKey(typeof(T)), value);
+        public void Add(Key key, object? value)
             => GetEntry(key).Value = value;
 
         public void Clear()
@@ -172,9 +173,9 @@ namespace OlympUI {
             => TryGetCurrent(GetCommonName(typeof(T)), out value);
 #else
         public bool TryGetCurrent<T>([NotNullWhen(true)] out T? value, [CallerArgumentExpression("value")] string? expr = null)
-            => TryGetCurrent(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)), out value);
+            => TryGetCurrent(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonKey(typeof(T)), out value);
 #endif
-        public bool TryGetCurrent<T>(string key, [NotNullWhen(true)] out T? value)
+        public bool TryGetCurrent<T>(Key key, [NotNullWhen(true)] out T? value)
             => GetEntry(key).TryGetCurrent(out value);
 
 #if OLYMPUS_STYLE_NOEXPR
@@ -182,13 +183,13 @@ namespace OlympUI {
             => value = GetCurrent<T>(GetCommonName(typeof(T)));
 #else
         public void GetCurrent<T>(out T value, [CallerArgumentExpression("value")] string? expr = null)
-            => value = GetCurrent<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)));
+            => value = GetCurrent<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonKey(typeof(T)));
 #endif
-        public void GetCurrent<T>(string key, out T value)
+        public void GetCurrent<T>(Key key, out T value)
             => value = GetCurrent<T>(key);
         public T GetCurrent<T>()
-            => GetCurrent<T>(GetCommonName(typeof(T)));
-        public T GetCurrent<T>(string key)
+            => GetCurrent<T>(GetCommonKey(typeof(T)));
+        public T GetCurrent<T>(Key key)
             => TryGetCurrent(key, out T? value) ? value : throw new Exception($"{(Element is null ? "Instance style for" : "Static style for")} \"{Type}\" doesn't define \"{key}\"");
 
 #if OLYMPUS_STYLE_NOEXPR
@@ -196,9 +197,9 @@ namespace OlympUI {
             => TryGetReal(GetCommonName(typeof(T)), out value);
 #else
         public bool TryGetReal<T>([NotNullWhen(true)] out T? value, [CallerArgumentExpression("value")] string? expr = null)
-            => TryGetReal(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)), out value);
+            => TryGetReal(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonKey(typeof(T)), out value);
 #endif
-        public bool TryGetReal<T>(string key, [NotNullWhen(true)] out T? value)
+        public bool TryGetReal<T>(Key key, [NotNullWhen(true)] out T? value)
             => GetEntry(key).TryGetReal(out value);
 
 #if OLYMPUS_STYLE_NOEXPR
@@ -206,18 +207,18 @@ namespace OlympUI {
             => value = GetReal<T>(GetCommonName(typeof(T)));
 #else
         public void GetReal<T>(out T value, [CallerArgumentExpression("value")] string? expr = null)
-            => value = GetReal<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonName(typeof(T)));
+            => value = GetReal<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonKey(typeof(T)));
 #endif
-        public void GetReal<T>(string key, out T value)
+        public void GetReal<T>(Key key, out T value)
             => value = GetReal<T>(key);
         public T GetReal<T>()
-            => GetReal<T>(GetCommonName(typeof(T)));
-        public T GetReal<T>(string key)
+            => GetReal<T>(GetCommonKey(typeof(T)));
+        public T GetReal<T>(Key key)
             => TryGetReal(key, out T? value) ? value : throw new Exception($"{(Element is null ? "Instance style for" : "Static style for")} \"{Type}\" doesn't define \"{key}\"");
 
         public void Apply(Style value) {
             if (value is null) {
-                foreach (KeyValuePair<string, Entry> entry in Map)
+                foreach (KeyValuePair<Key, Entry> entry in Map)
                     GetEntry(entry.Key).Value = null;
             } else {
                 foreach (Entry entry in value)
@@ -225,36 +226,36 @@ namespace OlympUI {
             }
         }
 
-        public void Apply(string name) {
+        public void Apply(Key key) {
             if (Element is not null) {
                 // FIXME: Cache style parent stack!
                 Stack<Style> stack = new();
                 for (Style? parent = Parent; parent is not null; parent = parent.Parent)
                     stack.Push(parent);
                 foreach (Style parent in stack) {
-                    Entry entry = parent.GetEntry(name);
+                    Entry entry = parent.GetEntry(key);
                     if (entry.Value is Style value)
                         Apply(value);
                     if (entry.GetSkinnedRaw() is Dictionary<string, object> props)
                         foreach (KeyValuePair<string, object> prop in props)
-                            Add(prop.Key, prop.Value);
+                            Add(new(prop.Key), prop.Value);
                 }
             }
 
             {
-                Entry entry = GetEntry(name);
+                Entry entry = GetEntry(key);
                 if (entry.Value is Style value)
                     Apply(value);
                 if (entry.GetSkinnedRaw() is Dictionary<string, object> props)
                     foreach (KeyValuePair<string, object> prop in props)
-                        Add(prop.Key, prop.Value);
+                        Add(new(prop.Key), prop.Value);
             }
         }
 
-        public Link GetLink(string key)
+        public Link GetLink(Key key)
             => new(this, key);
         public Link GetLink<T>()
-            => new(this, GetCommonName(typeof(T)));
+            => new(this, GetCommonKey(typeof(T)));
 
         public void Revive() {
             foreach (Entry entry in Map.Values)
@@ -288,15 +289,15 @@ namespace OlympUI {
         IEnumerator IEnumerable.GetEnumerator()
             => GetEnumerator();
         public IEnumerator<Entry> GetEnumerator() {
-            HashSet<string> returned = new();
+            HashSet<Key> returned = new(KeyEqualityComparer.Instance);
 
-            foreach (KeyValuePair<string, Entry> kvp in Map)
+            foreach (KeyValuePair<Key, Entry> kvp in Map)
                 if (!kvp.Value.IsUnset && returned.Add(kvp.Key))
                     yield return kvp.Value;
 
             if (Element is not null) {
                 for (Style? parent = Parent; parent is not null; parent = parent.Parent)
-                    foreach (KeyValuePair<string, Entry> kvp in parent.Map)
+                    foreach (KeyValuePair<Key, Entry> kvp in parent.Map)
                         if (!kvp.Value.IsUnset && returned.Add(kvp.Key))
                             yield return kvp.Value;
             }
@@ -305,7 +306,7 @@ namespace OlympUI {
         public class Entry {
 
             public readonly Style Style;
-            public readonly string Key;
+            public readonly Key Key;
             public Entry? Parent;
 
             private object? _Value;
@@ -413,7 +414,7 @@ namespace OlympUI {
 
             public readonly bool IsDummy;
 
-            public Entry(Style owner, string key, Entry? parent) {
+            public Entry(Style owner, Key key, Entry? parent) {
                 IsDummy = false;
                 Style = owner;
                 Key = key;
@@ -446,7 +447,7 @@ namespace OlympUI {
                 object? raw = default;
 
                 if (Style.Type is Type type && Skin.Current is Skin skin) {
-                    if (skin.TryGetValue(type.Name, Key, out raw) && raw != default)
+                    if (skin.TryGetValue(type.Name, Key.ToString(), out raw) && raw != default)
                         return raw;
 
                     // Links are pain. Someone please save me from this hell.
@@ -457,7 +458,7 @@ namespace OlympUI {
 
                     if (Style.Element is not null) {
                         foreach (string @class in Style.Element.Classes)
-                            if (skin.TryGetValue(@class, Key, out raw) && raw != default)
+                            if (skin.TryGetValue(@class, Key.ToString(), out raw) && raw != default)
                                 return raw;
                     }
 
@@ -633,8 +634,8 @@ namespace OlympUI {
 
         public class Link {
             public readonly Style Source;
-            public readonly string Key;
-            public Link(Style source, string key) {
+            public readonly Key Key;
+            public Link(Style source, Key key) {
                 Source = source;
                 Key = key;
             }
@@ -643,6 +644,37 @@ namespace OlympUI {
         public interface IConverter {
             (Type From, Type To)[] Supported { get; }
             T Convert<T>(object raw);
+        }
+
+        public readonly struct Key {
+            public readonly string? Value;
+            public readonly int HashCode;
+            public Key(string value) {
+                Value = value;
+                HashCode = Value.GetHashCode();
+            }
+
+            public override bool Equals([NotNullWhen(true)] object? obj)
+                => obj is Key other && HashCode == other.HashCode && Value == other.Value;
+
+            public override int GetHashCode()
+                => HashCode;
+
+            public override string ToString()
+                => Value ?? "";
+        }
+
+        public sealed class KeyEqualityComparer : EqualityComparer<Key> {
+            public static readonly KeyEqualityComparer Instance = new();
+
+            private KeyEqualityComparer() {
+            }
+
+            public override bool Equals(Key x, Key y)
+                => x.HashCode == y.HashCode && x.Value == y.Value;
+
+            public override int GetHashCode([DisallowNull] Key obj)
+                => obj.HashCode;
         }
 
     }

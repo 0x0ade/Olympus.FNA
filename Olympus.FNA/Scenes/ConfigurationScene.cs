@@ -26,8 +26,8 @@ namespace Olympus {
                 },
                 Content = new Group() {
                     Style = {
-                        { "Padding", 8 },
-                        { "Spacing", 32 }
+                        { Group.StyleKeys.Padding, 8 },
+                        { Group.StyleKeys.Spacing, 32 }
                     },
                     Layout = {
                         Layouts.Fill(1, 0),
@@ -37,7 +37,7 @@ namespace Olympus {
 
                         new Group() {
                             Style = {
-                                { "Spacing", 8 }
+                                { Group.StyleKeys.Spacing, 8 }
                             },
                             Layout = {
                                 Layouts.Fill(1, 0),
@@ -47,7 +47,7 @@ namespace Olympus {
                                 new HeaderMedium("Options"),
                                 new Group() {
                                     Style = {
-                                        { "Spacing", 8 }
+                                        { Group.StyleKeys.Spacing, 8 }
                                     },
                                     Layout = {
                                         Layouts.Fill(1, 0),
@@ -65,7 +65,7 @@ namespace Olympus {
 
                         new Group() {
                             Style = {
-                                { "Spacing", 8 }
+                                { Group.StyleKeys.Spacing, 8 }
                             },
                             Layout = {
                                 Layouts.Fill(1, 0),
@@ -75,7 +75,7 @@ namespace Olympus {
                                 new HeaderMedium("About Olympus"),
                                 new Group() {
                                     Style = {
-                                        { "Spacing", 8 }
+                                        { Group.StyleKeys.Spacing, 8 }
                                     },
                                     Layout = {
                                         Layouts.Fill(1, 0),

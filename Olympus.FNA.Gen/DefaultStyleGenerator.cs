@@ -86,19 +86,21 @@ namespace Olympus.Gen {
                 nests.Clear();
                 entries.Clear();
 
+                string baseType = "Element";
+                if (elType.BaseList?.ChildNodes().FirstOrDefault() is SimpleBaseTypeSyntax baseTypeSyntax &&
+                    baseTypeSyntax.Type is SimpleNameSyntax baseTypeIdentifier)
+                    baseType = baseTypeIdentifier.Identifier.Text;
+
                 bool containsExplicitDefaultStyle = false;
                 foreach (MemberDeclarationSyntax member in elType.Members) {
                     if (member is not FieldDeclarationSyntax field)
-                        break;
+                        continue;
 
                     if (field.Declaration.Variables.FirstOrDefault() is VariableDeclaratorSyntax varname && varname.Identifier.Text == "DefaultStyle") {
                         containsExplicitDefaultStyle = true;
                         break;
                     }
                 }
-
-                if (containsExplicitDefaultStyle)
-                    continue;
 
                 foreach (MemberDeclarationSyntax member in elType.Members) {
                     if (member is not FieldDeclarationSyntax field)
@@ -198,23 +200,55 @@ namespace Olympus.Gen {
                         indentLevel++;
                     }
 
-                    AppendLine();
-                    AppendLine("public static readonly new Style DefaultStyle = new() {");
-                    indentLevel++;
-                    foreach ((string name, string value) in entries) {
-                        AppendLine($"{{ \"{name}\", {value} }},");
+                    if (!containsExplicitDefaultStyle) {
+                        AppendLine();
+                        AppendLine("public static readonly new Style DefaultStyle = new() {");
+                        indentLevel++;
+                        foreach ((string name, string value) in entries) {
+                            AppendLine($"{{ StyleKeys.{name}, {value} }},");
+                        }
+                        indentLevel--;
+                        AppendLine("};");
+                        AppendLine();
+
+                    } else {
+                        AppendLine();
+                        AppendLine($"static {nests[0].Name}() {{");
+                        indentLevel++;
+                        foreach ((string name, string value) in entries) {
+                            AppendLine($"DefaultStyle.Add(StyleKeys.{name}, {value});");
+                        }
+                        indentLevel--;
+                        AppendLine("}");
+                        AppendLine();
                     }
-                    indentLevel--;
-                    AppendLine("};");
-                    AppendLine();
 
                     AppendLine();
                     AppendLine("protected override void SetupStyleEntries() {");
                     indentLevel++;
                     AppendLine("base.SetupStyleEntries();");
                     foreach ((string name, _) in entries) {
-                        AppendLine($"Style{name} = Style.GetEntry(\"{name}\");");
+                        AppendLine($"Style{name} = Style.GetEntry(StyleKeys.{name});");
                     }
+                    indentLevel--;
+                    AppendLine("}");
+                    AppendLine();
+
+                    AppendLine();
+                    AppendLine($"public new abstract partial class StyleKeys : {baseType}.StyleKeys {{");
+                    indentLevel++;
+
+                    AppendLine();
+                    AppendLine("protected StyleKeys(Secret secret) : base(secret) { }");
+                    AppendLine();
+
+                    AppendLine();
+                    foreach ((string name, _) in entries) {
+                        // FIXME: Avoid generating style keys for entries which also exist in parents.
+                        AppendLine($"public static readonly Style.Key {name} = new(\"{name}\");");
+                    }
+                    AppendLine();
+
                     indentLevel--;
                     AppendLine("}");
                     AppendLine();

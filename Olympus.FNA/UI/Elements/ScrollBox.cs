@@ -13,10 +13,6 @@ using System.Threading.Tasks;
 namespace OlympUI {
     public partial class ScrollBox : Group {
 
-        public static readonly new Style DefaultStyle = new() {
-            { "BarPadding", 4 }
-        };
-
         public Element Content {
             get => this[0];
             set {
@@ -34,6 +30,8 @@ namespace OlympUI {
         private Vector2 ScrollDXYPrev;
         private Vector2 ScrollDXYMax;
         private float ScrollDXYTime;
+
+        protected Style.Entry StyleBarPadding = new(4);
 
         public ScrollBox() {
             Cached = false;
@@ -175,45 +173,40 @@ namespace OlympUI {
 
         public static readonly new Style DefaultStyle = new() {
             {
-                "Normal",
+                StyleKeys.Normal,
                 new Style() {
                     new Color(0x80, 0x80, 0x80, 0xa0),
-                    { "Width", 3f },
-                    { "Radius", 3f },
+                    { StyleKeys.Width, 3f },
+                    { StyleKeys.Radius, 3f },
                 }
             },
 
             {
-                "Disabled",
+                StyleKeys.Disabled,
                 new Style() {
                     new Color(0x00, 0x00, 0x00, 0x00),
-                    { "Width", 3f },
-                    { "Radius", 3f },
+                    { StyleKeys.Width, 3f },
+                    { StyleKeys.Radius, 3f },
                 }
             },
 
             {
-                "Hovered",
+                StyleKeys.Hovered,
                 new Style() {
                     new Color(0xa0, 0xa0, 0xa0, 0xff),
-                    { "Width", 6f },
-                    { "Radius", 3f },
+                    { StyleKeys.Width, 6f },
+                    { StyleKeys.Radius, 3f },
                 }
             },
 
             {
-                "Pressed",
+                StyleKeys.Pressed,
                 new Style() {
                     new Color(0x90, 0x90, 0x90, 0xff),
-                    { "Width", 6f },
-                    { "Radius", 3f },
+                    { StyleKeys.Width, 6f },
+                    { StyleKeys.Radius, 3f },
                 }
             },
-
-            new ColorFader(),
-            { "Width", new FloatFader() },
-            { "WidthMax", 6 },
-            { "Radius", new FloatFader() }
         };
 
         private BasicMesh Mesh;
@@ -227,7 +220,12 @@ namespace OlympUI {
 
         public readonly ScrollAxis Axis;
 
-        public ScrollHandle(ScrollAxis axis) {
+        protected Style.Entry StyleColor = new(new ColorFader());
+        protected Style.Entry StyleWidth = new(new FloatFader());
+        protected Style.Entry StyleWidthMax = new(6);
+        protected Style.Entry StyleRadius = new(new FloatFader());
+
+public ScrollHandle(ScrollAxis axis) {
             Interactive = InteractiveMode.Process;
             Mesh = new BasicMesh(Game) {
                 Texture = Assets.GradientQuadY
@@ -256,10 +254,10 @@ namespace OlympUI {
             bool enabled = Enabled ?? IsNeeded;
 
             Style.Apply(
-                !enabled ? "Disabled" :
-                (Pressed || Dragged) ? "Pressed" :
-                Hovered ? "Hovered" :
-                "Normal"
+                !enabled ? StyleKeys.Disabled :
+                (Pressed || Dragged) ? StyleKeys.Pressed :
+                Hovered ? StyleKeys.Hovered :
+                StyleKeys.Normal
             );
 
             base.Update(dt);
@@ -274,10 +272,9 @@ namespace OlympUI {
             Vector2 xy = ScreenXY;
             Point wh = WH;
 
-            Style.GetCurrent(out Color color);
-            Style.GetCurrent(out float width);
-            Style.GetCurrent(out int widthMax);
-            Style.GetCurrent(out float radius);
+            StyleColor.GetCurrent(out Color color);
+            StyleWidth.GetCurrent(out float width);
+            StyleRadius.GetCurrent(out float radius);
 
             if (PrevColor != color ||
                 PrevWidth != width ||
@@ -319,7 +316,7 @@ namespace OlympUI {
 #region X axis scroll layout
 
         private void AxisX_LayoutReset(LayoutEvent e) {
-            Style.GetReal(out int widthMax);
+            StyleWidthMax.GetReal(out int widthMax);
             XY = RealXY = default;
             WH = new(0, widthMax);
         }
@@ -328,7 +325,7 @@ namespace OlympUI {
             ScrollBox box = Parent as ScrollBox ?? throw new Exception("Scroll handles belong into scroll boxes!");
             Element content = box.Content;
 
-            Style.GetReal(out int widthMax);
+            StyleWidthMax.GetReal(out int widthMax);
             box.Style.GetReal(out int barPadding);
 
             int boxSize = box.WH.X;
@@ -379,7 +376,7 @@ namespace OlympUI {
 #region Y axis scroll layout
 
         private void AxisY_LayoutReset(LayoutEvent e) {
-            Style.GetReal(out int widthMax);
+            StyleWidthMax.GetReal(out int widthMax);
             XY = RealXY = default;
             WH = new(widthMax, 0);
         }
@@ -388,7 +385,7 @@ namespace OlympUI {
             ScrollBox box = Parent as ScrollBox ?? throw new Exception("Scroll handles belong into scroll boxes!");
             Element content = box.Content;
 
-            Style.GetReal(out int widthMax);
+            StyleWidthMax.GetReal(out int widthMax);
             box.Style.GetReal(out int barPadding);
 
             int boxSize = box.WH.Y;
@@ -434,7 +431,15 @@ namespace OlympUI {
             box.ForceScroll(new(0, e.DXY.Y * box.Content.WH.Y / box.WH.Y));
         }
 
-#endregion
+        #endregion
+
+        public new abstract partial class StyleKeys {
+
+            public static readonly Style.Key Normal = new("Normal");
+            public static readonly Style.Key Disabled = new("Disabled");
+            public static readonly Style.Key Hovered = new("Hovered");
+            public static readonly Style.Key Pressed = new("Pressed");
+        }
 
     }
 }

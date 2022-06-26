@@ -24,13 +24,13 @@ namespace Olympus {
                     Layouts.Top(NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? 0 : 48),
                 },
                 Style = {
-                    { "Padding", new Padding() {
+                    { Group.StyleKeys.Padding, new Padding() {
                         L = 64,
                         T = 64,
                         R = 64,
                         B = NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? 64 : (64 + 8)
                     } },
-                    { "Radius", NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? 0f : 8f },
+                    { Panel.StyleKeys.Radius, NativeImpl.Native.ClientSideDecoration < ClientSideDecorationMode.Title ? 0f : 8f },
                 },
                 Children = {
                     new Group() {
@@ -63,32 +63,29 @@ namespace Olympus {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Disabled",
+                    StyleKeys.Disabled,
                     new Style() {
-                        { "Opacity", 0f },
-                        { "Shadow", 0f },
+                        { StyleKeys.Opacity, 0f },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Enabled",
+                    StyleKeys.Enabled,
                     new Style() {
-                        { "Opacity", 1f },
-                        { "Shadow", 4f },
+                        { StyleKeys.Opacity, 1f },
+                        { Panel.StyleKeys.Shadow, 4f },
                     }
                 },
 
-                { "Background", new ColorFader(0x10, 0x10, 0x10, 0xd0) },
-                { "Opacity", new FloatFader(0f) },
+                { Panel.StyleKeys.Background, new ColorFader(0x10, 0x10, 0x10, 0xd0) },
             };
 
             private BlurryGroup? MainBox;
 
-            protected Style.Entry StyleOpacity;
+            protected Style.Entry StyleOpacity = new(new FloatFader(0f));
 
             public AlertContainer() {
-                Style.GetEntry(out StyleOpacity);
-
                 Cached = true;
                 Clip = true;
                 Interactive = InteractiveMode.Process;
@@ -106,11 +103,11 @@ namespace Olympus {
 
                 bool enabled = Scener.Alerts.Count != 0;
 
-                Style.Apply(enabled ? "Enabled" : "Disabled");
-                mainBox.Style.Add("Radius", enabled ? 32f : 0f);
-                mainBox.Style.Add("Strength", enabled ? 2f : 1f);
-                mainBox.Style.Add("Scale", enabled ? 6f : 1f);
-                mainBox.Style.Add("Noise", enabled ? 1f : 0f);
+                Style.Apply(enabled ? StyleKeys.Enabled : StyleKeys.Disabled);
+                mainBox.Style.Add(BlurryGroup.StyleKeys.Radius, enabled ? 32f : 0f);
+                mainBox.Style.Add(BlurryGroup.StyleKeys.Strength, enabled ? 2f : 1f);
+                mainBox.Style.Add(BlurryGroup.StyleKeys.Scale, enabled ? 6f : 1f);
+                mainBox.Style.Add(BlurryGroup.StyleKeys.Noise, enabled ? 1f : 0f);
 
                 InteractiveMode mode = enabled ? InteractiveMode.Process : InteractiveMode.Discard;
                 if (Interactive != mode) {
@@ -153,46 +150,50 @@ namespace Olympus {
                 }
             }
 
+            public new abstract partial class StyleKeys {
+                public static readonly Style.Key Enabled = new("Enabled");
+                public static readonly Style.Key Disabled = new("Disabled");
+            }
+
         }
 
         public partial class CloseButton : Button {
 
             public static readonly new Style DefaultStyle = new() {
                 {
-                    "Normal",
+                    Button.StyleKeys.Normal,
                     new Style() {
-                        { "Background", new Color(0x00, 0x00, 0x00, 0x50) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x00, 0x00, 0x00, 0x50) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Disabled",
+                    Button.StyleKeys.Disabled,
                     new Style() {
-                        { "Background", new Color(0x70, 0x70, 0x70, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x70, 0x70, 0x70, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Hovered",
+                    Button.StyleKeys.Hovered,
                     new Style() {
-                        { "Background", new Color(0x60, 0x60, 0x60, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x60, 0x60, 0x60, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
                 {
-                    "Pressed",
+                    Button.StyleKeys.Pressed,
                     new Style() {
-                        { "Background", new Color(0x30, 0x30, 0x30, 0x70) },
-                        { "Shadow", 0f },
+                        { Panel.StyleKeys.Background, new Color(0x30, 0x30, 0x30, 0x70) },
+                        { Panel.StyleKeys.Shadow, 0f },
                     }
                 },
 
-                { "Radius", 32f },
-
-                { "Padding", 0 },
+                { Panel.StyleKeys.Radius, 32f },
+                { Panel.StyleKeys.Padding, 0 },
             };
 
             public Func<IReloadable<Texture2D, Texture2DMeta>> IconGen;
@@ -220,7 +221,7 @@ namespace Olympus {
                 Icon iconi = Icon = new(icon) {
                     ID = "icon",
                     Style = {
-                        { "Color", Style.GetLink("Foreground") },
+                        { ImageBase.StyleKeys.Color, Style.GetLink(Button.StyleKeys.Foreground) },
                     },
                     Layout = {
                         Layouts.Left(0.5f, -0.5f),

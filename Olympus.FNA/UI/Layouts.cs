@@ -34,7 +34,7 @@ namespace OlympUI {
                 case LayoutConsts.Prev:
                     {
                         value = 0;
-                        if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                        if (!p.Style.TryGetCurrent(Group.StyleKeys.Spacing, out int spacing))
                             spacing = 0;
                         foreach (Element sibling in p.Children) {
                             if (sibling == el)
@@ -47,7 +47,7 @@ namespace OlympUI {
                 case LayoutConsts.Next:
                     {
                         value = 0;
-                        if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                        if (!p.Style.TryGetCurrent(Panel.StyleKeys.Spacing, out int spacing))
                             spacing = 0;
                         bool skip = true;
                         foreach (Element sibling in p.Children) {
@@ -78,7 +78,7 @@ namespace OlympUI {
                 case LayoutConsts.Prev:
                     {
                         value = 0;
-                            if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                            if (!p.Style.TryGetCurrent(Group.StyleKeys.Spacing, out int spacing))
                             spacing = 0;
                         foreach (Element sibling in p.Children) {
                             if (sibling == el)
@@ -91,7 +91,7 @@ namespace OlympUI {
                 case LayoutConsts.Next:
                     {
                         value = 0;
-                        if (!p.Style.TryGetCurrent("Spacing", out int spacing))
+                        if (!p.Style.TryGetCurrent(Group.StyleKeys.Spacing, out int spacing))
                             spacing = 0;
                         bool skip = true;
                         foreach (Element sibling in p.Children) {
@@ -143,7 +143,7 @@ namespace OlympUI {
                 int spacingReal;
                 if (spacing is not null) {
                     spacingReal = spacing.Value;
-                } else if (!el.Style.TryGetCurrent("Spacing", out spacingReal)) {
+                } else if (!el.Style.TryGetCurrent(Group.StyleKeys.Spacing, out spacingReal)) {
                     spacingReal = 0;
                 }
                 Padding padding = el.Padding;
@@ -168,7 +168,7 @@ namespace OlympUI {
                 int spacingReal;
                 if (spacing is not null) {
                     spacingReal = spacing.Value;
-                } else if (!el.Style.TryGetCurrent("Spacing", out spacingReal)) {
+                } else if (!el.Style.TryGetCurrent(Group.StyleKeys.Spacing, out spacingReal)) {
                     spacingReal = 0;
                 }
                 Padding padding = el.Padding;

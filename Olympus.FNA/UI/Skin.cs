@@ -101,9 +101,10 @@ namespace OlympUI {
 
         private static Dictionary<string, object> GenerateProps(Style style, Dictionary<string, object> props) {
             foreach (Style.Entry entry in style) {
+                string key = entry.Key.ToString();
                 object raw = entry.Value;
                 if (raw is Style substyle) {
-                    if (!props.TryGetValue(entry.Key, out object? subpropsRaw) || subpropsRaw is not Dictionary<string, object> subprops)
+                    if (!props.TryGetValue(key, out object? subpropsRaw) || subpropsRaw is not Dictionary<string, object> subprops)
                         subprops = new();
                     raw = GenerateProps(substyle, subprops);
 
@@ -122,7 +123,7 @@ namespace OlympUI {
                     continue;
                 }
 
-                props[entry.Key] = raw;
+                props[key] = raw;
             }
             return props;
         }
