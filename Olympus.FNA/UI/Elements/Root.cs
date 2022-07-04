@@ -25,6 +25,8 @@ namespace OlympUI {
         public List<Element> AllOnScreen;
         public List<Element> AllInteractive;
 
+        protected override bool IsComposited => true;
+
         public Root() {
             Cached = false;
             All = AllPool.Next();

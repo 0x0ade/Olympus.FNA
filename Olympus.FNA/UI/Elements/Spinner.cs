@@ -20,6 +20,8 @@ namespace OlympUI {
         private float Time;
         private float TimeOffs;
 
+        protected override bool IsComposited => false;
+
         public Spinner() {
             WH = new(24, 24);
             Mesh = new BasicMesh(Game) {

@@ -232,6 +232,7 @@ namespace OlympUI {
         }
 
         public static Reloadable<DynamicSpriteFont, NullMeta> GetFont(int size, params string[] paths) {
+            // FIXME: Possible memory leak!
             FontSystem font = OpenFont(paths);
             return Get($"Font '{string.Join(", ", paths)}' Size '{size}'", default(NullMeta), () => font.GetFont(size));
         }

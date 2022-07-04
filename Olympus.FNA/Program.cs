@@ -40,7 +40,7 @@ namespace Olympus {
             }
 
             // Crappy DirectInput drivers can cause Olympus to hang for a minute when starting up.
-            // This has yet to land in upstream SDL2.
+            // This is new: https://github.com/libsdl-org/SDL/commit/6a2e6c82a0764a00123447d93999ebe14d509aa8
             if (Environment.GetEnvironmentVariable("OLYMPUS_DIRECTINPUT_ENABLED") != "1") {
                 SDL.SDL_SetHint("SDL_DIRECTINPUT_ENABLED", "0");
             }

@@ -37,7 +37,7 @@ namespace OlympUI {
             Cached = false;
             ClipExtend = 0;
             Interactive = InteractiveMode.Process;
-            Content = new Dummy();
+            Content = new NullElement();
             ScrollHandleX = new(ScrollAxis.X);
             ScrollHandleY = new(ScrollAxis.Y);
         }
@@ -225,7 +225,10 @@ namespace OlympUI {
         protected Style.Entry StyleWidthMax = new(6);
         protected Style.Entry StyleRadius = new(new FloatFader());
 
-public ScrollHandle(ScrollAxis axis) {
+        protected override bool IsComposited => false;
+
+        public ScrollHandle(ScrollAxis axis) {
+            Cached = false;
             Interactive = InteractiveMode.Process;
             Mesh = new BasicMesh(Game) {
                 Texture = Assets.GradientQuadY

@@ -32,6 +32,18 @@ namespace OlympUI {
             return owns ? TemporaryContext?.MarkTemporary(reloadable) ?? reloadable : reloadable;
         }
 
+        public static IReloadable<TValue, TMeta> Temporary<TValue, TMeta>(TMeta meta, Func<TValue?> loader, Action<TValue?> unloader) {
+            Reloadable<TValue, TMeta> reloadable = new(null, meta, loader, unloader);
+
+#if DEBUG
+            if (TemporaryContext is null && Debugger.IsAttached) {
+                Debugger.Break();
+            }
+#endif
+
+            return TemporaryContext?.MarkTemporary(reloadable) ?? reloadable;
+        }
+
     }
 
     public interface IReloadable : IGenericValueSource, IDisposable {
@@ -183,8 +195,11 @@ namespace OlympUI {
                 Dispose();
             }
 
-            IsValid = true;
             ValueRaw = Loader();
+            IsValid = ValueRaw is not null;
+
+            if (!IsValid)
+                return;
 
             AssetTracker<TValue, TMeta>.Instance?.Loaded(this);
         }

@@ -41,7 +41,10 @@ namespace OlympUI {
 
         protected Style.Entry StyleColor = new(Color.White);
 
+        protected override bool IsComposited => false;
+
         public ImageBase(IReloadable<Texture2D, Texture2DMeta> texture) {
+            Cached = false;
             Texture = texture;
             Texture2DMeta tex = texture.Meta;
             WH = new Point(tex.Width, tex.Height);

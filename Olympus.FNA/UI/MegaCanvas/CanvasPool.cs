@@ -89,7 +89,8 @@ namespace OlympUI.MegaCanvas {
             bool fresh;
 
             lock (Entries) {
-                if (Entries.TryGetSmallest(width, height, out Entry entry, out int index)) {
+                if (Entries.TryGetSmallest(width, height, out Entry entry, out int index) &&
+                    entry.Width <= width * 1.5 && entry.Height <= height * 1.5) {
                     Entries[index] = default;
                     EntriesAlive--;
                     rt = entry.RT;

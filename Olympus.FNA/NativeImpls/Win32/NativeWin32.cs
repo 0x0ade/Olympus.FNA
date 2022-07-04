@@ -274,6 +274,8 @@ namespace Olympus.NativeImpls {
             ExtendedBorderedWindow ? ClientSideDecorationMode.Full :
             ClientSideDecorationMode.Title;
 
+        public override bool IsMultiThreadInit => true;
+
         public BasicMesh? WindowBackgroundMesh;
         public float WindowBackgroundOpacity;
 
@@ -655,7 +657,6 @@ namespace Olympus.NativeImpls {
             if (SystemHasAcrylic) {
                 Microsoft.Xna.Framework.Color colorPrev = LastBackgroundColor;
                 Microsoft.Xna.Framework.Color color;
-
 
                 if (SetAcrylicOnSelf && !SetAcrylicOnSelfMaximized && _IsMaximized) {
                     // FIXME: Maximized background blur leaves an unblurred area at the right edge with self-acrylic.
@@ -1281,7 +1282,6 @@ namespace Olympus.NativeImpls {
                     // FIXME: GET THIS THE HELL OUT OF HERE.
                     const int windowButtonWidth = border + 48 * 3 + 2 * 2 + 8;
                     if (hit == HitTestValues.HTCLIENT && ScreenToClient(hwnd, ref point)) {
-                        // TODO: Ensure that this doesn't overlap with any UI elements!
                         if (point.Y < OffsetTop) {
                             if (hitDWM && point.Y > 0 && ((HitTestValues) rv) > HitTestValues.HTSYSMENU)
                                 return rv;

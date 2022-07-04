@@ -169,6 +169,8 @@ namespace Olympus {
             private Color PrevColor;
             private Point PrevWH;
 
+            protected override bool IsComposited => false;
+
             public PathTest() {
                 Cached = false;
                 Mesh = new BasicMesh(Game) {

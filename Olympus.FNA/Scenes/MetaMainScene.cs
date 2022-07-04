@@ -359,7 +359,10 @@ namespace Olympus {
             private float PrevScale;
             private Point PrevWH;
 
+            protected override bool IsComposited => false;
+
             public SidebarNavButtonIndicator(SidebarNavButton button) {
+                Cached = false;
                 Button = button;
                 Mesh = new BasicMesh(Game) {
                     Texture = OlympUI.Assets.GradientQuadY

@@ -40,6 +40,8 @@ namespace OlympUI {
             }
         }
 
+        protected override bool IsComposited => false;
+
         public Label(string text) {
             Text = text;
         }

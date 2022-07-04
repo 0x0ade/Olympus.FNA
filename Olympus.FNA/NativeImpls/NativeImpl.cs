@@ -43,6 +43,8 @@ namespace Olympus.NativeImpls {
         public abstract Padding Padding { get; }
         public abstract ClientSideDecorationMode ClientSideDecoration { get; }
 
+        public abstract bool IsMultiThreadInit { get; }
+
 
         public abstract void Run();
         public abstract void Dispose();

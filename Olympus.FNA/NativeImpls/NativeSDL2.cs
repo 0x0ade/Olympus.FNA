@@ -40,6 +40,8 @@ namespace Olympus.NativeImpls {
         public override Padding Padding => default;
         public override ClientSideDecorationMode ClientSideDecoration => ClientSideDecorationMode.None;
 
+        public override bool IsMultiThreadInit => false;
+
 
         public override bool IsMouseFocus => SDL.SDL_GetMouseFocus() == Game.Window.Handle;
 

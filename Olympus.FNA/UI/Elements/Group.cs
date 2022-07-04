@@ -69,6 +69,8 @@ namespace OlympUI {
 
         #endregion
 
+        protected override bool IsComposited => true;
+
         public Group() {
         }
 

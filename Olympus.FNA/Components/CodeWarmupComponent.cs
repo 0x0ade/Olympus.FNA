@@ -37,6 +37,12 @@ namespace Olympus {
 
             // The first UI update is very chonky with forced relayouts, element inits, scans and whatnot.
             UI.Update(0f);
+
+            // LibTessDotNet can be chonky.
+            new MeshShapes<MiniVertex>().Add(new MeshShapes.Rect {
+                Size = new Vector2(100, 100),
+                Radius = 50
+            });
         }
 
         public override bool UpdateDraw() {
