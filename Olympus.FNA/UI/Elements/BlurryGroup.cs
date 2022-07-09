@@ -8,7 +8,7 @@ namespace OlympUI {
 
         protected Style.Entry StyleRadius = new(new FloatFader(0f));
         protected Style.Entry StyleStrength = new(new FloatFader(1f));
-        protected Style.Entry StyleScale = new(new FloatFader(1f));
+        protected Style.Entry StyleScale = new(new FloatFader(2f));
         protected Style.Entry StyleNoise = new(new FloatFader(0f));
 
         public override bool? Cached => true;

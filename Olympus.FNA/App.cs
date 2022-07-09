@@ -193,7 +193,7 @@ namespace Olympus {
                 Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.Immediate;
                 GraphicsDevice.Reset(Graphics.GraphicsDevice.PresentationParameters);
 
-            } else if (!Graphics.SynchronizeWithVerticalRetrace && VSync) {
+            } else if (!Graphics.SynchronizeWithVerticalRetrace && VSync && !ManuallyUpdated) {
                 Graphics.SynchronizeWithVerticalRetrace = true;
                 Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.One;
                 GraphicsDevice.Reset(Graphics.GraphicsDevice.PresentationParameters);

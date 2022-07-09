@@ -113,6 +113,7 @@ namespace Olympus.NativeImpls {
         private Stopwatch InitStopwatch = new();
 
         private Display[]? _Displays;
+        // FIXME: Display hotplugging!
         private Display[] Displays {
             get {
                 if (_Displays is not null)
@@ -120,8 +121,8 @@ namespace Olympus.NativeImpls {
 
                 List<Display> displays = new();
 
-                // FIXME: Figure out what adapter is being used by FNA!
-                // FIXME: Figure out what adapter is being used by Windows!
+                // FIXME: Figure out / influence what adapter is being used by FNA ahead of time!
+                // FIXME: Figure out / influence what adapter is being used by Windows ahead of time!
 
                 // The first adapter in the list is what Windows wants us to use (as per Windows settings overrides).
                 // If Windows forces us to use a non-main adapter, it also fakes all outputs to belong to that adapter (luckily no flicker).
@@ -276,6 +277,7 @@ namespace Olympus.NativeImpls {
 
         public override bool IsMultiThreadInit => true;
 
+
         public BasicMesh? WindowBackgroundMesh;
         public float WindowBackgroundOpacity;
 
@@ -302,6 +304,9 @@ namespace Olympus.NativeImpls {
 
             Console.WriteLine($"Total time until new NativeWin32(): {app.GlobalWatch.Elapsed}");
             InitStopwatch.Start();
+
+            FNAHooks.FNA3DDeviceUpdated += OnFNA3DDeviceUpdated;
+            OnFNA3DDeviceUpdated();
 
             WndProcCurrentPtr = Marshal.GetFunctionPointerForDelegate(WndProcCurrent = WndProc);
             DefWindowProcW = NativeLibrary.GetExport(NativeLibrary.Load("user32.dll"), nameof(DefWindowProcW));
@@ -429,6 +434,7 @@ namespace Olympus.NativeImpls {
 
         public override void Dispose() {
             App.Dispose();
+            FNAHooks.FNA3DDeviceUpdated -= OnFNA3DDeviceUpdated;
         }
 
         public override void PrepareEarly() {
@@ -571,6 +577,13 @@ namespace Olympus.NativeImpls {
         public override void EndDrawDirect(float dt) {
             EndDrawRT(dt);
             EndDrawBB(dt);
+        }
+
+
+        private void OnFNA3DDeviceUpdated() {
+            if (FNAHooks.FNA3DDevice is FNA3DD3D11DeviceInfo d3d11Device) {
+                FNAHooks.FNA3DDevice = new FNA3DD3D11Win32DeviceInfo(d3d11Device);
+            }
         }
 
 

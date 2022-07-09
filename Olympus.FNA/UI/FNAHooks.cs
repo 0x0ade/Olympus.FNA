@@ -23,6 +23,7 @@ namespace OlympUI {
 
         public static string? FNA3DDriver;
         public static FNA3DDeviceInfo? FNA3DDevice;
+        public static event Action? FNA3DDeviceUpdated;
 
         private static ILHook? ApplyWindowChangesPatch;
         private static ILHook? DebugFNA3DPatch;
@@ -146,12 +147,15 @@ namespace OlympUI {
 
             } else if (line.StartsWith("D3D11 Adapter: ")) {
                 FNA3DDevice = new FNA3DD3D11DeviceInfo(line.Substring("D3D11 Adapter: ".Length).Trim());
+                FNA3DDeviceUpdated?.Invoke();
 
             } else if (line.StartsWith("Vulkan Device: ")) {
                 FNA3DDevice = new FNA3DVulkanDeviceInfo(line.Substring("Vulkan Device: ".Length).Trim());
+                FNA3DDeviceUpdated?.Invoke();
 
             } else if (line.StartsWith("OpenGL Renderer: ")) {
                 FNA3DDevice = new FNA3DOpenGLDeviceInfo(line.Substring("OpenGL Renderer: ".Length).Trim());
+                FNA3DDeviceUpdated?.Invoke();
             }
 
             FNA3DDevice?.OnLogInfo(line);
@@ -174,7 +178,7 @@ namespace OlympUI {
 
     }
 
-    public sealed class FNA3DD3D11DeviceInfo : FNA3DDeviceInfo {
+    public class FNA3DD3D11DeviceInfo : FNA3DDeviceInfo {
 
         public FNA3DD3D11DeviceInfo(string device) : base(device) {
         }
@@ -183,7 +187,7 @@ namespace OlympUI {
 
     }
 
-    public sealed class FNA3DVulkanDeviceInfo : FNA3DDeviceInfo {
+    public class FNA3DVulkanDeviceInfo : FNA3DDeviceInfo {
 
         public string? Driver { get; private set; }
 
@@ -202,7 +206,7 @@ namespace OlympUI {
 
     }
 
-    public sealed class FNA3DOpenGLDeviceInfo : FNA3DDeviceInfo {
+    public class FNA3DOpenGLDeviceInfo : FNA3DDeviceInfo {
 
         public string? Driver { get; private set; }
         public string? Vendor { get; private set; }

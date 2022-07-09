@@ -99,7 +99,7 @@ namespace Olympus {
                 Style.Apply(enabled ? StyleKeys.Enabled : StyleKeys.Disabled);
                 mainBox.Style.Add(BlurryGroup.StyleKeys.Radius, enabled ? 32f : 0f);
                 mainBox.Style.Add(BlurryGroup.StyleKeys.Strength, enabled ? 2f : 1f);
-                mainBox.Style.Add(BlurryGroup.StyleKeys.Scale, enabled ? 6f : 1f);
+                mainBox.Style.Add(BlurryGroup.StyleKeys.Scale, enabled ? 6f : 2f);
                 mainBox.Style.Add(BlurryGroup.StyleKeys.Noise, enabled ? 1f : 0f);
 
                 InteractiveMode mode = enabled ? InteractiveMode.Process : InteractiveMode.Discard;

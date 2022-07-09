@@ -241,6 +241,7 @@ namespace Olympus {
                 : base() {
                 X = 8;
                 WH = new(SidebarButtonWidth, 64);
+                Cached = true;
 
                 Icon iconi = new(icon) {
                     ID = "icon",

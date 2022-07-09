@@ -53,6 +53,7 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SharpDX" Version="4.2.0" Condition="$(TargetIsWindows)" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" Condition="$(TargetIsWindows)" />
+    <PackageReference Include="System.Management" Version="6.0.0" Condition="$(TargetIsWindows)" />
     <PackageReference Include="YamlDotNet" Version="11.2.1" />
   </ItemGroup>
 
