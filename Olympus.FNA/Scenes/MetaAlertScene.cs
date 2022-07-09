@@ -121,11 +121,12 @@ namespace Olympus {
 
             protected override void DrawCachedTexture(RenderTarget2DRegion rt, Vector2 xy, Padding padding, Point size) {
                 UIDraw.AddDependency(rt);
-                UIDraw.Recorder.Add(
-                    (rt, xy, rt.Region.WithSize(size), (xy.ToPoint() - padding.LT).WithSize(size), Color.White * StyleOpacity.GetCurrent<float>()),
-                    static ((RenderTarget2DRegion rt, Vector2 xy, Rectangle src, Rectangle dest, Color color) data)
-                        => UI.SpriteBatch.Draw(data.rt.RT, data.dest, data.src, data.color)
-                );
+                UIDraw.Recorder.Add(new UICmd.Blit(
+                    rt.RT,
+                    rt.Region.WithSize(size),
+                    (xy.ToPoint() - padding.LT).WithSize(size),
+                    Color.White * StyleOpacity.GetCurrent<float>()
+                ));
             }
 
             private void OnClick(MouseEvent.Click e) {

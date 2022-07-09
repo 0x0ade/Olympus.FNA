@@ -63,11 +63,13 @@ namespace OlympUI {
         }
 
         public override void DrawContent() {
-            UIDraw.Recorder.Add(
-                (Texture.Value, ScreenXYWH, StyleColor.GetCurrent<Color>()),
-                static ((Texture2D tex, Rectangle rect, Color color) data) 
-                    => UI.SpriteBatch.Draw(data.tex, data.rect, data.color)
-            );
+            Texture2D tex = Texture.Value;
+            UIDraw.Recorder.Add(new UICmd.Blit(
+                tex,
+                tex.Bounds,
+                ScreenXYWH,
+                StyleColor.GetCurrent<Color>()
+            ));
         }
 
     }

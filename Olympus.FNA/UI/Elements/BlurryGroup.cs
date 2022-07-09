@@ -164,11 +164,12 @@ namespace OlympUI {
                 }
             }
 
-            UIDraw.Recorder.Add(
-                (display, DisplayBounds, (xy.ToPoint() - padding.LT).WithSize(size)),
-                static ((RenderTarget2DRegion display, Rectangle src, Rectangle dest) data)
-                    => UI.SpriteBatch.Draw(data.display.RT, data.dest, data.src, Color.White)
-            );
+            UIDraw.Recorder.Add(new UICmd.Blit(
+                display.RT,
+                DisplayBounds,
+                (xy.ToPoint() - padding.LT).WithSize(size),
+                Color.White
+            ));
         }
 
     }

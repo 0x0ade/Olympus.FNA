@@ -208,6 +208,7 @@ namespace Olympus {
 
                     data.mesh.WireFrame = false;
                     data.mesh.Draw(transform);
+
                     data.mesh.WireFrame = true;
                     data.mesh.Draw(transform);
 

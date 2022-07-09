@@ -44,11 +44,7 @@ namespace OlympUI {
         }
 
         public override void DrawContent() {
-            UIDraw.Recorder.Add(
-                (StyleFont.GetCurrent<DynamicSpriteFont>(), _TextDrawn, ScreenXY, StyleColor.GetCurrent<Color>()),
-                static ((DynamicSpriteFont font, string text, Vector2 pos, Color color) data)
-                    => UI.SpriteBatch.DrawString(data.font, data.text, data.pos, data.color)
-            );
+            UIDraw.Recorder.Add(new UICmd.Text(StyleFont.GetCurrent<DynamicSpriteFont>(), _TextDrawn, ScreenXY, StyleColor.GetCurrent<Color>()));
         }
 
         private void LayoutNormal(LayoutEvent e) {

@@ -232,9 +232,13 @@ namespace OlympUI {
             UIDraw.Recorder.Add(
                 (BackgroundMesh, ContentsMesh, xy),
                 static ((BasicMesh background, BasicMesh? contents, Vector2 xy) data) => {
+                    UI.SpriteBatch.End();
+
                     Matrix transform = UI.CreateTransform(data.xy);
                     data.background.Draw(transform);
                     data.contents?.Draw(transform);
+
+                    UI.SpriteBatch.BeginUI();
                 }
             );
 
