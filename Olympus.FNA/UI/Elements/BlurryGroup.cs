@@ -1,13 +1,7 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using OlympUI.MegaCanvas;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public partial class BlurryGroup : Group {
@@ -43,12 +37,14 @@ namespace OlympUI {
             Noised?.Dispose();
         }
 
-        protected override void DrawCachedTexture(SpriteBatch spriteBatch, RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {
+        protected override void DrawCachedTexture(RenderTarget2DRegion rt, Vector2 xy, Padding padding, Point size) {
             StyleRadius.GetCurrent(out int radius);
             if (radius <= 0) {
-                base.DrawCachedTexture(spriteBatch, rt, xy, padding, region);
+                base.DrawCachedTexture(rt, xy, padding, size);
                 return;
             }
+
+            UIDraw.AddDependency(rt);
 
             StyleScale.GetCurrent(out float scale);
             Point whFull = WH;
@@ -58,17 +54,10 @@ namespace OlympUI {
             if (PrevCachedPaintID != CachedPaintID || display is null) {
                 PrevCachedPaintID = CachedPaintID;
 
-                GraphicsDevice gd = Game.GraphicsDevice;
-
-                spriteBatch.End();
-                GraphicsStateSnapshot gss = new(gd);
-                Vector2 offsPrev = UI.TransformOffset;
-                UI.TransformOffset = new(0, 0);
-
                 StyleStrength.GetCurrent(out float strength);
                 StyleNoise.GetCurrent(out float noise);
 
-                BlurEffect blurrer = (BlurEffect) BlurEffect.Cache.GetEffect(() => gd, radius).Value;
+                BlurEffect blurrer = (BlurEffect) BlurEffect.Cache.GetEffect(() => UI.Game.GraphicsDevice, radius).Value;
                 blurrer.Radius = radius;
                 blurrer.Strength = strength;
 
@@ -96,27 +85,39 @@ namespace OlympUI {
                     throw new Exception($"{nameof(BlurryGroup)} tried obtaining blurred XY render target but got null");
                 }
 
-                blurredX.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                gd.SetRenderTarget(blurredX.RT);
-                blurrer.Axis = BlurAxis.X;
-                blurrer.Transform = UI.CreateTransform();
-                blurredX.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-                spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise, blurrer);
-                spriteBatch.Draw(rt, new Rectangle(0, 0, whMin.X, whFull.Y), region, Color.White);
-                spriteBatch.End();
+                static void DrawBlurStep((RenderTarget2DRegion rt, RenderTarget2DRegion blurred, BlurEffect blurrer, BlurAxis axis, Rectangle src, Rectangle dest) data) {
+                    GraphicsDevice gd = UI.Game.GraphicsDevice;
+                    SpriteBatch spriteBatch = UI.SpriteBatch;
 
-                blurredXY.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                gd.SetRenderTarget(blurredXY.RT);
-                blurrer.Axis = BlurAxis.Y;
-                blurrer.Transform = UI.CreateTransform();
-                blurredXY.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-                spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise, blurrer);
-                spriteBatch.Draw(blurredX.RT, new Rectangle(0, 0, whMin.X, whMin.Y), new Rectangle(0, 0, whMin.X, whFull.Y), Color.White);
-                spriteBatch.End();
+                    data.blurred.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
+                    gd.SetRenderTarget(data.blurred.RT);
+                    data.blurrer.Axis = data.axis;
+                    data.blurrer.Transform = UI.CreateTransform(-UI.TransformOffset);
+                    data.blurred.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
+
+                    spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise, data.blurrer);
+                    spriteBatch.Draw(data.rt.RT, data.dest, data.src, Color.White);
+                    spriteBatch.End();
+                }
+
+                UIDraw.Push(blurredX, null);
+                UIDraw.Recorder.Add(
+                    (rt, blurredX, blurrer, BlurAxis.X, rt.Region.WithSize(size), new Rectangle(0, 0, whMin.X, whFull.Y)),
+                    DrawBlurStep
+                );
+                UIDraw.Pop();
+
+                UIDraw.Push(blurredXY, null);
+                UIDraw.AddDependency(blurredX);
+                UIDraw.Recorder.Add(
+                    (blurredX, blurredXY, blurrer, BlurAxis.Y, new Rectangle(0, 0, whMin.X, whFull.Y), new Rectangle(0, 0, whMin.X, whMin.Y)),
+                    DrawBlurStep
+                );
+                UIDraw.Pop();
 
                 if (noise >= 0f) {
                     RenderTarget2DRegion? noised = Noised;
-                    if (noised is not null && (noised.RT.IsDisposed || noised.RT.Width != whFull.X || noised.RT.Height != whFull.Y)) {
+                    if (noised is not null && (noised.RT.IsDisposed || noised.RT.Width < whFull.X || noised.RT.Height < whFull.Y)) {
                         noised?.Dispose();
                         Noised = noised = null;
                     }
@@ -127,20 +128,31 @@ namespace OlympUI {
                         throw new Exception($"{nameof(BlurryGroup)} tried obtaining noised render target but got null");
                     }
 
-                    NoiseEffect noiser = (NoiseEffect) NoiseEffect.Cache.GetEffect(() => gd).Value;
+                    NoiseEffect noiser = (NoiseEffect) NoiseEffect.Cache.GetEffect(() => UI.Game.GraphicsDevice).Value;
                     noiser.Spread = new(
                         noise * (whMin.X / (float) noised.RT.Width) * 0.01f,
                         noise * (whMin.Y / (float) noised.RT.Height) * 0.01f
                     );
                     noiser.Blend = noise * 0.8f;
 
-                    noised.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                    gd.SetRenderTarget(noised.RT);
-                    noiser.Transform = UI.CreateTransform();
-                    noised.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-                    spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise, noiser);
-                    spriteBatch.Draw(blurredXY.RT, new Rectangle(0, 0, whFull.X, whFull.Y), new Rectangle(0, 0, whMin.X, whMin.Y), Color.White);
-                    spriteBatch.End();
+                    UIDraw.Push(noised, null);
+                    UIDraw.AddDependency(blurredXY);
+                    UIDraw.Recorder.Add(
+                        (blurredXY, noised, noiser, new Rectangle(0, 0, whMin.X, whMin.Y), new Rectangle(0, 0, whFull.X, whFull.Y)),
+                        static ((RenderTarget2DRegion blurred, RenderTarget2DRegion noised, NoiseEffect noiser, Rectangle src, Rectangle dest) data) => {
+                            GraphicsDevice gd = UI.Game.GraphicsDevice;
+                            SpriteBatch spriteBatch = UI.SpriteBatch;
+
+                            data.noised.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
+                            gd.SetRenderTarget(data.noised.RT);
+                            data.noiser.Transform = UI.CreateTransform(-UI.TransformOffset);
+                            data.noised.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
+                            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.Opaque, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullCounterClockwise, data.noiser);
+                            spriteBatch.Draw(data.blurred.RT, data.dest, data.src, Color.White);
+                            spriteBatch.End();
+                        }
+                    );
+                    UIDraw.Pop();
 
                     Display = display = noised;
                     DisplayBounds = new(0, 0, whFull.X, whFull.Y);
@@ -150,22 +162,12 @@ namespace OlympUI {
                     Display = display = blurredXY;
                     DisplayBounds = new(0, 0, whMin.X, whMin.Y);
                 }
-
-                gss.Apply();
-                UI.TransformOffset = offsPrev;
-                spriteBatch.BeginUI();
             }
 
-            spriteBatch.Draw(
-                display.RT,
-                new Rectangle(
-                    (int) xy.X - padding.Left,
-                    (int) xy.Y - padding.Top,
-                    region.Width,
-                    region.Height
-                ),
-                DisplayBounds,
-                Color.White
+            UIDraw.Recorder.Add(
+                (display, DisplayBounds, (xy.ToPoint() - padding.LT).WithSize(size)),
+                static ((RenderTarget2DRegion display, Rectangle src, Rectangle dest) data)
+                    => UI.SpriteBatch.Draw(data.display.RT, data.dest, data.src, Color.White)
             );
         }
 

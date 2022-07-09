@@ -1,16 +1,9 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using OlympUI;
 using Olympus.NativeImpls;
 using SDL2;
 using System;
-using System.Diagnostics;
-using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Olympus {
     public partial class MetaMainScene : Scene {
@@ -376,8 +369,6 @@ namespace Olympus {
             }
 
             public override void DrawContent() {
-                SpriteBatch.End();
-
                 StyleColor.GetCurrent(out Color color);
                 StyleScale.GetCurrent(out float scale);
                 Point wh = WH;
@@ -406,9 +397,12 @@ namespace Olympus {
                     shapes.AutoApply();
                 }
 
-                Mesh.Draw(UI.CreateTransform(ScreenXY));
+                UIDraw.Recorder.Add((Mesh, ScreenXY), static ((BasicMesh mesh, Vector2 xy) data) => {
+                    UI.SpriteBatch.End();
+                    data.mesh.Draw(UI.CreateTransform(data.xy));
+                    UI.SpriteBatch.BeginUI();
+                });
 
-                SpriteBatch.BeginUI();
                 base.DrawContent();
 
                 PrevColor = color;

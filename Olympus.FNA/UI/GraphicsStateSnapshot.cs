@@ -1,36 +1,26 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using OlympUI;
-using Olympus.NativeImpls;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace OlympUI {
-    public class GraphicsStateSnapshot {
+    public readonly struct GraphicsStateSnapshot {
 
         private readonly GraphicsDevice GraphicsDevice;
 
-        public RenderTargetBinding[] RenderTargets;
-        public Texture? Texture;
-        public SamplerState SamplerState;
-        private bool HasVertexTexture;
-        public Texture? VertexTexture;
-        public SamplerState? VertexSamplerState;
-        public BlendState BlendState;
-        public DepthStencilState DepthStencilState;
-        public RasterizerState RasterizerState;
-        public Rectangle ScissorRectangle;
-        public Viewport Viewport;
-        public Color BlendFactor;
-        public int MultiSampleMask;
-        public int ReferenceStencil;
+        public readonly RenderTargetBinding[] RenderTargets = null!;
+        public readonly Texture? Texture;
+        public readonly SamplerState SamplerState = null!;
+        private readonly bool HasVertexTexture;
+        public readonly Texture? VertexTexture;
+        public readonly SamplerState? VertexSamplerState;
+        public readonly BlendState BlendState = null!;
+        public readonly DepthStencilState DepthStencilState = null!;
+        public readonly RasterizerState RasterizerState = null!;
+        public readonly Rectangle ScissorRectangle;
+        public readonly Viewport Viewport;
+        public readonly Color BlendFactor;
+        public readonly int MultiSampleMask;
+        public readonly int ReferenceStencil;
 
         public GraphicsStateSnapshot(GraphicsDevice graphicsDevice) {
             GraphicsDevice = graphicsDevice;
@@ -42,6 +32,8 @@ namespace OlympUI {
                 VertexSamplerState = graphicsDevice.VertexSamplerStates[0];
                 HasVertexTexture = true;
             } catch (IndexOutOfRangeException) {
+                VertexTexture = null;
+                VertexSamplerState = null;
                 HasVertexTexture = false;
             }
             BlendState = graphicsDevice.BlendState;

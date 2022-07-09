@@ -1,11 +1,7 @@
-﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI.MegaCanvas {
     public sealed class CanvasPool : IDisposable {
@@ -21,7 +17,7 @@ namespace OlympUI.MegaCanvas {
         public long UsedMemory = 0;
         public long TotalMemory = 0;
         public int Padding = 16;
-        public bool ForcePoT = true;
+        public bool ForcePoT = false;
         private int SquishFrame = 0;
         public int SquishFrames = 60 * 3;
         public int MaxAgeFrames = 60 * 1;
@@ -118,7 +114,7 @@ namespace OlympUI.MegaCanvas {
                     TotalMemory += rt.GetMemorySizePoT();
             }
 
-            return new(this, rt, new(0, 0, rt.Width, rt.Height));
+            return new(this, rt, new(0, 0, rt.Width, rt.Height), new(0, 0, width, height));
         }
 
         public void Free(RenderTarget2D? rt) {
@@ -128,7 +124,7 @@ namespace OlympUI.MegaCanvas {
                 if (!Used.Remove(rt))
                     throw new Exception("Trying to free a RenderTarget2D in the wrong pool / double-free?");
 
-                UsedMemory -= rt.Width * rt.Height * 4;
+                UsedMemory -= rt.GetMemorySizePoT();
 
                 if (rt.IsDisposed)
                     return;

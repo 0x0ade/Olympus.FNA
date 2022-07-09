@@ -1,22 +1,9 @@
-﻿using FontStashSharp;
-using LibTessDotNet;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
+﻿using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Dynamic;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
-    public abstract class AssetTracker<TValue, TMeta> {
+    public abstract class AssetTracker<TValue, TMeta> where TMeta : struct {
 
         private static AssetTracker<TValue, TMeta>? _Instance;
         private static bool _InstanceCreated;

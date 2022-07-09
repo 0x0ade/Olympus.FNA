@@ -1,16 +1,12 @@
 ﻿using FontStashSharp;
-using FontStashSharp.Interfaces;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public static unsafe class Assets {
@@ -163,7 +159,7 @@ namespace OlympUI {
         public static readonly Reloadable<Texture2D, Texture2DMeta> DebugDisposed = GetTexture("debug/disposed");
 
 
-        public static Reloadable<TValue, TMeta> Get<TValue, TMeta>(string id, TMeta meta, Func<TValue?> loader) {
+        public static Reloadable<TValue, TMeta> Get<TValue, TMeta>(string id, TMeta meta, Func<TValue?> loader) where TMeta : struct {
             if (_Gotten.TryGetValue(id, out object? value))
                 return (Reloadable<TValue, TMeta>) value;
 
@@ -173,7 +169,7 @@ namespace OlympUI {
         }
 
 
-        public static bool TryGet<TValue, TMeta>(string id, [NotNullWhen(true)] out Reloadable<TValue, TMeta>? reloadable) {
+        public static bool TryGet<TValue, TMeta>(string id, [NotNullWhen(true)] out Reloadable<TValue, TMeta>? reloadable) where TMeta : struct {
             if (_Gotten.TryGetValue(id, out object? value)) {
                 reloadable = (Reloadable<TValue, TMeta>) value;
                 return true;

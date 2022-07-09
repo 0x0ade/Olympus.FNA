@@ -1,14 +1,5 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Collections.Specialized;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public partial class ScrollBox : Group {
@@ -270,8 +261,6 @@ namespace OlympUI {
             if (!(Enabled ?? IsNeeded))
                 return;
 
-            SpriteBatch.End();
-
             Vector2 xy = ScreenXY;
             Point wh = WH;
 
@@ -308,9 +297,12 @@ namespace OlympUI {
                 shapes.AutoApply();
             }
 
-            Mesh.Draw(UI.CreateTransform(xy));
+            UIDraw.Recorder.Add((Mesh, xy), static ((BasicMesh mesh, Vector2 xy) data) => {
+                UI.SpriteBatch.End();
+                data.mesh.Draw(UI.CreateTransform(data.xy));
+                UI.SpriteBatch.BeginUI();
+            });
 
-            SpriteBatch.BeginUI();
             base.DrawContent();
         }
 

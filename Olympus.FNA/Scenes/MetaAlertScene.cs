@@ -1,16 +1,9 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using OlympUI;
+using OlympUI.MegaCanvas;
 using Olympus.NativeImpls;
-using SDL2;
 using System;
-using System.Diagnostics;
-using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Olympus {
     public partial class MetaAlertScene : Scene {
@@ -126,17 +119,12 @@ namespace Olympus {
                 base.PaintContent(paintToCache, paintToScreen, padding);
             }
 
-            protected override void DrawCachedTexture(SpriteBatch spriteBatch, RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {
-                spriteBatch.Draw(
-                    rt,
-                    new Rectangle(
-                        (int) xy.X - padding.Left,
-                        (int) xy.Y - padding.Top,
-                        region.Width,
-                        region.Height
-                    ),
-                    region,
-                    Color.White * StyleOpacity.GetCurrent<float>()
+            protected override void DrawCachedTexture(RenderTarget2DRegion rt, Vector2 xy, Padding padding, Point size) {
+                UIDraw.AddDependency(rt);
+                UIDraw.Recorder.Add(
+                    (rt, xy, rt.Region.WithSize(size), (xy.ToPoint() - padding.LT).WithSize(size), Color.White * StyleOpacity.GetCurrent<float>()),
+                    static ((RenderTarget2DRegion rt, Vector2 xy, Rectangle src, Rectangle dest, Color color) data)
+                        => UI.SpriteBatch.Draw(data.rt.RT, data.dest, data.src, data.color)
                 );
             }
 

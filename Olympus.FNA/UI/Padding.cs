@@ -1,10 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public unsafe struct Padding {
@@ -39,6 +34,7 @@ namespace OlympUI {
 
         public Point LT => new(Left, Top);
         public Point RB => new(Right, Bottom);
+        public Point WH => new(W, H);
 
         public int this[int side] {
             get => side switch {

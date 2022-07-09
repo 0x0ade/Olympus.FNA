@@ -2,16 +2,10 @@
 
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using OlympUI.MegaCanvas;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public static class Reloadable {
@@ -20,7 +14,7 @@ namespace OlympUI {
 
         public static IReloadableTemporaryContext? TemporaryContext;
 
-        public static IReloadable<TValue, TMeta> Temporary<TValue, TMeta>(TMeta meta, Func<TValue?> loader, bool owns) {
+        public static IReloadable<TValue, TMeta> Temporary<TValue, TMeta>(TMeta meta, Func<TValue?> loader, bool owns) where TMeta : struct {
             Reloadable<TValue, TMeta> reloadable = new(null, meta, loader, owns ? value => (value as IDisposable)?.Dispose() : null);
 
 #if DEBUG
@@ -32,7 +26,7 @@ namespace OlympUI {
             return owns ? TemporaryContext?.MarkTemporary(reloadable) ?? reloadable : reloadable;
         }
 
-        public static IReloadable<TValue, TMeta> Temporary<TValue, TMeta>(TMeta meta, Func<TValue?> loader, Action<TValue?> unloader) {
+        public static IReloadable<TValue, TMeta> Temporary<TValue, TMeta>(TMeta meta, Func<TValue?> loader, Action<TValue?> unloader) where TMeta : struct {
             Reloadable<TValue, TMeta> reloadable = new(null, meta, loader, unloader);
 
 #if DEBUG
@@ -63,7 +57,7 @@ namespace OlympUI {
 
     }
 
-    public interface IReloadable<TValue, TMeta> : IReloadable<TValue> {
+    public interface IReloadable<TValue, TMeta> : IReloadable<TValue> where TMeta : struct {
 
         TMeta Meta { get; set; }
 
@@ -77,12 +71,12 @@ namespace OlympUI {
 
     public interface IReloadableTemporaryContext {
 
-        IReloadable<TValue, TMeta> MarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable);
-        IReloadable<TValue, TMeta> UnmarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable);
+        IReloadable<TValue, TMeta> MarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) where TMeta : struct;
+        IReloadable<TValue, TMeta> UnmarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) where TMeta : struct;
 
     }
 
-    public sealed class Reloadable<TValue, TMeta> : IReloadable<TValue, TMeta> {
+    public sealed class Reloadable<TValue, TMeta> : IReloadable<TValue, TMeta> where TMeta : struct {
 
         public readonly uint GlobalID;
         public readonly string ID;
@@ -135,9 +129,6 @@ namespace OlympUI {
             get => _Meta;
             [MemberNotNull(nameof(_Meta))]
             set {
-                if (value is null)
-                    throw new ArgumentNullException(nameof(value));
-
                 _Meta = value;
                 _MetaTyped = value as IReloadableMeta<TValue>;
 
@@ -217,7 +208,7 @@ namespace OlympUI {
 
     }
 
-    public class ReloadableAs<TValue, TAsValue, TMeta> : IReloadable<TAsValue, TMeta> {
+    public class ReloadableAs<TValue, TAsValue, TMeta> : IReloadable<TAsValue, TMeta> where TMeta : struct {
 
         public readonly IReloadable<TValue, TMeta> Reloadable;
 
@@ -290,7 +281,7 @@ namespace OlympUI {
 
     }
 
-    public class ReloadableLink<TValue, TMeta, TAsValue, TAsMeta> : IReloadable<TAsValue, TAsMeta> {
+    public class ReloadableLink<TValue, TMeta, TAsValue, TAsMeta> : IReloadable<TAsValue, TAsMeta> where TMeta : struct where TAsMeta : struct {
 
         public readonly IReloadable<TValue, TMeta> Reloadable;
         public readonly Func<TMeta, TAsMeta> MetaConverter;
@@ -349,6 +340,67 @@ namespace OlympUI {
 
         public bool LifeTick()
             => Reloadable.LifeTick();
+
+    }
+
+    public class ReloadableSlot<TValue, TMeta> : IReloadable<TValue, TMeta> where TMeta : struct {
+
+        private TValue? _Value;
+
+        [MemberNotNullWhen(true, nameof(_Value), nameof(ValueValid), nameof(ValueLazy))]
+        public bool IsValid => _Value is not null;
+
+        public int Lifespan => 0;
+
+        public TValue? ValueValid {
+            get => _Value;
+            set => _Value = value;
+        }
+
+        public TValue? ValueLazy {
+            get => _Value;
+            set => _Value = value;
+        }
+
+        [MemberNotNull(nameof(_Value), nameof(ValueValid), nameof(ValueLazy))]
+        public TValue Value {
+#pragma warning disable CS8774 // Member must have a non-null value when exiting.
+            get => _Value ?? throw new Exception("ReloadableSlot without a value");
+            set => _Value = value;
+#pragma warning restore CS8774 // Member must have a non-null value when exiting.
+        }
+
+        TGet IGenericValueSource.GetValue<TGet>() {
+            TValue value = Value;
+#if FASTGET
+            return Unsafe.As<TValue, TGet>(ref value);
+#else
+            return (TGet) (object) value;
+#endif
+        }
+
+        public TMeta Meta { get; set; }
+
+        public ReloadableSlot() {
+        }
+
+        public void Dispose() {
+        }
+
+        public void Reload(bool force = false) {
+        }
+
+        public bool LifeTick() {
+            return false;
+        }
+
+        public void LifeBump() {
+        }
+
+        public void Set(TMeta meta, TValue value) {
+            Meta = meta;
+            Value = value;
+        }
 
     }
 

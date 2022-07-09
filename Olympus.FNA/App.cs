@@ -1,19 +1,12 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using MonoMod.Utils;
 using OlympUI;
-using Olympus.NativeImpls;
 using SDL2;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Tasks;
 
 using static Olympus.NativeImpls.NativeImpl;
 
@@ -127,7 +120,7 @@ namespace Olympus {
         }
 
 
-        public IReloadable<TValue, TMeta> MarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) {
+        public IReloadable<TValue, TMeta> MarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) where TMeta : struct {
             lock (TemporaryReloadables) {
                 TemporaryReloadables.Add(reloadable);
                 reloadable.LifeBump();
@@ -135,7 +128,7 @@ namespace Olympus {
             }
         }
 
-        public IReloadable<TValue, TMeta> UnmarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) {
+        public IReloadable<TValue, TMeta> UnmarkTemporary<TValue, TMeta>(IReloadable<TValue, TMeta> reloadable) where TMeta : struct {
             lock (TemporaryReloadables) {
                 TemporaryReloadables.Remove(reloadable);
                 return reloadable;
@@ -198,6 +191,11 @@ namespace Olympus {
             if (Graphics.SynchronizeWithVerticalRetrace && !VSync) {
                 Graphics.SynchronizeWithVerticalRetrace = false;
                 Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.Immediate;
+                GraphicsDevice.Reset(Graphics.GraphicsDevice.PresentationParameters);
+
+            } else if (!Graphics.SynchronizeWithVerticalRetrace && VSync) {
+                Graphics.SynchronizeWithVerticalRetrace = true;
+                Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.One;
                 GraphicsDevice.Reset(Graphics.GraphicsDevice.PresentationParameters);
             }
 

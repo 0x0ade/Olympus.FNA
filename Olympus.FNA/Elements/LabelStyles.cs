@@ -1,12 +1,4 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
-using OlympUI;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using OlympUI;
 
 namespace Olympus {
     public partial class HeaderBig : Label {

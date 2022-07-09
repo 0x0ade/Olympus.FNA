@@ -1,13 +1,7 @@
-﻿using FontStashSharp;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Dynamic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public sealed class Data : IEnumerable<Data.Entry> {

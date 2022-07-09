@@ -4,10 +4,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI.MegaCanvas {
     public sealed class AtlasPage : IDisposable {
@@ -93,7 +89,7 @@ namespace OlympUI.MegaCanvas {
                 return null;
 
             Rectangle taken = new(space.X, space.Y, want.Width, want.Height);
-            RenderTarget2DRegion rtrg = new(this, RT, taken);
+            RenderTarget2DRegion rtrg = new(this, RT, taken, taken);
             bool replace = true;
             if (taken.Width < taken.Height) {
                 /*

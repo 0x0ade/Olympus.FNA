@@ -2,12 +2,7 @@
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace OlympUI.MegaCanvas {
     public sealed class CanvasManager : IDisposable {
@@ -18,7 +13,7 @@ namespace OlympUI.MegaCanvas {
         public int MinSize = 8;
         public int MaxSize = 4096;
         public int PageSize = 2048;
-        public int MaxPackedSize = 768;
+        public int MaxPackedSize = 1024;
         public int MultiSampleCount;
 
         public readonly CanvasPool Pool;
@@ -26,8 +21,8 @@ namespace OlympUI.MegaCanvas {
 
         public readonly List<AtlasPage> Pages = new();
 
-        private BasicMesh BlitMesh;
-        private Texture2D? BlitTexture;
+        private readonly BasicMesh BlitMesh;
+        private readonly ReloadableSlot<Texture2D, Texture2DMeta> BlitTextureSlot = new();
 
         private readonly Queue<Action> Queued = new();
 
@@ -35,7 +30,7 @@ namespace OlympUI.MegaCanvas {
             Game = game;
             BlitMesh = new(game) {
                 MSAA = false,
-                Texture = Reloadable.Temporary(default(Texture2DMeta), () => BlitTexture, false),
+                Texture = BlitTextureSlot,
                 BlendState = BlendState.Opaque,
             };
             Pool = new(this, false);
@@ -101,10 +96,8 @@ namespace OlympUI.MegaCanvas {
             GraphicsStateSnapshot gss = new(gd);
 
             gd.SetRenderTarget(to);
+            BlitTextureSlot.Set(new(from, null), from);
             BasicMesh mesh = BlitMesh;
-            BlitTexture = from;
-            mesh.Texture.Meta = new(from, null);
-            mesh.Texture.Dispose();
             mesh.Color = color;
             MeshShapes<MiniVertex> shapes = mesh.Shapes;
             shapes.Clear();

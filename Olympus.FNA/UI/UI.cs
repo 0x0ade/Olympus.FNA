@@ -1,14 +1,9 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using OlympUI.MegaCanvas;
-using SDL2;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public static class UI {
@@ -124,6 +119,8 @@ namespace OlympUI {
 
             }
             #endregion
+
+            UIDraw.Update();
 
             #region Input and other event handling
             {
@@ -305,10 +302,10 @@ namespace OlympUI {
 
         public static void Paint() {
             GlobalDrawID = GlobalUpdateID;
-            Game.GraphicsDevice.Textures[0] = null;
-            SpriteBatch.BeginUI();
+
             Root.Paint();
-            SpriteBatch.End();
+
+            UIDraw.Draw();
         }
 
         public static MaybeAwaitable Run(Action run) {

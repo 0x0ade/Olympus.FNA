@@ -1,11 +1,8 @@
 ﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public static class UIMath {
@@ -32,6 +29,55 @@ namespace OlympUI {
                 (a1 * c2 - a2 * c1) / delta
             );
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Rectangle WithSize(this in Rectangle rect, in Point size)
+            => new(rect.X, rect.Y, size.X, size.Y);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Rectangle WithSize(this in Point xy, in Point size)
+            => new(xy.X, xy.Y, size.X, size.Y);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Color Multiply(this in Color a, in Color b)
+            => new(
+                (byte) ((a.R * b.R) / 255),
+                (byte) ((a.G * b.G) / 255),
+                (byte) ((a.B * b.B) / 255),
+                (byte) ((a.A * b.A) / 255)
+            );
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector2 Round(this in Vector2 xy)
+            => new(MathF.Round(xy.X), MathF.Round(xy.Y));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Point ToPoint(this in Vector2 xy)
+            => new((int) xy.X, (int) xy.Y);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Point ToPointRound(this in Vector2 xy)
+            => new((int) MathF.Round(xy.X), (int) MathF.Round(xy.Y));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Point ToPointCeil(this in Vector2 xy)
+            => new((int) MathF.Ceiling(xy.X), (int) MathF.Ceiling(xy.Y));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector2 ToVector2(this in Point xy)
+            => new(xy.X, xy.Y);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Point ToPoint(this in MouseState xy)
+            => new(xy.X, xy.Y);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetArea(this in Point xy)
+            => xy.X * xy.Y;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetArea(this in Rectangle rect)
+            => rect.Width * rect.Height;
 
         public static Color ParseHexColor(string text) {
             if (!TryParseHexColor(text, out Color c))

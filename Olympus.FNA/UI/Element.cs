@@ -1,5 +1,4 @@
 ﻿using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using OlympUI.MegaCanvas;
 using System;
 using System.Collections;
@@ -8,10 +7,8 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public abstract class Element : IEnumerable<Element>, IDisposable {
@@ -112,7 +109,6 @@ namespace OlympUI {
         #region Helpers
 
         public Game Game => UI.Game;
-        public SpriteBatch SpriteBatch => UI.SpriteBatch;
 
         #endregion
 
@@ -252,13 +248,7 @@ namespace OlympUI {
         }
         public void ResetRealXY() => _RealXY = null;
 
-        public Rectangle RealXYWH {
-            get {
-                Vector2 xy = RealXY;
-                Point wh = WH;
-                return new((int) xy.X, (int) xy.Y, wh.X, wh.Y);
-            }
-        }
+        public Rectangle RealXYWH => RealXY.ToPoint().WithSize(WH);
 
         protected Vector2? PaintingScreenXY;
         public Vector2 ScreenXY {
@@ -285,21 +275,9 @@ namespace OlympUI {
         }
 
         public virtual Padding Padding => new();
-        public virtual Point InnerWH {
-            get {
-                Padding padding = Padding;
-                Point wh = WH;
-                return new(wh.X - padding.W, wh.Y - padding.H);
-            }
-        }
+        public virtual Point InnerWH => WH - Padding.WH;
 
-        public Rectangle ScreenXYWH {
-            get {
-                Vector2 xy = ScreenXY;
-                Point wh = WH;
-                return new((int) xy.X, (int) xy.Y, wh.X, wh.Y);
-            }
-        }
+        public Rectangle ScreenXYWH => ScreenXY.ToPoint().WithSize(WH);
 
         #endregion
 
@@ -587,8 +565,7 @@ namespace OlympUI {
         }
 
         protected virtual void PaintContent(bool paintToCache, bool paintToScreen, Padding padding) {
-            Point wh = WH;
-            Point whTexture = new(wh.X + padding.W, wh.Y + padding.H);
+            Point whTexture = WH + padding.WH;
             bool? cached = paintToCache ? true : Cached;
             RenderTarget2DRegion? cachedTexture = CachedTexture?.ValueValid;
 
@@ -664,6 +641,7 @@ namespace OlympUI {
                     cachedTexture = CachedTexture.Value;
                 }
                 EffectiveCachedPaints = 0;
+                ConsecutiveCachedPaints = 0;
                 repainting = true;
             }
 
@@ -677,37 +655,24 @@ namespace OlympUI {
 
             if (EffectiveCachedPaints < 16) { 
                 EffectiveCachedPaints++;
-                if (EffectiveCachedPaints == 16) {
+                if (EffectiveCachedPaints == 16 && (CachePool ?? UI.MegaCanvas.PoolMSAA) is { } cachePool &&
+                    (cachedTexture.UsedRegion.GetArea() >= (whTexture + new Point(cachePool.Padding, cachePool.Padding)).GetArea() * 1.2f)) {
                     CachedTexture.Dispose();
-                    CachedTexture = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => (CachePool ?? UI.MegaCanvas.PoolMSAA).Get(whTexture.X, whTexture.Y), true);
+                    CachedTexture = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => cachePool.Get(whTexture.X, whTexture.Y), true);
                     cachedTexture = CachedTexture.Value;
                     repainting = true;
                 }
             }
 
             Vector2 xy = ScreenXY;
-            GraphicsDevice gd = Game.GraphicsDevice;
-            SpriteBatch spriteBatch = SpriteBatch;
             if (repainting || UI.GlobalDrawDebug) {
                 CachedPaintID++;
-                if (paintToScreen)
-                    spriteBatch.End();
-                GraphicsStateSnapshot gss = new(gd);
-                cachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                gd.SetRenderTarget(cachedTexture.RT);
-                gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
-                cachedTexture.RT.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-                Vector2 offsPrev = UI.TransformOffset;
-                UI.TransformOffset = -xy + new Vector2(padding.Left, padding.Top);
-                spriteBatch.BeginUI();
+
+                UIDraw.Push(cachedTexture, -xy + padding.LT.ToVector2());
 
                 DrawContent();
 
-                spriteBatch.End();
-                gss.Apply();
-                UI.TransformOffset = offsPrev;
-                if (paintToScreen)
-                    spriteBatch.BeginUI();
+                UIDraw.Pop();
 
             } else if (!repainting && pack && cachedTexture.Page is null) {
                 RenderTarget2DRegion? packed = UI.MegaCanvas.GetPackedAndFree(cachedTexture, new(0, 0, whTexture.X, whTexture.Y));
@@ -722,21 +687,12 @@ namespace OlympUI {
             }
 
             if (paintToScreen)
-                DrawCachedTexture(spriteBatch, cachedTexture.RT, xy, padding, new(cachedTexture.Region.X, cachedTexture.Region.Y, whTexture.X, whTexture.Y));
+                DrawCachedTexture(cachedTexture, xy, padding, whTexture);
         }
 
-        protected virtual void DrawCachedTexture(SpriteBatch spriteBatch, RenderTarget2D rt, Vector2 xy, Padding padding, Rectangle region) {
-            spriteBatch.Draw(
-                rt,
-                new Rectangle(
-                    (int) xy.X - padding.Left,
-                    (int) xy.Y - padding.Top,
-                    region.Width,
-                    region.Height
-                ),
-                region,
-                Color.White
-            );
+        protected virtual void DrawCachedTexture(RenderTarget2DRegion rt, Vector2 xy, Padding padding, Point size) {
+            UIDraw.AddDependency(rt);
+            UIDraw.Recorder.Add(new UICmd.Blit(rt.RT, rt.Region.WithSize(size), (xy.ToPoint() - padding.LT).WithSize(size), Color.White));
         }
 
         #endregion

@@ -1,12 +1,5 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public partial class Spinner : Element {
@@ -37,8 +30,6 @@ namespace OlympUI {
         }
 
         public override void DrawContent() {
-            SpriteBatch.End();
-
             Point wh = WH;
 
             MeshShapes<MiniVertex> shapes = Mesh.Shapes;
@@ -105,9 +96,12 @@ namespace OlympUI {
 
             shapes.AutoApply();
 
-            Mesh.Draw(UI.CreateTransform(ScreenXY));
+            UIDraw.Recorder.Add((Mesh, ScreenXY), static ((BasicMesh mesh, Vector2 xy) data) => {
+                UI.SpriteBatch.End();
+                data.mesh.Draw(UI.CreateTransform(data.xy));
+                UI.SpriteBatch.BeginUI();
+            });
 
-            SpriteBatch.BeginUI();
             base.DrawContent();
         }
 

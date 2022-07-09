@@ -1,12 +1,5 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public abstract partial class ImageBase : Element {
@@ -70,7 +63,11 @@ namespace OlympUI {
         }
 
         public override void DrawContent() {
-            SpriteBatch.Draw(Texture.Value, ScreenXYWH, StyleColor.GetCurrent<Color>());
+            UIDraw.Recorder.Add(
+                (Texture.Value, ScreenXYWH, StyleColor.GetCurrent<Color>()),
+                static ((Texture2D tex, Rectangle rect, Color color) data) 
+                    => UI.SpriteBatch.Draw(data.tex, data.rect, data.color)
+            );
         }
 
     }

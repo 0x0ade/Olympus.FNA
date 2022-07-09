@@ -1,13 +1,4 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using OlympUI.MegaCanvas;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using OlympUI.MegaCanvas;
 
 namespace OlympUI {
     public sealed partial class NullElement : Element {

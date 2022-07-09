@@ -3,11 +3,6 @@ using Microsoft.Xna.Framework.Graphics;
 using OlympUI;
 using SDL2;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Olympus.NativeImpls {
     public unsafe partial class NativeLinux : NativeSDL2 {

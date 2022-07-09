@@ -1,16 +1,12 @@
-﻿using Microsoft.Xna.Framework;
-using Mono.Options;
+﻿using Mono.Options;
 using MonoMod.Utils;
-using MonoMod.Utils.Cil;
 using OlympUI;
 using Olympus.NativeImpls;
 using SDL2;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Net;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 

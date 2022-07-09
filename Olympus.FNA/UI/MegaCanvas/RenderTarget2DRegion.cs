@@ -1,36 +1,39 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace OlympUI.MegaCanvas {
     public sealed class RenderTarget2DRegion : IDisposable {
+        
+        private static uint TotalRegionCount;
 
+        public readonly uint UniqueID;
         public readonly CanvasManager Manager;
         public readonly CanvasPool? Pool;
         public readonly AtlasPage? Page;
         public readonly RenderTarget2D RT;
         public readonly Rectangle Region;
+        public readonly Rectangle UsedRegion;
 
         public bool IsDisposed { get; private set; }
 
-        public RenderTarget2DRegion(CanvasPool pool, RenderTarget2D rt, Rectangle region) {
+        public RenderTarget2DRegion(CanvasPool pool, RenderTarget2D rt, Rectangle region, Rectangle usedRegion) {
+            UniqueID = Interlocked.Increment(ref TotalRegionCount);
             Manager = pool.Manager;
             Pool = pool;
             RT = rt;
             Region = region;
+            UsedRegion = usedRegion;
         }
 
-        public RenderTarget2DRegion(AtlasPage page, RenderTarget2D rt, Rectangle region) {
+        public RenderTarget2DRegion(AtlasPage page, RenderTarget2D rt, Rectangle region, Rectangle usedRegion) {
+            UniqueID = Interlocked.Increment(ref TotalRegionCount);
             Manager = page.Manager;
             Page = page;
             RT = rt;
             Region = region;
+            UsedRegion = usedRegion;
         }
 
         public void Dispose() {

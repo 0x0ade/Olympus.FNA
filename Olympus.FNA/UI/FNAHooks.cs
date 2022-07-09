@@ -1,21 +1,15 @@
 ﻿// #define FNAHOOKS_RENDERTARGETDISCARDCLEAR
 
-using FontStashSharp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using MonoMod.Utils;
-using OlympUI;
 using SDL2;
 using System;
-using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Threading.Tasks;
-using static OlympUI.Assets;
 
 namespace OlympUI {
     public static class FNAHooks {

@@ -1,14 +1,8 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using OlympUI.MegaCanvas;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public unsafe partial class Panel : Group {
@@ -23,7 +17,7 @@ namespace OlympUI {
 
         private BasicMesh BackgroundMesh;
         private BasicMesh? ContentsMesh;
-        private IReloadable<RenderTarget2D, Texture2DMeta>? ContentsWrap;
+        private (IReloadable<RenderTarget2DRegion, RenderTarget2DRegionMeta> Region, IReloadable<RenderTarget2D, Texture2DMeta> RT)? ContentsWrap;
         private IReloadable<Texture2D, Texture2DMeta>? ContentsCurrent;
         private Color PrevBackground;
         private Color PrevBorder;
@@ -49,18 +43,13 @@ namespace OlympUI {
 
             BackgroundMesh?.Dispose();
             ContentsMesh?.Dispose();
-            ContentsWrap?.Dispose();
+            ContentsWrap?.RT.Dispose();
             ContentsWrap = null;
         }
 
         public override void DrawContent() {
-            GraphicsDevice gd = Game.GraphicsDevice;
-            GraphicsStateSnapshot? gss = null;
-            Vector2? offsPrev = null;
             Vector2 xy = ScreenXY;
             Point wh = WH;
-
-            SpriteBatch.End();
 
             StyleBackground.GetCurrent(out Color background);
             StyleBorder.GetCurrent(out Color border);
@@ -80,8 +69,6 @@ namespace OlympUI {
                 PrevWH != wh) {
                 MeshShapes<MiniVertex> shapes = BackgroundMesh.Shapes;
                 shapes.Clear();
-
-                gss ??= new(gd);
 
                 int shadowIndex = -1;
                 int shadowEnd = -1;
@@ -167,41 +154,34 @@ namespace OlympUI {
 
                 if (Children.Count == 1 && Children[0] is { } child &&
                     child.PaintToCache(selfPadding) is { } childCache) {
-                    ContentsWrap?.Dispose();
+                    ContentsWrap?.RT.Dispose();
                     ContentsWrap = null;
 
                     ContentsCurrent = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(childCache.UnpackRT(false));
                     contentsXY = child.RealXY.ToPoint() - selfPadding.LT;
 
                 } else {
-                    if (ContentsWrap is not null && (ContentsWrap.ValueValid is not { } rt || rt.Width < wh.X || rt.Height < wh.Y)) {
-                        ContentsWrap?.Dispose();
+                    if (ContentsWrap is not null && (ContentsWrap?.RT.ValueValid is not { } rt || rt.Width < wh.X || rt.Height < wh.Y)) {
+                        ContentsWrap?.RT.Dispose();
                         ContentsWrap = null;
                         if (ContentsMesh is not null)
                             ContentsMesh.Texture = Assets.White;
                     }
 
                     if (ContentsWrap is null) {
-                        ContentsWrap = Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y), true).UnpackRT(true);
+                        IReloadable<RenderTarget2DRegion, RenderTarget2DRegionMeta> region =
+                            Reloadable.Temporary(default(RenderTarget2DRegionMeta), () => UI.MegaCanvas.PoolMSAA.Get(wh.X, wh.Y), true);
+                        ContentsWrap = (region, region.UnpackRT(true));
                         PrevContentsWH = default;
                     }
 
-                    gss ??= new(gd);
-
-                    rt = ContentsWrap.Value;
-                    rt.SetRenderTargetUsage(RenderTargetUsage.PlatformContents);
-                    gd.SetRenderTarget(rt);
-                    gd.Clear(ClearOptions.Target, new Vector4(0, 0, 0, 0), 0, 0);
-                    rt.SetRenderTargetUsage(RenderTargetUsage.PreserveContents);
-                    offsPrev = UI.TransformOffset;
-                    UI.TransformOffset = -xy;
-                    SpriteBatch.BeginUI();
+                    UIDraw.Push(ContentsWrap.Value.Region.Value, -xy);
 
                     base.DrawContent();
 
-                    SpriteBatch.End();
+                    UIDraw.Pop();
 
-                    ContentsCurrent = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(ContentsWrap);
+                    ContentsCurrent = new ReloadableAs<RenderTarget2D, Texture2D, Texture2DMeta>(ContentsWrap.Value.RT);
                     contentsXY = default;
                 }
 
@@ -237,28 +217,26 @@ namespace OlympUI {
 
             } else {
                 ContentsCurrent = null;
-                ContentsWrap?.Dispose();
+                ContentsWrap?.RT.Dispose();
                 ContentsWrap = null;
                 ContentsMesh?.Dispose();
                 ContentsMesh = null;
             }
 
-            gss?.Apply();
-            if (offsPrev is not null)
-                UI.TransformOffset = offsPrev.Value;
-
-            Matrix offs = UI.CreateTransform(xy);
-
-            BackgroundMesh.Draw(offs);
-
             if (ContentsCurrent is not null) {
                 // ContentsMesh is created earlier in this method if it's null and if clipping is enabled.
                 Debug.Assert(ContentsMesh is not null);
                 ContentsMesh.Texture = ContentsCurrent;
-                ContentsMesh.Draw(offs);
             }
 
-            SpriteBatch.BeginUI();
+            UIDraw.Recorder.Add(
+                (BackgroundMesh, ContentsMesh, xy),
+                static ((BasicMesh background, BasicMesh? contents, Vector2 xy) data) => {
+                    Matrix transform = UI.CreateTransform(data.xy);
+                    data.background.Draw(transform);
+                    data.contents?.Draw(transform);
+                }
+            );
 
             if (!Clip)
                 base.DrawContent();

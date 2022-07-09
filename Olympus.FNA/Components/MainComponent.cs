@@ -1,17 +1,8 @@
-﻿using FontStashSharp;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using OlympUI;
-using Olympus.NativeImpls;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Olympus {
     public class MainComponent : AppComponent {
@@ -48,6 +39,11 @@ namespace Olympus {
             Scener.Push<HomeScene>();
 
             App.FinderManager.Refresh();
+
+#if DEBUG || true
+            AlwaysRepaint = true;
+            App.VSync = false;
+#endif
         }
 
         protected override void LoadContent() {
@@ -98,8 +94,9 @@ namespace Olympus {
                 if (UIInput.Down(Keys.LeftShift)) {
                     string path = Path.Combine(Environment.CurrentDirectory, "megacanvas");
                     Console.WriteLine($"Dumping megacanvas to {path}");
-                    if (!Directory.Exists(path))
-                        Directory.CreateDirectory(path);
+                    if (Directory.Exists(path))
+                        Directory.Delete(path, true);
+                    Directory.CreateDirectory(path);
                     UI.MegaCanvas.Dump(path);
                 } else {
                     string path = Path.Combine(Environment.CurrentDirectory, "skin.yaml");

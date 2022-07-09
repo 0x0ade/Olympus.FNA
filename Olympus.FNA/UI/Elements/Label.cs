@@ -2,11 +2,8 @@
 using Microsoft.Xna.Framework;
 using MonoMod.Utils;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace OlympUI {
     public partial class Label : Element {
@@ -47,7 +44,11 @@ namespace OlympUI {
         }
 
         public override void DrawContent() {
-            SpriteBatch.DrawString(StyleFont.GetCurrent<DynamicSpriteFont>(), _TextDrawn, ScreenXY, StyleColor.GetCurrent<Color>());
+            UIDraw.Recorder.Add(
+                (StyleFont.GetCurrent<DynamicSpriteFont>(), _TextDrawn, ScreenXY, StyleColor.GetCurrent<Color>()),
+                static ((DynamicSpriteFont font, string text, Vector2 pos, Color color) data)
+                    => UI.SpriteBatch.DrawString(data.font, data.text, data.pos, data.color)
+            );
         }
 
         private void LayoutNormal(LayoutEvent e) {

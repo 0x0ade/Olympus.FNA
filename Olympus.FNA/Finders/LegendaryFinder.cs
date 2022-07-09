@@ -1,19 +1,7 @@
-﻿using MonoMod.Utils;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Newtonsoft.Json;
-using OlympUI;
-using System;
+﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Win32;
-using System.Text.RegularExpressions;
 
 namespace Olympus.Finders {
     public class LegendaryFinder : Finder {

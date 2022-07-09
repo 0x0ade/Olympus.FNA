@@ -1,11 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using OlympUI;
-using Olympus.NativeImpls;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Olympus.NativeImpls {
     public abstract class NativeImpl : UINativeImpl, IDisposable {
