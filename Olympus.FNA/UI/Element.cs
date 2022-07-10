@@ -558,9 +558,9 @@ namespace OlympUI {
             Color c = new();
             c.PackedValue = (uint) _RandID;
             c.A = 0xff;
-            UI.SpriteBatch.DrawDebugRect(c, xywh);
+            UIDraw.Recorder.Add(new UICmd.DebugRect(c, xywh));
             if ((Cached ?? true) && ConsecutiveCachedPaints <= 2) {
-                UI.SpriteBatch.DrawDebugRect(Cached is null ? Color.Green : ConsecutiveUncachedPaints <= 2 ? Color.Yellow : Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2));
+                UIDraw.Recorder.Add(new UICmd.DebugRect(Cached is null ? Color.Green : ConsecutiveUncachedPaints <= 2 ? Color.Yellow : Color.Red, new(xywh.X + 1, xywh.Y + 1, xywh.Width - 2, xywh.Height - 2)));
             }
         }
 

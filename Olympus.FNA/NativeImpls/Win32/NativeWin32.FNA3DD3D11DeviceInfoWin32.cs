@@ -21,7 +21,7 @@ namespace Olympus.NativeImpls {
             public FNA3DD3D11Win32DeviceInfo(FNA3DD3D11DeviceInfo orig) : base(orig.Device) {
                 using ManagementObjectSearcher searcher = new ManagementObjectSearcher("select * from Win32_VideoController");
                 foreach (ManagementObject obj in searcher.Get()) {
-                    if (obj["Description"] is string description && description == orig.Device) {
+                    if (obj["Description"] as string == orig.Device) {
                         DriverVersion = obj["DriverVersion"] as string;
                         break;
                     }
