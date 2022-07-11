@@ -106,11 +106,19 @@ namespace OlympUI {
         public float UpdateHiddenTime;
 
 
-        #region Helpers
-
-        public Game Game => UI.Game;
-
-        #endregion
+        private readonly ObservableCollection<Modifier> _Modifiers = new();
+        private readonly List<Modifier> _ModifiersUpdate = new();
+        private readonly List<Modifier> _ModifiersDraw = new();
+        public ObservableCollection<Modifier> Modifiers {
+            get => _Modifiers;
+            set {
+                _Modifiers.Clear();
+                if (value is null)
+                    return;
+                foreach (Modifier modifier in value)
+                    _Modifiers.Add(modifier);
+            }
+        }
 
 
         #region Parameters
@@ -313,7 +321,8 @@ namespace OlympUI {
 
             Siblings = new(this);
 
-            Children.CollectionChanged += OnCollectionChanged;
+            Children.CollectionChanged += OnChildrenCollectionChanged;
+            Modifiers.CollectionChanged += OnModifiersCollectionChanged;
 
             SetupStyleEntries();
         }
@@ -337,6 +346,41 @@ namespace OlympUI {
         }
 
         protected virtual void SetupStyleEntries() {
+        }
+
+        private void OnModifiersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) {
+            switch (e.Action) {
+                case NotifyCollectionChangedAction.Add:
+                    foreach (Modifier item in e.NewItems ?? throw new NullReferenceException("Modifier add didn't give new items")) {
+                        item.Attach(this);
+                        if (item.Meta.Update)
+                            _ModifiersUpdate.Add(item);
+                        if (item.Meta.ModifyDraw)
+                            _ModifiersDraw.Add(item);
+                    }
+                    break;
+
+                case NotifyCollectionChangedAction.Remove:
+                    foreach (Modifier item in e.OldItems ?? throw new NullReferenceException("Modifier remove didn't give old items")) {
+                        item.Detach(this);
+                        if (item.Meta.Update)
+                            _ModifiersUpdate.Remove(item);
+                        if (item.Meta.ModifyDraw)
+                            _ModifiersDraw.Remove(item);
+                    }
+                    break;
+
+                case NotifyCollectionChangedAction.Reset:
+                    foreach (Modifier item in sender as ObservableCollection<Modifier> ?? throw new NullReferenceException("Modifiers clear didn't give sender")) {
+                        item.Detach(this);
+                        if (item.Meta.Update)
+                            _ModifiersUpdate.Remove(item);
+                        if (item.Meta.ModifyDraw)
+                            _ModifiersDraw.Remove(item);
+                    }
+                    break;
+
+            }
         }
 
         #region Recursion
@@ -410,7 +454,7 @@ namespace OlympUI {
 
         #region Invalidation
 
-        private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) {
+        private void OnChildrenCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) {
             switch (e.Action) {
                 case NotifyCollectionChangedAction.Add:
                     HashSet<Element> nulls = new();
@@ -502,6 +546,10 @@ namespace OlympUI {
 
         public virtual void Update(float dt) {
             Style.Update(dt);
+
+            if (_ModifiersUpdate.Count != 0)
+                foreach (Modifier modifier in _ModifiersUpdate)
+                    modifier.Update(dt);
         }
 
         public virtual void UpdateHidden(float dt) {
@@ -566,7 +614,7 @@ namespace OlympUI {
 
         protected virtual void PaintContent(bool paintToCache, bool paintToScreen, Padding padding) {
             Point whTexture = WH + padding.WH;
-            bool? cached = paintToCache ? true : Cached;
+            bool? cached = paintToCache ? true : (Cached ?? (_ModifiersDraw.Count != 0 ? true : null));
             RenderTarget2DRegion? cachedTexture = CachedTexture?.ValueValid;
 
             if (cached == null && IsComposited && !Clip)
@@ -692,12 +740,20 @@ namespace OlympUI {
 
         protected virtual void DrawCachedTexture(RenderTarget2DRegion rt, Vector2 xy, Padding padding, Point size) {
             UIDraw.AddDependency(rt);
-            UIDraw.Recorder.Add(new UICmd.Blit(
+            DrawModifiable(new UICmd.Sprite(
                 rt.RT,
                 rt.Region.WithSize(size),
                 (xy.ToPoint() - padding.LT).WithSize(size),
                 Color.White
             ));
+        }
+
+        protected void DrawModifiable(UICmd.Sprite cmd) {
+            if (_ModifiersDraw.Count != 0)
+                foreach (Modifier modifier in _ModifiersDraw)
+                    modifier.ModifyDraw(ref cmd);
+
+            UIDraw.Recorder.Add(cmd);
         }
 
         #endregion

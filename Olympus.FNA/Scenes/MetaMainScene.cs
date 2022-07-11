@@ -358,7 +358,7 @@ namespace Olympus {
             public SidebarNavButtonIndicator(SidebarNavButton button) {
                 Cached = false;
                 Button = button;
-                Mesh = new BasicMesh(Game) {
+                Mesh = new BasicMesh(UI.Game) {
                     Texture = OlympUI.Assets.GradientQuadY
                 };
             }

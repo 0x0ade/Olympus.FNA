@@ -1,9 +1,15 @@
 ﻿using Microsoft.Xna.Framework;
 using OlympUI;
+using OlympUI.Modifiers;
 using Olympus.NativeImpls;
+using System;
 
 namespace Olympus {
     public partial class TestScene : Scene {
+
+        private static readonly Style.Key StyleOpacity = new("Opacity");
+
+        private Label? ScrambledLabel;
 
         public override Element Generate()
             => new Group() {
@@ -11,7 +17,11 @@ namespace Olympus {
                     Layouts.Fill()
                 },
                 Children = {
-                    new Icon(OlympUI.Assets.GetTexture("header_olympus")),
+                    new Icon(OlympUI.Assets.GetTexture("header_olympus")) {
+                        Modifiers = {
+                            new OpacityModifier(0.5f)
+                        }
+                    },
                     new Panel() {
                         X = 100,
                         Y = 100,
@@ -107,6 +117,15 @@ namespace Olympus {
                                     },
                                     Children = {
                                         new Label("Test Label"),
+                                        (ScrambledLabel = new Label("jfshdagfgahjgafasfhsjska") {
+                                            Style = {
+                                                { StyleOpacity, new FloatFader(0.5f) }
+                                            },
+                                            Modifiers = {
+                                                new RandomLabelModifier(),
+                                                new OpacityModifier(StyleOpacity)
+                                            }
+                                        }),
                                         new Button("Test Button")  {
                                             Layout = { Layouts.Fill(1, 0) },
                                             Data = { 0 },
@@ -123,6 +142,11 @@ namespace Olympus {
                                         new Button("Disabled Button") {
                                             Layout = { Layouts.Fill(1, 0) },
                                             Enabled = false
+                                        },
+                                        new Button("Scrambled Button") {
+                                            Layout = { Layouts.Fill(1, 0) },
+                                            Init = el => el.GetChild<Label>().Modifiers.Add(new RandomLabelModifier()),
+                                            Callback = _ => ScrambledLabel!.Style.Add(StyleOpacity, Random.Shared.NextSingle())
                                         },
                                         new PathTest() {
                                             H = 200,
@@ -164,7 +188,7 @@ namespace Olympus {
 
             public PathTest() {
                 Cached = false;
-                Mesh = new BasicMesh(Game) {
+                Mesh = new BasicMesh(UI.Game) {
                     Texture = OlympUI.Assets.White
                 };
             }

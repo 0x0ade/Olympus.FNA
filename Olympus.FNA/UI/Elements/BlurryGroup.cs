@@ -164,7 +164,7 @@ namespace OlympUI {
                 }
             }
 
-            UIDraw.Recorder.Add(new UICmd.Blit(
+            DrawModifiable(new UICmd.Sprite(
                 display.RT,
                 DisplayBounds,
                 (xy.ToPoint() - padding.LT).WithSize(size),

@@ -31,7 +31,7 @@ namespace OlympUI {
 
         public Panel() {
             ClipExtend = 16;
-            BackgroundMesh = new(Game) {
+            BackgroundMesh = new(UI.Game) {
                 Texture = Assets.GradientQuadY
             };
         }
@@ -197,7 +197,7 @@ namespace OlympUI {
                     PrevContentsWH = contentsWH;
 
                     if (ContentsMesh is null) {
-                        ContentsMesh = new BasicMesh(Game);
+                        ContentsMesh = new BasicMesh(UI.Game);
                         ContentsMesh.Reload();
                     }
 

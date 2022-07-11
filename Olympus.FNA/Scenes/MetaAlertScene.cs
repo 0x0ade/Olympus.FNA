@@ -121,7 +121,7 @@ namespace Olympus {
 
             protected override void DrawCachedTexture(RenderTarget2DRegion rt, Vector2 xy, Padding padding, Point size) {
                 UIDraw.AddDependency(rt);
-                UIDraw.Recorder.Add(new UICmd.Blit(
+                DrawModifiable(new UICmd.Sprite(
                     rt.RT,
                     rt.Region.WithSize(size),
                     (xy.ToPoint() - padding.LT).WithSize(size),

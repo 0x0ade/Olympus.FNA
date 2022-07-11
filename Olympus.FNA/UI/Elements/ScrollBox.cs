@@ -221,7 +221,7 @@ namespace OlympUI {
         public ScrollHandle(ScrollAxis axis) {
             Cached = false;
             Interactive = InteractiveMode.Process;
-            Mesh = new BasicMesh(Game) {
+            Mesh = new BasicMesh(UI.Game) {
                 Texture = Assets.GradientQuadY
             };
 

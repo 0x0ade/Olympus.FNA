@@ -180,10 +180,14 @@ namespace OlympUI {
         public void GetCurrent<T>(out T value, [CallerArgumentExpression("value")] string? expr = null)
             => value = GetCurrent<T>(GetKeyFromCallerArgumentExpression(expr) ?? GetCommonKey(typeof(T)));
 #endif
+        public void GetCurrent<T>(KeyOrValue<T> keyOrValue, out T value)
+            => value = GetCurrent<T>(keyOrValue);
         public void GetCurrent<T>(Key key, out T value)
             => value = GetCurrent<T>(key);
         public T GetCurrent<T>()
             => GetCurrent<T>(GetCommonKey(typeof(T)));
+        public T GetCurrent<T>(KeyOrValue<T> keyOrValue)
+            => keyOrValue.HasValue ? keyOrValue.Value : GetCurrent<T>(keyOrValue.Key);
         public T GetCurrent<T>(Key key)
             => TryGetCurrent(key, out T? value) ? value : throw new Exception($"{(Element is null ? "Instance style for" : "Static style for")} \"{Type}\" doesn't define \"{key}\"");
 
@@ -657,6 +661,41 @@ namespace OlympUI {
 
             public override string ToString()
                 => Value ?? "";
+        }
+
+        public readonly struct KeyOrValue<TValue> {
+            internal readonly bool HasValue;
+
+            private readonly Key _Key;
+            internal readonly Key Key =>
+                HasValue ? throw new Exception("KeyOrValue has got a value, shouldn't get key") :
+                _Key;
+
+            private readonly TValue? _Value;
+            internal readonly TValue Value =>
+                !HasValue ? throw new Exception("KeyOrValue has got a key, shouldn't get value") :
+                _Value ?? throw new Exception("KeyOrValue with null value");
+
+            public KeyOrValue(Key key) {
+                HasValue = false;
+                _Key = key;
+                _Value = default;
+            }
+
+            public KeyOrValue(string key) {
+                HasValue = false;
+                _Key = new(key);
+                _Value = default;
+            }
+
+            public KeyOrValue(TValue value) {
+                HasValue = true;
+                _Key = default;
+                _Value = value;
+            }
+
+            public static implicit operator KeyOrValue<TValue>(Key key) => new(key);
+            public static implicit operator KeyOrValue<TValue>(TValue value) => new(value);
         }
 
         public sealed class KeyEqualityComparer : EqualityComparer<Key> {

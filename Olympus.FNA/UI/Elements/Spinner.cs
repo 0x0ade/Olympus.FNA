@@ -17,7 +17,7 @@ namespace OlympUI {
 
         public Spinner() {
             WH = new(24, 24);
-            Mesh = new BasicMesh(Game) {
+            Mesh = new BasicMesh(UI.Game) {
                 Texture = Assets.White
             };
         }

@@ -64,7 +64,7 @@ namespace OlympUI {
 
         public override void DrawContent() {
             Texture2D tex = Texture.Value;
-            UIDraw.Recorder.Add(new UICmd.Blit(
+            DrawModifiable(new UICmd.Sprite(
                 tex,
                 tex.Bounds,
                 ScreenXYWH,
