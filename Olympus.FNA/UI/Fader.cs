@@ -118,6 +118,8 @@ namespace OlympUI {
 
     public abstract class Fader<T> : IFader where T : struct {
 
+        public const float DefaultDuration = 0.2f;
+
         private List<Action<Fader<T>>> Links = new();
 
         public T Value;
@@ -132,7 +134,7 @@ namespace OlympUI {
         }
 
         public float Time = -1f;
-        public float Duration = 0.2f;
+        public float Duration = DefaultDuration;
 
         private T ValueFromPrev;
         private T ValueToPrev;

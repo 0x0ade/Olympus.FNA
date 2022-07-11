@@ -108,6 +108,8 @@ namespace OlympUI {
 
         private readonly ObservableCollection<Modifier> _Modifiers = new();
         private readonly List<Modifier> _ModifiersUpdate = new();
+        private readonly List<Modifier> _ModifiersUpdateAdd = new();
+        private readonly List<Modifier> _ModifiersUpdateRemove = new();
         private readonly List<Modifier> _ModifiersDraw = new();
         public ObservableCollection<Modifier> Modifiers {
             get => _Modifiers;
@@ -354,7 +356,7 @@ namespace OlympUI {
                     foreach (Modifier item in e.NewItems ?? throw new NullReferenceException("Modifier add didn't give new items")) {
                         item.Attach(this);
                         if (item.Meta.Update)
-                            _ModifiersUpdate.Add(item);
+                            _ModifiersUpdateAdd.Add(item);
                         if (item.Meta.ModifyDraw)
                             _ModifiersDraw.Add(item);
                     }
@@ -364,7 +366,7 @@ namespace OlympUI {
                     foreach (Modifier item in e.OldItems ?? throw new NullReferenceException("Modifier remove didn't give old items")) {
                         item.Detach(this);
                         if (item.Meta.Update)
-                            _ModifiersUpdate.Remove(item);
+                            _ModifiersUpdateRemove.Add(item);
                         if (item.Meta.ModifyDraw)
                             _ModifiersDraw.Remove(item);
                     }
@@ -374,7 +376,7 @@ namespace OlympUI {
                     foreach (Modifier item in sender as ObservableCollection<Modifier> ?? throw new NullReferenceException("Modifiers clear didn't give sender")) {
                         item.Detach(this);
                         if (item.Meta.Update)
-                            _ModifiersUpdate.Remove(item);
+                            _ModifiersUpdateRemove.Add(item);
                         if (item.Meta.ModifyDraw)
                             _ModifiersDraw.Remove(item);
                     }
@@ -547,9 +549,14 @@ namespace OlympUI {
         public virtual void Update(float dt) {
             Style.Update(dt);
 
-            if (_ModifiersUpdate.Count != 0)
+            UpdateModifiersUpdate();
+
+            if (_ModifiersUpdate.Count != 0) {
                 foreach (Modifier modifier in _ModifiersUpdate)
                     modifier.Update(dt);
+
+                UpdateModifiersUpdate();
+            }
         }
 
         public virtual void UpdateHidden(float dt) {
@@ -567,6 +574,16 @@ namespace OlympUI {
                     }
                 }
             }
+        }
+
+        private void UpdateModifiersUpdate() {
+            foreach (Modifier modifier in _ModifiersUpdateAdd)
+                _ModifiersUpdate.Add(modifier);
+            _ModifiersUpdateAdd.Clear();
+
+            foreach (Modifier modifier in _ModifiersUpdateRemove)
+                _ModifiersUpdate.Remove(modifier);
+            _ModifiersUpdateRemove.Clear();
         }
 
         #endregion

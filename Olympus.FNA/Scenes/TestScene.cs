@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using OlympUI;
+using OlympUI.Animations;
 using OlympUI.Modifiers;
 using Olympus.NativeImpls;
 using System;
@@ -147,6 +148,10 @@ namespace Olympus {
                                             Layout = { Layouts.Fill(1, 0) },
                                             Init = el => el.GetChild<Label>().Modifiers.Add(new RandomLabelModifier()),
                                             Callback = _ => ScrambledLabel!.Style.Add(StyleOpacity, Random.Shared.NextSingle())
+                                        },
+                                        new Button("Fancy Button") {
+                                            Layout = { Layouts.Fill(1, 0) },
+                                            Callback = el => el.Modifiers.Add(new SpinAnimation())
                                         },
                                         new PathTest() {
                                             H = 200,
