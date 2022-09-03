@@ -22,5 +22,9 @@ namespace OlympUI.Animations {
             cmd.Color *= 1f - Value;
         }
 
+        protected override void End() {
+            // Don't remove automatically.
+        }
+
     }
 }

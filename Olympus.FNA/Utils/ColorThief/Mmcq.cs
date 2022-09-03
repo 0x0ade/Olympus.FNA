@@ -99,48 +99,54 @@ namespace Olympus.ColorThief {
                     break;
             }
 
+            int cutIndex = (vboxDim2 - vboxDim1) / 2 + vboxDim1;
+
             for (int i = vboxDim1; i <= vboxDim2; i++) {
                 if (partialsum[i] > total / 2) {
-                    vbox1 = vbox.Clone();
-                    vbox2 = vbox.Clone();
-
-                    int left = i - vboxDim1;
-                    int right = vboxDim2 - i;
-
-                    int d2 =
-                        left <= right ? Math.Min(vboxDim2 - 1, Math.Abs(i + right / 2)) :
-                        Math.Max(vboxDim1, Math.Abs(Convert.ToInt32(i - 1 - left / 2.0)));
-
-                    // avoid 0-count boxes
-                    while (d2 < 0 || partialsum[d2] <= 0) {
-                        d2++;
-                    }
-                    int count2 = lookaheadsum[d2];
-                    while (count2 == 0 && d2 > 0 && partialsum[d2 - 1] > 0) {
-                        count2 = lookaheadsum[--d2];
-                    }
-
-                    // set dimensions
-                    switch (color) {
-                        case CutColor.R:
-                            vbox1.C2.R = (byte) d2;
-                            vbox2.C1.R = (byte) (d2 + 1);
-                            break;
-                        case CutColor.G:
-                            vbox1.C2.G = (byte) d2;
-                            vbox2.C1.G = (byte) (d2 + 1);
-                            break;
-                        default:
-                            vbox1.C2.B = (byte) d2;
-                            vbox2.C1.B = (byte) (d2 + 1);
-                            break;
-                    }
-
-                    return;
+                    cutIndex = i;
+                    break;
                 }
             }
 
-            throw new Exception("VBox can't be cut");
+            vbox1 = vbox.Clone();
+            vbox2 = vbox.Clone();
+
+            int left = cutIndex - vboxDim1;
+            int right = vboxDim2 - cutIndex;
+
+            int d2 =
+                left <= right ? Math.Min(vboxDim2 - 1, Math.Abs(cutIndex + right / 2)) :
+                Math.Max(vboxDim1, Math.Abs(Convert.ToInt32(cutIndex - 1 - left / 2.0)));
+
+            // avoid 0-count boxes
+            while (d2 < partialsum.Length && (d2 < 0 || partialsum[d2] <= 0)) {
+                d2++;
+            }
+
+            if (d2 == partialsum.Length) {
+                d2 = partialsum.Length / 2;
+            }
+
+            int count2 = lookaheadsum[d2];
+            while (count2 == 0 && d2 > 0 && partialsum[d2 - 1] > 0) {
+                count2 = lookaheadsum[--d2];
+            }
+
+            // set dimensions
+            switch (color) {
+                case CutColor.R:
+                    vbox1.C2.R = (byte) d2;
+                    vbox2.C1.R = (byte) (d2 + 1);
+                    break;
+                case CutColor.G:
+                    vbox1.C2.G = (byte) d2;
+                    vbox2.C1.G = (byte) (d2 + 1);
+                    break;
+                default:
+                    vbox1.C2.B = (byte) d2;
+                    vbox2.C1.B = (byte) (d2 + 1);
+                    break;
+            }
         }
 
         private static int MedianCutApply(IList<int> histo, VBox vbox, out VBox vbox1, out VBox vbox2) {

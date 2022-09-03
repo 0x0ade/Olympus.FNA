@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Threading;
 
 namespace Olympus {
@@ -104,6 +105,8 @@ namespace Olympus {
                 NativeImpl.Native.Run();
         }
 
+
+        [SuppressUnmanagedCodeSecurity]
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool AllocConsole();
 

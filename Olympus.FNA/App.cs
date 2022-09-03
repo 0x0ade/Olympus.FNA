@@ -16,6 +16,7 @@ namespace Olympus {
 #pragma warning disable CS8618 // Nullability is fun but can't see control flow.
         public static App Instance;
         public Web Web;
+        public IWebAPI WebAPI;
         public FinderManager FinderManager;
 #pragma warning restore CS8618
 
@@ -106,6 +107,8 @@ namespace Olympus {
             UI.MainThread = Thread.CurrentThread;
 
             Web = new(this);
+            // WebAPI = new ThunderstoreWebAPI(this, "enter-the-gungeon");
+            WebAPI = new CelesteWebAPI(this);
             FinderManager = new(this);
         }
 

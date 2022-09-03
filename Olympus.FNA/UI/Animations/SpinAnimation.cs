@@ -8,11 +8,8 @@ namespace OlympUI.Animations {
         }
 
         public override void ModifyDraw(ref UICmd.Sprite cmd) {
-            Vector2 offs = Element.ClipExtend.LT.ToVector2() + Element.WH.ToVector2() * 0.5f - cmd.Origin;
-            cmd.Position += offs;
-            cmd.Origin += offs;
-
-            cmd.Rotation = Value * MathF.PI * 2f;
+            Center(ref cmd);
+            cmd.Rotation += Value * MathF.PI * 2f;
         }
 
     }

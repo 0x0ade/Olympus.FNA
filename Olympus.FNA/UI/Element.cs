@@ -364,7 +364,7 @@ namespace OlympUI {
 
                 case NotifyCollectionChangedAction.Remove:
                     foreach (Modifier item in e.OldItems ?? throw new NullReferenceException("Modifier remove didn't give old items")) {
-                        item.Detach(this);
+                        item.Detach();
                         if (item.Meta.Update)
                             _ModifiersUpdateRemove.Add(item);
                         if (item.Meta.ModifyDraw)
@@ -374,7 +374,7 @@ namespace OlympUI {
 
                 case NotifyCollectionChangedAction.Reset:
                     foreach (Modifier item in sender as ObservableCollection<Modifier> ?? throw new NullReferenceException("Modifiers clear didn't give sender")) {
-                        item.Detach(this);
+                        item.Detach();
                         if (item.Meta.Update)
                             _ModifiersUpdateRemove.Add(item);
                         if (item.Meta.ModifyDraw)

@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using OlympUI;
+using OlympUI.Animations;
 using Olympus.ColorThief;
 using System;
 using System.Collections.Generic;
@@ -63,9 +64,9 @@ namespace Olympus {
                                         });
                                     });
 
-                                    Web.ModEntry[] mods;
+                                    IWebAPI.IEntry[] mods;
                                     try {
-                                        mods = await App.Web.GetFeaturedEntries();
+                                        mods = await App.WebAPI.GetFeaturedEntries();
                                     } catch (Exception e) {
                                         Console.WriteLine("Failed downloading featured entries:");
                                         Console.WriteLine(e);
@@ -120,7 +121,7 @@ namespace Olympus {
                                         return;
                                     }
 
-                                    int max = Math.Min(mods.Count(mod => mod.GameBananaType != "Tool"), 3);
+                                    int max = Math.Min(mods.Count(mod => mod.CanBeFeatured), 3);
 
                                     HashSet<int> randomized = new(max);
                                     int[] randomMap = new int[max];
@@ -130,7 +131,7 @@ namespace Olympus {
                                         int modi;
                                         do {
                                             modi = random.Next(mods.Length);
-                                        } while (!randomized.Add(modi) || mods[modi].GameBananaType == "Tool");
+                                        } while (!randomized.Add(modi) || !mods[modi].CanBeFeatured);
                                         randomMap[i] = modi;
                                     }
 
@@ -139,7 +140,7 @@ namespace Olympus {
                                     await UI.Run(() => {
                                         el.DisposeChildren();
                                         for (int i = 0; i < max; i++) {
-                                            Web.ModEntry mod = mods[randomMap[i]];
+                                            IWebAPI.IEntry mod = mods[randomMap[i]];
 
                                             panels[i] = el.Add(new Panel() {
                                                 ID = $"FeaturedMod:{i}",
@@ -147,6 +148,11 @@ namespace Olympus {
                                                 Layout = {
                                                     Layouts.Fill(1f / max, 1, i == 0 || i == max - 1 ? 8 / 2 : 8, 0),
                                                     Layouts.Move(8 * i, 0),
+                                                },
+                                                Modifiers = {
+                                                    new FadeInAnimation(0.09f).WithDelay(0.05f * i).With(Ease.SineInOut),
+                                                    new OffsetInAnimation(new Vector2(0f, 10f), 0.15f).WithDelay(0.05f * i).With(Ease.SineIn),
+                                                    new ScaleInAnimation(0.9f, 0.125f).WithDelay(0.05f * i).With(Ease.SineOut),
                                                 },
                                                 Children = {
                                                     new Group() {
@@ -180,7 +186,7 @@ namespace Olympus {
                                                                 ID = "Header",
                                                                 Wrap = true,
                                                             },
-                                                            new HeaderSmaller(mod.Description) {
+                                                            new HeaderSmaller(mod.ShortDescription) {
                                                                 ID = "Description",
                                                                 Wrap = true,
                                                             },
@@ -193,11 +199,11 @@ namespace Olympus {
 
                                     Task[] imageTasks = new Task[max];
                                     for (int i = 0; i < max; i++) {
-                                        Web.ModEntry mod = mods[randomMap[i]];
+                                        IWebAPI.IEntry mod = mods[randomMap[i]];
                                         Panel panel = panels[i];
 
                                         imageTasks[i] = Task.Run(async () => {
-                                            IReloadable<Texture2D, Texture2DMeta>? tex = await App.Web.GetTextureUnmipped(mod.Screenshots[0]);
+                                            IReloadable<Texture2D, Texture2DMeta>? tex = await App.Web.GetTextureUnmipped(mod.Images[0]);
                                             await UI.Run(() => {
                                                 Element imgs = panel["Images"];
                                                 Element tints = panel["Tints"];
@@ -209,7 +215,11 @@ namespace Olympus {
                                                 imgs.Add<Image>(new(tex) {
                                                     DisposeTexture = true,
                                                     Style = {
-                                                        Color.Transparent,
+                                                        { Color.White * 0.3f }
+                                                    },
+                                                    Modifiers = {
+                                                        new FadeInAnimation(0.6f).With(Ease.QuadOut),
+                                                        new ScaleInAnimation(1.05f, 0.5f).With(Ease.QuadOut)
                                                     },
                                                     Layout = {
                                                         ev => {
@@ -271,10 +281,6 @@ namespace Olympus {
                                                             fg.B / 255f * 0.3f
                                                         );
                                                     panel.Style.Add(Panel.StyleKeys.Background, colors[0].Color);
-                                                    foreach (Element child in imgs) {
-                                                        child.Style.Update(0f); // Force faders to be non-fresh.
-                                                        child.Style.Add(Color.White * 0.3f);
-                                                    }
                                                     foreach (Element child in tints) {
                                                         child.Style.Update(0f); // Force faders to be non-fresh.
                                                         child.Style.Add(bgs[bgi++ % bgs.Length] * (0.3f + bgi * 0.1f));

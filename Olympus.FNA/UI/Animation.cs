@@ -6,7 +6,7 @@ using System;
 namespace OlympUI {
     public abstract class Animation<TElement> : Modifier<TElement> where TElement : Element {
 
-        public const float DefaultDuration = 0.3f;
+        public const float DefaultDuration = 0.2f;
 
         public bool Loop;
 
@@ -51,18 +51,43 @@ namespace OlympUI {
                 if (Loop) {
                     _Time %= _Duration;
                 } else {
-                    Element.Modifiers.Remove(this);
+                    _Time = _Duration;
                 }
+
+                End();
             }
 
             UpdateValue();
+
+            if (Meta.ModifyDraw)
+                Element.InvalidatePaint();
         }
 
-        public virtual void UpdateValue(float value) {
+        protected virtual void UpdateValue(float value) {
+        }
+
+        protected virtual void End() {
+            if (!Loop)
+                Element.Modifiers.Remove(this);
         }
 
         private void UpdateValue()
             => UpdateValue(Value = _Easing(_Time / _Duration));
+
+        protected void Center(ref UICmd.Sprite cmd) {
+            Vector2 offs = new Vector2(cmd.Source.Width, cmd.Source.Height) * 0.5f - cmd.Origin;
+            cmd.Position += offs * cmd.Scale;
+            cmd.Origin += offs;
+        }
+
+    }
+
+    public static class AnimationExtensions {
+
+        public static Animation<TElement> With<TElement>(this Animation<TElement> animation, Ease.Easer easing) where TElement : Element {
+            animation.Easing = easing;
+            return animation;
+        }
 
     }
 }

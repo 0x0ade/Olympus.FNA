@@ -10,7 +10,7 @@ namespace OlympUI {
         private static readonly Dictionary<Type, Metadata> _Metadata = new();
 
         private Metadata? _Meta;
-        public Metadata Meta {
+        public virtual Metadata Meta {
             get {
                 if (_Meta is not null)
                     return _Meta;
@@ -32,7 +32,7 @@ namespace OlympUI {
         public virtual void Attach(Element elem) {
         }
 
-        public virtual void Detach(Element elem) {
+        public virtual void Detach() {
         }
 
         public virtual void Update(float dt) {
@@ -57,8 +57,8 @@ namespace OlympUI {
             _Element = elem as TElement ?? throw new Exception($"Modifier {GetType().Name} expects elements of type {typeof(TElement).Name}");
         }
 
-        public override void Detach(Element elem) {
-            _Element = null;
+        public override void Detach() {
+            // _Element = null;
         }
 
     }

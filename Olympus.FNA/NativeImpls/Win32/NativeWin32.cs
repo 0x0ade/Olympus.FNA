@@ -13,12 +13,14 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Olympus.NativeImpls {
+    [SuppressUnmanagedCodeSecurity]
     public unsafe partial class NativeWin32 : NativeImpl {
 
         static readonly IntPtr NULL = (IntPtr) 0;
@@ -48,6 +50,7 @@ namespace Olympus.NativeImpls {
         // Windows 11 introduces Mica for certain Win32 applications, which also suffer from the same lag.
         // Microsoft, please fix this. In the meantime, we can work around it, but why should we if Microsoft doesn't?
         // Update: Turns out some 22H2 insider build fixed it, finally?
+        // FIXME: Make sure to keep this enabled for old versions of Windows, f.e. Win10!
         static readonly bool FlickerAcrylicOnSelfMove = false;
 
         static bool IsOpenGL => FNAHooks.FNA3DDriver?.Equals("opengl", StringComparison.InvariantCultureIgnoreCase) ?? false;

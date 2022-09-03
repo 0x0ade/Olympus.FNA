@@ -10,7 +10,7 @@ namespace Olympus {
 
         private static readonly Style.Key StyleOpacity = new("Opacity");
 
-        private Label? ScrambledLabel;
+        private Label? BottomText;
 
         public override Element Generate()
             => new Group() {
@@ -118,7 +118,7 @@ namespace Olympus {
                                     },
                                     Children = {
                                         new Label("Test Label"),
-                                        (ScrambledLabel = new Label("jfshdagfgahjgafasfhsjska") {
+                                        (BottomText = new Label("jfshdagfgahjgafasfhsjska") {
                                             Style = {
                                                 { StyleOpacity, new FloatFader(0.5f) }
                                             },
@@ -147,7 +147,7 @@ namespace Olympus {
                                         new Button("Scrambled Button") {
                                             Layout = { Layouts.Fill(1, 0) },
                                             Init = el => el.GetChild<Label>().Modifiers.Add(new RandomLabelModifier()),
-                                            Callback = _ => ScrambledLabel!.Style.Add(StyleOpacity, Random.Shared.NextSingle())
+                                            Callback = _ => BottomText!.Style.Add(StyleOpacity, Random.Shared.NextSingle())
                                         },
                                         new Button("Fancy Button") {
                                             Layout = { Layouts.Fill(1, 0) },
