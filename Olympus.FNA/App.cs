@@ -91,6 +91,21 @@ namespace Olympus {
             Graphics.PreferredBackBufferHeight = 600;
             SDL.SDL_SetWindowMinimumSize(Window.Handle, 800, 600);
 
+            Graphics.PreparingDeviceSettings += (s, e) => {
+                GraphicsDeviceInformation gdi = e.GraphicsDeviceInformation;
+
+                if (EnvFlags.IsFullscreen) {
+                    DisplayMode dm = gdi.Adapter.CurrentDisplayMode;
+
+                    Graphics.IsFullScreen = true;
+
+                    Graphics.PreferredBackBufferWidth = dm.Width;
+                    Graphics.PreferredBackBufferHeight = dm.Height;
+                    gdi.PresentationParameters.BackBufferWidth = dm.Width;
+                    gdi.PresentationParameters.BackBufferHeight = dm.Height;
+                }
+            };
+
 #if DEBUG
             Window.Title = "Olympus.FNA (DEBUG)";
 #else
@@ -191,6 +206,20 @@ namespace Olympus {
 
             IsFixedTimeStep = !Native.IsActive;
 
+            if (EnvFlags.IsFullscreen) {
+                DisplayMode dm = Graphics.GraphicsDevice.Adapter.CurrentDisplayMode;
+
+                if (!Graphics.IsFullScreen || Graphics.PreferredBackBufferWidth != dm.Width || Graphics.PreferredBackBufferHeight != dm.Height) {
+                    Graphics.IsFullScreen = true;
+
+                    Graphics.PreferredBackBufferWidth = dm.Width;
+                    Graphics.PreferredBackBufferHeight = dm.Height;
+                    Graphics.GraphicsDevice.PresentationParameters.BackBufferWidth = dm.Width;
+                    Graphics.GraphicsDevice.PresentationParameters.BackBufferHeight = dm.Height;
+                    GraphicsDevice.Reset(Graphics.GraphicsDevice.PresentationParameters);
+                }
+            }
+
             if (Graphics.SynchronizeWithVerticalRetrace && !VSync) {
                 Graphics.SynchronizeWithVerticalRetrace = false;
                 Graphics.GraphicsDevice.PresentationParameters.PresentationInterval = PresentInterval.Immediate;
@@ -240,7 +269,14 @@ namespace Olympus {
             CountingFramesWatchLast = GlobalWatch.ElapsedTicks;
             float dt = gameTime.GetDeltaTime();
 
-            Rectangle clientBounds = Window.ClientBounds;
+            Rectangle clientBounds;
+
+            if (Graphics.IsFullScreen) {
+                DisplayMode dm = Graphics.GraphicsDevice.Adapter.CurrentDisplayMode;
+                clientBounds = new(0, 0, dm.Width, dm.Height);
+            } else {
+                clientBounds = Window.ClientBounds;
+            }
 
             Resizing &= PrevClientBounds != clientBounds && PrevClientBounds != default;
             if (PrevClientBounds != clientBounds) {

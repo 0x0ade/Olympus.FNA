@@ -32,7 +32,7 @@ namespace Olympus.NativeImpls {
         public override bool ReduceBackBufferResizes => false;
 
         public override Padding Padding => default;
-        public override ClientSideDecorationMode ClientSideDecoration => ClientSideDecorationMode.None;
+        public override ClientSideDecorationMode ClientSideDecoration => EnvFlags.UserCSD ?? ClientSideDecorationMode.None;
 
         public override bool IsMultiThreadInit => false;
 

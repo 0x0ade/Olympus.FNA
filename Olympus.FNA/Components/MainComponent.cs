@@ -25,6 +25,7 @@ namespace Olympus {
             UI.Initialize(App, Native, App);
             UI.Root.Children.Add(Scener.Get<MetaMainScene>().Generate());
             UI.Root.Children.Add(Scener.Get<MetaAlertScene>().Generate());
+            UI.Root.Children.Add(Scener.Get<MetaDebugScene>().Generate());
             UI.Root.Children.Add(DebugLabel = new Label("") {
                 Style = {
                     Color.Red,

@@ -5,7 +5,6 @@ using System;
 namespace Olympus {
     public static class JsonHelper {
 
-
         public static readonly JsonSerializer Serializer = new() {
             Formatting = Formatting.Indented
         };
